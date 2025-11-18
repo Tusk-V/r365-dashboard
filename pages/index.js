@@ -205,19 +205,19 @@ export default function Home() {
       <div className="bg-slate-800 border-b border-blue-600 shadow-lg">
         <div className="max-w-7xl mx-auto px-3 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
               <img 
                 src="https://i.imgur.com/kkJMVz0.png" 
                 alt="Andy's Frozen Custard" 
-                className="h-12 w-auto object-contain"
+                className="h-8 md:h-12 w-auto object-contain"
                 onError={(e) => {e.target.style.display='none'}}
               />
               <div>
-                <h1 className="text-xl md:text-2xl font-bold text-white">Weekly Sales and Labor</h1>
-                <p className="text-slate-400 text-xs mt-1">
+                <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white">Weekly Sales and Labor</h1>
+                <p className="text-slate-400 text-xs mt-0.5 md:mt-1">
                   Week Ending: {reportDate}
                   {lastUpdated && (
-                    <span className="ml-2">
+                    <span className="ml-2 hidden sm:inline">
                       • Updated: {lastUpdated.toLocaleTimeString()}
                     </span>
                   )}
@@ -227,7 +227,7 @@ export default function Home() {
             <button
               onClick={loadDataFromGoogleSheets}
               disabled={isLoading}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded-lg cursor-pointer transition-colors"
+              className="inline-flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded-lg cursor-pointer transition-colors text-xs md:text-sm"
             >
               <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
               <span className="text-xs font-medium">
@@ -251,76 +251,76 @@ export default function Home() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg text-center">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <DollarSign className="text-green-400" size={16} />
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3 mb-3">
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+                <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                  <DollarSign className="text-green-400" size={14} />
                   <p className="text-slate-400 text-xs font-medium">Actual Sales</p>
                 </div>
-                <p className="text-lg font-bold text-white">
+                <p className="text-sm md:text-lg font-bold text-white">
                   ${totals.totalActualSales.toLocaleString(undefined, {maximumFractionDigits: 0})}
                 </p>
               </div>
 
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg text-center">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <Target className="text-blue-400" size={16} />
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+                <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                  <Target className="text-blue-400" size={14} />
                   <p className="text-slate-400 text-xs font-medium">Forecast</p>
                 </div>
-                <p className="text-lg font-bold text-white">
+                <p className="text-sm md:text-lg font-bold text-white">
                   ${totals.totalForecastSales.toLocaleString(undefined, {maximumFractionDigits: 0})}
                 </p>
               </div>
 
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg text-center">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <TrendingUp className="text-purple-400" size={16} />
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+                <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                  <TrendingUp className="text-purple-400" size={14} />
                   <p className="text-slate-400 text-xs font-medium">Prior Year</p>
                 </div>
-                <p className="text-lg font-bold text-white">
+                <p className="text-sm md:text-lg font-bold text-white">
                   ${totals.totalPYSales.toLocaleString(undefined, {maximumFractionDigits: 0})}
                 </p>
               </div>
 
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg text-center">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <Users className="text-orange-400" size={16} />
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+                <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                  <Users className="text-orange-400" size={14} />
                   <p className="text-slate-400 text-xs font-medium">Labor %</p>
                 </div>
-                <p className="text-lg font-bold text-white">
+                <p className="text-sm md:text-lg font-bold text-white">
                   {totals.avgLaborPercent.toFixed(1)}%
                 </p>
               </div>
 
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg text-center">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <Clock className="text-yellow-400" size={16} />
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+                <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                  <Clock className="text-yellow-400" size={14} />
                   <p className="text-slate-400 text-xs font-medium">Act vs Opt</p>
                 </div>
-                <p className="text-lg font-bold text-white">
+                <p className="text-sm md:text-lg font-bold text-white">
                   {(totals.totalActualHours - totals.totalOptimalHours) > 0 ? '+' : ''}
                   {(totals.totalActualHours - totals.totalOptimalHours).toFixed(1)} hrs
                 </p>
               </div>
 
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg text-center">
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <Activity className="text-cyan-400" size={16} />
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+                <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                  <Activity className="text-cyan-400" size={14} />
                   <p className="text-slate-400 text-xs font-medium">Productivity</p>
                 </div>
-                <p className="text-lg font-bold text-white">
+                <p className="text-sm md:text-lg font-bold text-white">
                   ${totals.avgProductivity.toFixed(2)}
                 </p>
               </div>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-4 shadow-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <Filter size={16} className="text-slate-400" />
-                <h3 className="text-sm font-semibold text-white">Filters</h3>
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg">
+              <div className="flex items-center gap-2 mb-2 md:mb-3">
+                <Filter size={14} className="text-slate-400" />
+                <h3 className="text-xs md:text-sm font-semibold text-white">Filters</h3>
               </div>
               
-              <div className="flex gap-3 items-end">
+              <div className="flex flex-col md:flex-row gap-2 md:gap-3 items-stretch md:items-end">
                 <div className="relative flex-1">
                   <label className="block text-xs font-medium text-slate-400 mb-1">
                     Locations ({filters.locations.length > 0 ? filters.locations.length : 'All'})
@@ -394,32 +394,32 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
               {filteredLocations.map((loc, idx) => (
-                <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-base font-bold text-white">{loc.location}</h3>
+                <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                  <div className="flex items-start justify-between mb-2 md:mb-3">
+                    <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
                     {loc.laborPercent > 35 && (
-                      <AlertTriangle className="text-orange-400 flex-shrink-0" size={16} />
+                      <AlertTriangle className="text-orange-400 flex-shrink-0" size={14} />
                     )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-slate-900 rounded-lg p-2">
-                      <p className="text-slate-400 text-xs font-semibold mb-2">SALES</p>
-                      <div className="space-y-1">
+                  <div className="grid grid-cols-3 gap-1.5 md:gap-2">
+                    <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                      <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">SALES</p>
+                      <div className="space-y-0.5 md:space-y-1">
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500 text-xs">Actual</span>
-                          <span className="text-white font-bold text-xs">${loc.actualSales.toFixed(2)}</span>
+                          <span className="text-white font-bold text-xs">${loc.actualSales.toFixed(0)}</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500 text-xs">Forecast</span>
                           <span className={`font-semibold text-xs ${loc.salesVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {loc.salesVariance >= 0 ? '+' : ''}${loc.salesVariance.toFixed(2)}
+                            {loc.salesVariance >= 0 ? '+' : ''}${loc.salesVariance.toFixed(0)}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-slate-500 text-xs">Prior Year</span>
+                          <span className="text-slate-500 text-xs">Prior Yr</span>
                           <span className={`font-semibold text-xs ${loc.pyVariancePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {loc.pyVariancePercent >= 0 ? '+' : ''}{loc.pyVariancePercent.toFixed(1)}%
                           </span>
@@ -427,13 +427,13 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="bg-slate-900 rounded-lg p-2">
-                      <p className="text-slate-400 text-xs font-semibold mb-2">LABOR</p>
-                      <div className="space-y-1">
+                    <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                      <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">LABOR</p>
+                      <div className="space-y-0.5 md:space-y-1">
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500 text-xs">Labor %</span>
                           <span className={`font-bold text-xs ${loc.laborPercent > 35 ? 'text-orange-400' : 'text-green-400'}`}>
-                            {loc.laborPercent.toFixed(2)}%
+                            {loc.laborPercent.toFixed(1)}%
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
@@ -442,14 +442,14 @@ export default function Home() {
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500 text-xs">Prod</span>
-                          <span className="text-green-400 font-bold text-xs">${loc.productivity.toFixed(2)}</span>
+                          <span className="text-green-400 font-bold text-xs">${loc.productivity.toFixed(0)}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-slate-900 rounded-lg p-2">
-                      <p className="text-slate-400 text-xs font-semibold mb-2">HOURS</p>
-                      <div className="space-y-1">
+                    <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                      <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">HOURS</p>
+                      <div className="space-y-0.5 md:space-y-1">
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500 text-xs">Act/Opt</span>
                           <span className={`font-semibold text-xs ${loc.actVsOptHours > 0 ? 'text-red-400' : 'text-green-400'}`}>
@@ -459,7 +459,7 @@ export default function Home() {
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500 text-xs">Sch/For</span>
                           <span className={`font-semibold text-xs ${loc.schVsForLaborVar > 0 ? 'text-orange-400' : 'text-green-400'}`}>
-                            {loc.schVsForLaborVar > 0 ? '+' : ''}{loc.schVsForLaborVar.toFixed(2)}
+                            {loc.schVsForLaborVar > 0 ? '+' : ''}{loc.schVsForLaborVar.toFixed(1)}
                           </span>
                         </div>
                       </div>
