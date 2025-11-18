@@ -20,6 +20,23 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState(null);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (isLocationDropdownOpen) {
+        setIsLocationDropdownOpen(false);
+      }
+    };
+    
+    if (isLocationDropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [isLocationDropdownOpen]);
+
   useEffect(() => {
     loadDataFromGoogleSheets();
     const interval = setInterval(loadDataFromGoogleSheets, 5 * 60 * 1000);
@@ -73,18 +90,34 @@ export default function Home() {
   const parseSheetData = (rows) => {
     const parsedData = [];
     
+    // Helper function to clean and parse numbers
+    const parseNumber = (value) => {
+      if (!value) return 0;
+      // Remove commas, dollar signs, and spaces
+      const cleaned = value.toString().replace(/[$,\s]/g, '');
+      return parseFloat(cleaned) || 0;
+    };
+    
+    // Helper function to parse percentages
+    const parsePercentage = (value) => {
+      if (!value) return 0;
+      // Remove % sign and commas, keep as percentage (already multiplied by 100)
+      const cleaned = value.toString().replace(/[%,\s]/g, '');
+      return parseFloat(cleaned) || 0;
+    };
+    
     for (const row of rows) {
       if (row.length >= 11 && row[0]) {
         parsedData.push({
           location: row[0],
-          actualSales: parseFloat(row[1]) || 0,
-          forecastSales: parseFloat(row[2]) || 0,
-          salesVariance: parseFloat(row[3]) || 0,
-          priorYearSales: parseFloat(row[4]) || 0,
-          laborPercent: parseFloat(row[5]) * 100 || 0,
-          optimalLaborHours: parseFloat(row[6]) || 0,
-          actualLaborHours: parseFloat(row[7]) || 0,
-          schVsForLaborVar: parseFloat(row[9]) || 0,
+          actualSales: parseNumber(row[1]),
+          forecastSales: parseNumber(row[2]),
+          salesVariance: parseNumber(row[3]),
+          priorYearSales: parseNumber(row[4]),
+          laborPercent: parsePercentage(row[5]), // Already in percentage format
+          optimalLaborHours: parseNumber(row[6]),
+          actualLaborHours: parseNumber(row[7]),
+          schVsForLaborVar: parseNumber(row[9]),
           reportDate: row[10] || ''
         });
       }
@@ -293,14 +326,20 @@ export default function Home() {
                     Locations ({filters.locations.length > 0 ? filters.locations.length : 'All'})
                   </label>
                   <button
-                    onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsLocationDropdownOpen(!isLocationDropdownOpen);
+                    }}
                     className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex justify-between items-center"
                   >
                     <span>{filters.locations.length === 0 ? 'All Locations' : `${filters.locations.length} selected`}</span>
                     <span className="text-slate-400">▼</span>
                   </button>
                   {isLocationDropdownOpen && (
-                    <div className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg max-h-64 overflow-y-auto">
+                    <div 
+                      className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg max-h-64 overflow-y-auto"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
                         <input
                           type="checkbox"
