@@ -568,7 +568,7 @@ export default function Home() {
                       <DollarSign className="text-green-400" size={14} />
                       <p className="text-slate-400 text-xs font-medium">Actual Sales</p>
                     </div>
-                    <p className="text-sm md:text-lg font-bold text-white">${totals.totalSales.toFixed(0)}</p>
+                    <p className="text-sm md:text-lg font-bold text-white">${totals.totalSales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
                   </div>
 
                   <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
@@ -576,7 +576,7 @@ export default function Home() {
                       <Target className="text-blue-400" size={14} />
                       <p className="text-slate-400 text-xs font-medium">Forecast</p>
                     </div>
-                    <p className="text-sm md:text-lg font-bold text-white">${totals.totalForecast.toFixed(0)}</p>
+                    <p className="text-sm md:text-lg font-bold text-white">${totals.totalForecast.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
                   </div>
 
                   <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
@@ -584,7 +584,7 @@ export default function Home() {
                       <TrendingUp className="text-purple-400" size={14} />
                       <p className="text-slate-400 text-xs font-medium">Prior Year</p>
                     </div>
-                    <p className="text-sm md:text-lg font-bold text-white">${totals.totalPriorYear.toFixed(0)}</p>
+                    <p className="text-sm md:text-lg font-bold text-white">${totals.totalPriorYear.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
                   </div>
 
                   <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
@@ -712,12 +712,12 @@ export default function Home() {
                           <div className="space-y-0.5 md:space-y-1">
                             <div className="flex justify-between items-center">
                               <span className="text-slate-500 text-xs">Actual</span>
-                              <span className="text-white font-bold text-xs">${loc.actualSales.toFixed(0)}</span>
+                              <span className="text-white font-bold text-xs">${loc.actualSales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-slate-500 text-xs">Forecast</span>
                               <span className={`font-semibold text-xs ${loc.salesVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {loc.salesVariance >= 0 ? '+' : ''}${loc.salesVariance.toFixed(0)}
+                                {loc.salesVariance >= 0 ? '+' : ''}${Math.abs(loc.salesVariance).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
@@ -744,7 +744,7 @@ export default function Home() {
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-slate-500 text-xs">Prod</span>
-                              <span className="text-white font-bold text-xs">${loc.productivity.toFixed(0)}</span>
+                              <span className="text-white font-bold text-xs">${loc.productivity.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
                             </div>
                           </div>
                         </div>
