@@ -349,14 +349,13 @@ export default function Home() {
               />
               <div>
                 <h1 className="text-base md:text-xl lg:text-2xl font-bold text-white">Weekly Sales and Labor</h1>
-                <p className="text-slate-400 text-xs mt-0.5 md:mt-1">
-                  Week Ending: {reportDate}
-                  {lastUpdated && (
-                    <span className="ml-2 hidden sm:inline">
-                      • Updated: {lastUpdated.toLocaleTimeString()}
+                {lastUpdated && (
+                  <p className="text-slate-400 text-xs mt-0.5 md:mt-1">
+                    <span className="hidden sm:inline">
+                      Updated: {lastUpdated.toLocaleTimeString()}
                     </span>
-                  )}
-                </p>
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -660,4 +659,3 @@ export default function Home() {
     </div>
   );
 }
-
