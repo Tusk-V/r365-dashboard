@@ -611,7 +611,7 @@ export default function Home() {
                       <div className="space-y-0.5 md:space-y-1">
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500 text-xs">Labor %</span>
-                          <span className={`font-bold text-xs ${loc.laborPercent > 35 ? 'text-orange-400' : 'text-green-400'}`}>
+                          <span className="font-bold text-xs text-white">
                             {loc.laborPercent.toFixed(1)}%
                           </span>
                         </div>
@@ -621,7 +621,7 @@ export default function Home() {
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500 text-xs">Prod</span>
-                          <span className="text-green-400 font-bold text-xs">${loc.productivity.toFixed(0)}</span>
+                          <span className="text-white font-bold text-xs">${loc.productivity.toFixed(0)}</span>
                         </div>
                       </div>
                     </div>
