@@ -9,12 +9,15 @@ const SHEET_NAME = 'Sheet1';
 export default function Home() {
   const [locations, setLocations] = useState([]);
   const [filteredLocations, setFilteredLocations] = useState([]);
+  const [availableWeeks, setAvailableWeeks] = useState([]);
+  const [selectedWeek, setSelectedWeek] = useState('current');
   const [filters, setFilters] = useState({
     locations: [],
     actVsOptVariance: 'all',
     salesVariance: 'all'
   });
   const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
+  const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [reportDate, setReportDate] = useState('Loading...');
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -26,22 +29,38 @@ export default function Home() {
       if (isLocationDropdownOpen) {
         setIsLocationDropdownOpen(false);
       }
+      if (isWeekDropdownOpen) {
+        setIsWeekDropdownOpen(false);
+      }
     };
     
-    if (isLocationDropdownOpen) {
+    if (isLocationDropdownOpen || isWeekDropdownOpen) {
       document.addEventListener('click', handleClickOutside);
     }
     
     return () => {
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [isLocationDropdownOpen]);
+  }, [isLocationDropdownOpen, isWeekDropdownOpen]);
 
   useEffect(() => {
     loadDataFromGoogleSheets();
-    const interval = setInterval(loadDataFromGoogleSheets, 5 * 60 * 1000);
+    loadAvailableWeeks();
+    const interval = setInterval(() => {
+      if (selectedWeek === 'current') {
+        loadDataFromGoogleSheets();
+      }
+    }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (selectedWeek === 'current') {
+      loadDataFromGoogleSheets();
+    } else {
+      loadHistoricalWeek(selectedWeek);
+    }
+  }, [selectedWeek]);
 
   useEffect(() => {
     applyFilters();
@@ -52,7 +71,7 @@ export default function Home() {
     setError(null);
     
     try {
-      const range = `${SHEET_NAME}!A2:K`;
+      const range = `${SHEET_NAME}!A2:P`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
       
       const response = await fetch(url);
@@ -81,6 +100,64 @@ export default function Home() {
       }
     } catch (err) {
       console.error('Error loading data:', err);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadAvailableWeeks = async () => {
+    try {
+      const range = `Historical Data!A2:A`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      if (!response.ok) return;
+      
+      const data = await response.json();
+      if (!data.values || data.values.length === 0) return;
+      
+      // Get unique week dates
+      const uniqueWeeks = [...new Set(data.values.flat())].sort((a, b) => new Date(b) - new Date(a));
+      setAvailableWeeks(uniqueWeeks);
+    } catch (err) {
+      console.error('Error loading available weeks:', err);
+    }
+  };
+
+  const loadHistoricalWeek = async (weekDate) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const range = `Historical Data!A2:K`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error('Failed to load historical data');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        throw new Error('No historical data found');
+      }
+      
+      // Filter for selected week
+      const weekData = data.values.filter(row => row[0] === weekDate);
+      
+      if (weekData.length === 0) {
+        throw new Error('No data for selected week');
+      }
+      
+      const parsedData = parseHistoricalData(weekData);
+      setLocations(parsedData);
+      setReportDate(weekDate);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Error loading historical week:', err);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -117,8 +194,45 @@ export default function Home() {
           laborPercent: parsePercentage(row[5]), // Already in percentage format
           optimalLaborHours: parseNumber(row[6]),
           actualLaborHours: parseNumber(row[7]),
+          scheduledLaborHours: parseNumber(row[15]), // Column P - Sch Labor Hrs
           schVsForLaborVar: parseNumber(row[9]),
           reportDate: row[10] || ''
+        });
+      }
+    }
+    
+    return parsedData;
+  };
+
+  const parseHistoricalData = (rows) => {
+    const parsedData = [];
+    
+    const parseNumber = (value) => {
+      if (!value) return 0;
+      const cleaned = value.toString().replace(/[$,\s]/g, '');
+      return parseFloat(cleaned) || 0;
+    };
+    
+    const parsePercentage = (value) => {
+      if (!value) return 0;
+      const cleaned = value.toString().replace(/[%,\s]/g, '');
+      return parseFloat(cleaned) || 0;
+    };
+    
+    for (const row of rows) {
+      if (row.length >= 11 && row[1]) { // row[1] is location (row[0] is week date)
+        parsedData.push({
+          location: row[1],
+          actualSales: parseNumber(row[2]),
+          forecastSales: parseNumber(row[3]),
+          salesVariance: parseNumber(row[4]),
+          priorYearSales: parseNumber(row[5]),
+          laborPercent: parsePercentage(row[6]),
+          optimalLaborHours: parseNumber(row[7]),
+          actualLaborHours: parseNumber(row[8]),
+          scheduledLaborHours: parseNumber(row[9]),
+          schVsForLaborVar: parseNumber(row[10]),
+          reportDate: row[0] || ''
         });
       }
     }
@@ -133,6 +247,7 @@ export default function Home() {
       const laborCost = loc.actualSales * (loc.laborPercent / 100);
       const pyVariancePercent = ((loc.actualSales - loc.priorYearSales) / loc.priorYearSales) * 100;
       const actVsOptHours = loc.actualLaborHours - loc.optimalLaborHours;
+      const actVsSchHours = loc.actualLaborHours - loc.scheduledLaborHours;
 
       return {
         ...loc,
@@ -140,7 +255,8 @@ export default function Home() {
         laborCostPerHour,
         laborCost,
         pyVariancePercent,
-        actVsOptHours
+        actVsOptHours,
+        actVsSchHours
       };
     });
 
@@ -200,6 +316,12 @@ export default function Home() {
 
   const totals = calculateTotals();
 
+  const getWeekLabel = (weekDate) => {
+    const index = availableWeeks.indexOf(weekDate);
+    if (index === 0) return 'Last Week';
+    return `${index + 1} Weeks Ago`;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       <div className="bg-slate-800 border-b border-blue-600 shadow-lg">
@@ -224,16 +346,61 @@ export default function Home() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={loadDataFromGoogleSheets}
-              disabled={isLoading}
-              className="inline-flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded-lg cursor-pointer transition-colors text-xs md:text-sm"
-            >
-              <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-              <span className="text-xs font-medium">
-                {isLoading ? 'Refreshing...' : 'Refresh Data'}
-              </span>
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Week Selector Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsWeekDropdownOpen(!isWeekDropdownOpen);
+                  }}
+                  className="inline-flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg cursor-pointer transition-colors text-xs md:text-sm"
+                >
+                  <span>{selectedWeek === 'current' ? 'Current Week' : getWeekLabel(selectedWeek)}</span>
+                  <span className="text-slate-400">▼</span>
+                </button>
+                {isWeekDropdownOpen && (
+                  <div 
+                    className="absolute right-0 z-20 mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg max-h-64 overflow-y-auto min-w-[180px]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={() => {
+                        setSelectedWeek('current');
+                        setIsWeekDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-600 ${selectedWeek === 'current' ? 'bg-slate-600 text-white font-semibold' : 'text-slate-300'}`}
+                    >
+                      Current Week
+                    </button>
+                    {availableWeeks.map((week, index) => (
+                      <button
+                        key={week}
+                        onClick={() => {
+                          setSelectedWeek(week);
+                          setIsWeekDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-600 ${selectedWeek === week ? 'bg-slate-600 text-white font-semibold' : 'text-slate-300'}`}
+                      >
+                        {index === 0 ? 'Last Week' : `${index + 1} Weeks Ago`} - {week}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* Refresh Button */}
+              <button
+                onClick={selectedWeek === 'current' ? loadDataFromGoogleSheets : () => loadHistoricalWeek(selectedWeek)}
+                disabled={isLoading}
+                className="inline-flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded-lg cursor-pointer transition-colors text-xs md:text-sm"
+              >
+                <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+                <span className="hidden md:inline font-medium">
+                  {isLoading ? 'Refreshing...' : 'Refresh Data'}
+                </span>
+              </button>
+            </div>
           </div>
           {error && (
             <div className="mt-2 px-3 py-2 bg-red-900 border border-red-700 rounded text-red-200 text-sm">
@@ -451,15 +618,21 @@ export default function Home() {
                       <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">HOURS</p>
                       <div className="space-y-0.5 md:space-y-1">
                         <div className="flex justify-between items-center">
-                          <span className="text-slate-500 text-xs">Act/Opt</span>
-                          <span className={`font-semibold text-xs ${loc.actVsOptHours > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                            {loc.actVsOptHours > 0 ? '+' : ''}{loc.actVsOptHours.toFixed(1)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
                           <span className="text-slate-500 text-xs">Sch/For</span>
                           <span className={`font-semibold text-xs ${loc.schVsForLaborVar > 0 ? 'text-orange-400' : 'text-green-400'}`}>
                             {loc.schVsForLaborVar > 0 ? '+' : ''}{loc.schVsForLaborVar.toFixed(1)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 text-xs">Act/Sch</span>
+                          <span className={`font-semibold text-xs ${loc.actVsSchHours > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                            {loc.actVsSchHours > 0 ? '+' : ''}{loc.actVsSchHours.toFixed(1)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 text-xs">Act/Opt</span>
+                          <span className={`font-semibold text-xs ${loc.actVsOptHours > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                            {loc.actVsOptHours > 0 ? '+' : ''}{loc.actVsOptHours.toFixed(1)}
                           </span>
                         </div>
                       </div>
