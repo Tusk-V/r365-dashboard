@@ -445,7 +445,7 @@ export default function Home() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
             <div className="flex items-center gap-3 flex-1">
               <img 
-                src="https://www.eatandys.com/assets/images/logo.png" 
+                src="https://i.imgur.com/kkJMVz0.png" 
                 alt="Andy's Frozen Custard" 
                 className="h-12 md:h-16"
               />
