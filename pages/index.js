@@ -803,15 +803,17 @@ export default function Home() {
             ) : (
               <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
                 {/* Header */}
-                <div className="grid grid-cols-2 gap-4 p-4 border-b border-slate-700 bg-slate-900">
-                  <div className="text-slate-400 text-sm font-semibold">Employee</div>
+                <div className="grid grid-cols-3 gap-4 p-4 border-b border-slate-700 bg-slate-900">
+                  <div className="text-slate-400 text-sm font-semibold">Date</div>
+                  <div className="text-slate-400 text-sm font-semibold">Name</div>
                   <div className="text-slate-400 text-sm font-semibold">Location</div>
                 </div>
                 
                 {/* List */}
                 <div className="divide-y divide-slate-700">
                   {filteredClockouts.map((clockout, idx) => (
-                    <div key={idx} className="grid grid-cols-2 gap-4 p-4 hover:bg-slate-750 transition-colors">
+                    <div key={idx} className="grid grid-cols-3 gap-4 p-4 hover:bg-slate-750 transition-colors">
+                      <div className="text-slate-300">{clockout.reportDate}</div>
                       <div className="text-white font-medium">{clockout.employee}</div>
                       <div className="text-slate-300">{clockout.location}</div>
                     </div>
