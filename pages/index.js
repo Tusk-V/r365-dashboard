@@ -71,7 +71,7 @@ export default function Home() {
     setError(null);
     
     try {
-      const range = `${SHEET_NAME}!A2:P`;
+      const range = `${SHEET_NAME}!A2:Z`; // Get all columns now
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
       
       const response = await fetch(url);
@@ -183,20 +183,33 @@ export default function Home() {
       return parseFloat(cleaned) || 0;
     };
     
+    // Column mapping based on Excel structure:
+    // A: Location Name
+    // H: Total Act Net Sales
+    // G: For Net Sales
+    // I: For v Act Sales Var
+    // J: PYSales
+    // K: Labor Percent
+    // M: Opt Labor Hrs
+    // N: Act Labor Hrs
+    // P: Sch Labor Hrs
+    // S: Sch v For Labor Var
+    // (Assuming row has date somewhere - need to find)
+    
     for (const row of rows) {
-      if (row.length >= 11 && row[0]) {
+      if (row.length >= 16 && row[0]) { // Row 0 is Location
         parsedData.push({
-          location: row[0],
-          actualSales: parseNumber(row[1]),
-          forecastSales: parseNumber(row[2]),
-          salesVariance: parseNumber(row[3]),
-          priorYearSales: parseNumber(row[4]),
-          laborPercent: parsePercentage(row[5]), // Already in percentage format
-          optimalLaborHours: parseNumber(row[6]),
-          actualLaborHours: parseNumber(row[7]),
-          scheduledLaborHours: parseNumber(row[15]), // Column P - Sch Labor Hrs
-          schVsForLaborVar: parseNumber(row[9]),
-          reportDate: row[10] || ''
+          location: row[0],                    // A: Location Name
+          actualSales: parseNumber(row[7]),    // H: Total Act Net Sales
+          forecastSales: parseNumber(row[6]),  // G: For Net Sales
+          salesVariance: parseNumber(row[8]),  // I: For v Act Sales Var
+          priorYearSales: parseNumber(row[9]), // J: PYSales
+          laborPercent: parsePercentage(row[10]), // K: Labor Percent
+          optimalLaborHours: parseNumber(row[12]), // M: Opt Labor Hrs
+          actualLaborHours: parseNumber(row[13]),  // N: Act Labor Hrs
+          scheduledLaborHours: parseNumber(row[15]), // P: Sch Labor Hrs
+          schVsForLaborVar: parseNumber(row[18]),    // S: Sch v For Labor Var
+          reportDate: row[row.length - 1] || '' // Last column might be date
         });
       }
     }
@@ -647,3 +660,4 @@ export default function Home() {
     </div>
   );
 }
+
