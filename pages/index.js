@@ -443,11 +443,18 @@ export default function Home() {
         {/* Header */}
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 md:mb-4 shadow-2xl">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-            <div className="flex-1">
-              <h1 className="text-xl md:text-2xl font-bold text-white mb-1">R365 Dashboards</h1>
-              <p className="text-xs md:text-sm text-slate-400">
-                {activeTab === 'sales' ? `Week Ending: ${reportDate}` : 'Auto-Clockout Monitoring'}
-              </p>
+            <div className="flex items-center gap-3 flex-1">
+              <img 
+                src="https://www.eatandys.com/assets/images/logo.png" 
+                alt="Andy's Frozen Custard" 
+                className="h-12 md:h-16"
+              />
+              <div>
+                <h1 className="text-xl md:text-2xl font-bold text-white mb-1">R365 Dashboards</h1>
+                {activeTab === 'sales' && reportDate && reportDate !== 'Loading...' && !reportDate.includes('.') && (
+                  <p className="text-xs md:text-sm text-slate-400">Week Ending: {reportDate}</p>
+                )}
+              </div>
             </div>
             
             <div className="flex items-center gap-3 w-full md:w-auto">
@@ -783,43 +790,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* Filters */}
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <Filter size={14} className="text-slate-400" />
-                <h3 className="text-sm font-semibold text-white">Filters</h3>
-              </div>
-              
-              <div className="flex flex-col md:flex-row gap-3">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
-                  <select
-                    value={locationFilter}
-                    onChange={(e) => setLocationFilter(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    <option value="all">All Locations</option>
-                    {getUniqueLocations().map(loc => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Status</label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="Needs Fix">Needs Fix</option>
-                    <option value="Fixed">Fixed</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
             {clockoutsLoading ? (
               <div className="flex justify-center items-center py-20">
                 <div className="text-white text-lg">Loading auto-clockouts...</div>
@@ -831,63 +801,19 @@ export default function Home() {
                 <p className="text-slate-400">All employees clocked out properly!</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {/* Summary Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-slate-400 text-xs font-medium mb-1">Total Auto-Clockouts</p>
-                        <p className="text-2xl font-bold text-white">{filteredClockouts.length}</p>
-                      </div>
-                      <AlertCircle className="text-red-400" size={32} />
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-slate-400 text-xs font-medium mb-1">Locations Affected</p>
-                        <p className="text-2xl font-bold text-white">{getUniqueLocations().length}</p>
-                      </div>
-                      <Users className="text-orange-400" size={32} />
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-slate-400 text-xs font-medium mb-1">Needs Attention</p>
-                        <p className="text-2xl font-bold text-white">
-                          {filteredClockouts.filter(c => c.status === 'Needs Fix').length}
-                        </p>
-                      </div>
-                      <AlertTriangle className="text-yellow-400" size={32} />
-                    </div>
-                  </div>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
+                {/* Header */}
+                <div className="grid grid-cols-2 gap-4 p-4 border-b border-slate-700 bg-slate-900">
+                  <div className="text-slate-400 text-sm font-semibold">Employee</div>
+                  <div className="text-slate-400 text-sm font-semibold">Location</div>
                 </div>
-
-                {/* Clockout Cards - Simplified */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                
+                {/* List */}
+                <div className="divide-y divide-slate-700">
                   {filteredClockouts.map((clockout, idx) => (
-                    <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-4 shadow-lg hover:border-slate-600 transition-colors">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <h3 className="text-lg font-bold text-white mb-1">{clockout.employee}</h3>
-                          <p className="text-sm text-slate-400">{clockout.location}</p>
-                        </div>
-                        <AlertCircle className="text-red-400 flex-shrink-0 ml-2" size={20} />
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-700">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                          clockout.status === 'Needs Fix' 
-                            ? 'bg-red-900 text-red-200' 
-                            : 'bg-green-900 text-green-200'
-                        }`}>
-                          {clockout.status}
-                        </span>
-                      </div>
+                    <div key={idx} className="grid grid-cols-2 gap-4 p-4 hover:bg-slate-750 transition-colors">
+                      <div className="text-white font-medium">{clockout.employee}</div>
+                      <div className="text-slate-300">{clockout.location}</div>
                     </div>
                   ))}
                 </div>
