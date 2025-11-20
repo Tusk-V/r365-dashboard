@@ -1352,10 +1352,6 @@ export default function Home() {
                             <span className="text-slate-500 text-xs">Discounts</span>
                             <span className="text-white font-semibold text-xs">${loc.discounts.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                           </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-500 text-xs">Voids</span>
-                            <span className="text-white font-semibold text-xs">${loc.voids.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                          </div>
                           <div className="flex justify-between items-center pt-1 border-t border-slate-700">
                             <span className="text-slate-500 text-xs">Total</span>
                             <span className="text-white font-bold text-xs">${loc.totalDiscounts.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
@@ -1364,6 +1360,12 @@ export default function Home() {
                             <span className="text-slate-500 text-xs">% of Sales</span>
                             <span className={`font-bold text-xs ${(loc.discountPercent * 100) > 3 ? 'text-orange-400' : 'text-white'}`}>
                               {(loc.discountPercent * 100).toFixed(2)}%
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Voids</span>
+                            <span className={`font-semibold text-xs ${loc.voids > 20 ? 'text-orange-400' : 'text-white'}`}>
+                              ${loc.voids.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                             </span>
                           </div>
                         </div>
