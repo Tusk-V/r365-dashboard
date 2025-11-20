@@ -59,14 +59,12 @@ export default function Home() {
     loadDataFromGoogleSheets();
     loadAvailableWeeks();
     loadAutoClockouts();
-    
     const interval = setInterval(() => {
       if (selectedWeek === 'current') {
         loadDataFromGoogleSheets();
       }
       loadAutoClockouts();
     }, 5 * 60 * 1000);
-    
     return () => clearInterval(interval);
   }, []);
 
@@ -240,6 +238,34 @@ export default function Home() {
 
   const getUniqueLocations = () => {
     return [...new Set(clockouts.map(c => c.location))].sort();
+  };
+
+  const hasAutoClockout = (locationName) => {
+    // Get the current week's date range (Monday-Sunday)
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    
+    // Calculate Monday of current week
+    const monday = new Date(today);
+    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // If Sunday, go back 6 days, else go to Monday
+    monday.setDate(today.getDate() + diff);
+    monday.setHours(0, 0, 0, 0);
+    
+    // Calculate Sunday of current week
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    
+    // Check if this location has any auto-clockouts in the current week
+    return clockouts.some(c => {
+      if (c.location !== locationName) return false;
+      
+      // Parse the report date
+      const reportDate = new Date(c.reportDate);
+      
+      // Check if it falls within current week
+      return reportDate >= monday && reportDate <= sunday;
+    });
   };
 
   const parseSheetData = (rows) => {
@@ -700,10 +726,14 @@ export default function Home() {
                   {filteredLocations.map((loc, idx) => (
                     <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
                       <div className="flex items-start justify-between mb-2 md:mb-3">
-                        <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
-                        {loc.laborPercent > 35 && (
-                          <AlertTriangle className="text-orange-400 flex-shrink-0" size={14} />
-                        )}
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
+                          {hasAutoClockout(loc.location) && (
+                            <span className="bg-red-600 text-white text-xs px-2 py-0.5 rounded-full font-semibold">
+                              AUTO-CLOCKOUT
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-1.5 md:gap-2">
