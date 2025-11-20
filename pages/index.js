@@ -689,8 +689,9 @@ export default function Home() {
       <div className="max-w-[1400px] mx-auto">
         {/* Header */}
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 md:mb-4 shadow-2xl">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-            <div className="flex items-center gap-3 flex-1">
+          {/* Line 1: Logo and Title */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
               <img 
                 src="https://i.imgur.com/kkJMVz0.png" 
                 alt="Andy's Frozen Custard" 
@@ -704,61 +705,70 @@ export default function Home() {
               </div>
             </div>
             
-            <div className="flex flex-col gap-2 w-full md:w-auto">
-              <div className="flex items-center gap-3">
-                {/* Dashboard Selector */}
-                <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
-                <select
-                  value={activeTab}
-                  onChange={(e) => setActiveTab(e.target.value)}
-                  className="flex-1 md:flex-initial md:w-auto px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                >
-                  <option value="sales">Weekly Sales & Labor</option>
-                  <option value="flash-sales">Sales/Guest Counts</option>
-                  <option value="flash-discounts">Comps/Discounts/Voids</option>
-                  <option value="scheduled-today">Scheduled Today</option>
-                  <option value="clockouts">Auto-Clockouts</option>
-                </select>
-                
-                <button
-                  onClick={() => {
-                    if (activeTab === 'sales') {
-                      if (selectedWeek === 'current') {
-                        loadDataFromGoogleSheets();
-                      } else {
-                        loadHistoricalWeek(selectedWeek);
-                      }
-                    } else if (activeTab === 'clockouts') {
-                      loadAutoClockouts();
-                    } else if (activeTab === 'scheduled-today') {
-                      loadScheduledToday();
-                    } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
-                      loadFlashData();
-                    }
-                  }}
-                  className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                  title="Refresh data"
-                >
-                  <RefreshCw size={16} className="text-white" />
-                </button>
-
-                {/* Sign Out Button */}
-                <button
-                  onClick={() => signOut()}
-                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
-                  title="Sign out"
-                >
-                  Sign Out
-                </button>
-              </div>
+            {/* Sign Out Button - Desktop only on line 1 */}
+            <button
+              onClick={() => signOut()}
+              className="hidden md:block px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+              title="Sign out"
+            >
+              Sign Out
+            </button>
+          </div>
+          
+          {/* Line 2: Dashboard Selector and Actions */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <div className="flex items-center gap-2 flex-1">
+              <label className="text-sm font-medium text-slate-400 whitespace-nowrap hidden md:block">Select Dashboard:</label>
+              <select
+                value={activeTab}
+                onChange={(e) => setActiveTab(e.target.value)}
+                className="flex-1 md:flex-initial px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="sales">Weekly Sales & Labor</option>
+                <option value="flash-sales">Sales/Guest Counts</option>
+                <option value="flash-discounts">Comps/Discounts/Voids</option>
+                <option value="scheduled-today">Scheduled Today</option>
+                <option value="clockouts">Auto-Clockouts</option>
+              </select>
               
-              {/* Updated timestamp below Sign Out */}
-              {lastUpdated && (
-                <div className="text-xs text-slate-400 text-right">
-                  Updated: {lastUpdated.toLocaleTimeString()}
-                </div>
-              )}
+              <button
+                onClick={() => {
+                  if (activeTab === 'sales') {
+                    if (selectedWeek === 'current') {
+                      loadDataFromGoogleSheets();
+                    } else {
+                      loadHistoricalWeek(selectedWeek);
+                    }
+                  } else if (activeTab === 'clockouts') {
+                    loadAutoClockouts();
+                  } else if (activeTab === 'scheduled-today') {
+                    loadScheduledToday();
+                  } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
+                    loadFlashData();
+                  }
+                }}
+                className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex-shrink-0"
+                title="Refresh data"
+              >
+                <RefreshCw size={16} className="text-white" />
+              </button>
+
+              {/* Sign Out Button - Mobile only on line 2 */}
+              <button
+                onClick={() => signOut()}
+                className="md:hidden px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                title="Sign out"
+              >
+                Sign Out
+              </button>
             </div>
+            
+            {/* Updated timestamp */}
+            {lastUpdated && (
+              <div className="text-xs text-slate-400 text-left md:text-right">
+                Updated: {lastUpdated.toLocaleTimeString()}
+              </div>
+            )}
           </div>
         </div>
 
