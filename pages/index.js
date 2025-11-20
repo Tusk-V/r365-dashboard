@@ -6,9 +6,12 @@ const API_KEY = 'AIzaSyAbUI3oP_0ofBG9tiAudYLUjZ4MSSaFNDA';
 const SPREADSHEET_ID = '1WsHBn5qLczH8QZ1c-CyVGfCWzMuLg2vmx5R5MZdHY20';
 const SHEET_NAME = 'Sheet1';
 const AUTO_CLOCKOUTS_SHEET = 'Auto-Clockouts';
+const FLASH_DAY_SHEET = 'Flash - Day';
+const FLASH_WTD_SHEET = 'Flash - WTD';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState('sales'); // 'sales' or 'clockouts'
+  const [activeTab, setActiveTab] = useState('sales'); // 'sales', 'clockouts', 'flash-sales', 'flash-discounts'
+  const [flashView, setFlashView] = useState('day'); // 'day' or 'wtd'
   
   // Sales Dashboard State
   const [locations, setLocations] = useState([]);
@@ -35,6 +38,11 @@ export default function Home() {
   const [locationFilter, setLocationFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
+  // Flash Report State
+  const [flashData, setFlashData] = useState([]);
+  const [flashLoading, setFlashLoading] = useState(false);
+  const [flashError, setFlashError] = useState(null);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = () => {
@@ -59,11 +67,13 @@ export default function Home() {
     loadDataFromGoogleSheets();
     loadAvailableWeeks();
     loadAutoClockouts();
+    loadFlashData();
     const interval = setInterval(() => {
       if (selectedWeek === 'current') {
         loadDataFromGoogleSheets();
       }
       loadAutoClockouts();
+      loadFlashData();
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
@@ -221,6 +231,59 @@ export default function Home() {
       setClockoutsLoading(false);
     }
   };
+
+  // Flash Report Functions
+  const loadFlashData = async () => {
+    setFlashLoading(true);
+    setFlashError(null);
+    
+    try {
+      const sheetName = flashView === 'day' ? FLASH_DAY_SHEET : FLASH_WTD_SHEET;
+      const range = `${sheetName}!A2:K`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to load flash data');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        setFlashData([]);
+        return;
+      }
+      
+      const parsedFlash = data.values.map(row => ({
+        date: row[0] || '',
+        location: row[1] || '',
+        sales: parseFloat(row[2]) || 0,
+        sameDayLY: parseFloat(row[3]) || 0,
+        dollarChange: parseFloat(row[4]) || 0,
+        percentChange: parseFloat(row[5]) || 0,
+        avgSalesPerGuest: parseFloat(row[6]) || 0,
+        totalCounts: parseFloat(row[7]) || 0,
+        sameDayLYCounts: parseFloat(row[8]) || 0,
+        comps: parseFloat(row[9]) || 0,
+        discounts: parseFloat(row[10]) || 0
+      }));
+      
+      setFlashData(parsedFlash);
+    } catch (err) {
+      console.error('Error loading flash data:', err);
+      setFlashError(err.message);
+    } finally {
+      setFlashLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab.startsWith('flash-')) {
+      loadFlashData();
+    }
+  }, [flashView]);
 
   const applyClockoutFilters = () => {
     let filtered = [...clockouts];
@@ -493,6 +556,8 @@ export default function Home() {
                 >
                   <option value="sales">Weekly Sales & Labor</option>
                   <option value="clockouts">Auto-Clockouts</option>
+                  <option value="flash-sales">Flash Report - Sales</option>
+                  <option value="flash-discounts">Flash Report - Discounts</option>
                 </select>
               </div>
 
@@ -847,6 +912,162 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Flash Report - Sales Dashboard */}
+        {activeTab === 'flash-sales' && (
+          <>
+            {/* Day/WTD Toggle */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-slate-400">View:</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setFlashView('day')}
+                    className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                      flashView === 'day'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    Day of
+                  </button>
+                  <button
+                    onClick={() => setFlashView('wtd')}
+                    className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                      flashView === 'wtd'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    Week To Date
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {flashError && (
+              <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                <strong>Error:</strong> {flashError}
+              </div>
+            )}
+
+            {flashLoading ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="text-white text-lg">Loading flash data...</div>
+              </div>
+            ) : flashData.length === 0 ? (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                <p className="text-slate-400">No flash data available</p>
+              </div>
+            ) : (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-900 border-b border-slate-700">
+                    <tr>
+                      <th className="text-left p-3 text-slate-400 text-sm font-semibold">Location</th>
+                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Sales</th>
+                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Same Day LY</th>
+                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">$ Change</th>
+                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">% Change</th>
+                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Avg Sales/Guest</th>
+                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Counts</th>
+                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Same Day LY</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700">
+                    {flashData.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-slate-750 transition-colors">
+                        <td className="p-3 text-white font-medium">{row.location}</td>
+                        <td className="p-3 text-right text-white">${row.sales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td className="p-3 text-right text-slate-300">${row.sameDayLY.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td className={`p-3 text-right font-semibold ${row.dollarChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {row.dollarChange >= 0 ? '+' : ''}${row.dollarChange.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        </td>
+                        <td className={`p-3 text-right font-semibold ${row.percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {row.percentChange >= 0 ? '+' : ''}{(row.percentChange * 100).toFixed(1)}%
+                        </td>
+                        <td className="p-3 text-right text-white">${row.avgSalesPerGuest.toFixed(2)}</td>
+                        <td className="p-3 text-right text-white">{row.totalCounts.toLocaleString('en-US')}</td>
+                        <td className="p-3 text-right text-slate-300">{row.sameDayLYCounts.toLocaleString('en-US')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Flash Report - Discounts Dashboard */}
+        {activeTab === 'flash-discounts' && (
+          <>
+            {/* Day/WTD Toggle */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-slate-400">View:</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setFlashView('day')}
+                    className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                      flashView === 'day'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    Day of
+                  </button>
+                  <button
+                    onClick={() => setFlashView('wtd')}
+                    className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                      flashView === 'wtd'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    Week To Date
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {flashError && (
+              <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                <strong>Error:</strong> {flashError}
+              </div>
+            )}
+
+            {flashLoading ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="text-white text-lg">Loading flash data...</div>
+              </div>
+            ) : flashData.length === 0 ? (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                <p className="text-slate-400">No flash data available</p>
+              </div>
+            ) : (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-900 border-b border-slate-700">
+                    <tr>
+                      <th className="text-left p-3 text-slate-400 text-sm font-semibold">Location</th>
+                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Comps</th>
+                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Discounts</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700">
+                    {flashData.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-slate-750 transition-colors">
+                        <td className="p-3 text-white font-medium">{row.location}</td>
+                        <td className="p-3 text-right text-white">${row.comps.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td className="p-3 text-right text-white">${row.discounts.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </>
