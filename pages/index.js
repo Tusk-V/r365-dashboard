@@ -21,7 +21,8 @@ export default function Home() {
   const [filters, setFilters] = useState({
     locations: [],
     actVsOptVariance: 'all',
-    salesVariance: 'all'
+    salesVariance: 'all',
+    market: 'all'
   });
   const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
   const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
@@ -42,6 +43,13 @@ export default function Home() {
   const [flashData, setFlashData] = useState([]);
   const [flashLoading, setFlashLoading] = useState(false);
   const [flashError, setFlashError] = useState(null);
+  const [filteredFlashData, setFilteredFlashData] = useState([]);
+  const [flashFilters, setFlashFilters] = useState({
+    locations: [],
+    market: 'all',
+    salesVariance: 'all',
+    guestCountVariance: 'all'
+  });
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -91,6 +99,10 @@ export default function Home() {
   }, [locations, filters]);
 
   useEffect(() => {
+    applyFlashFilters();
+  }, [flashData, flashFilters]);
+
+  useEffect(() => {
     applyClockoutFilters();
   }, [clockouts, locationFilter, statusFilter]);
 
@@ -133,6 +145,20 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Helper function to get market for a location
+  const getMarket = (locationName) => {
+    const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
+    const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
+    const dallas = ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'Lake Highlands', 'Hillcrest Village', 'The Colony', 'Prosper', 'Allen'];
+    const orlando = ['Sanford', 'Lakeland'];
+    
+    if (tulsa.includes(locationName)) return 'Tulsa';
+    if (okc.includes(locationName)) return 'Oklahoma City';
+    if (dallas.includes(locationName)) return 'Dallas';
+    if (orlando.includes(locationName)) return 'Orlando';
+    return 'Other';
   };
 
   const loadAvailableWeeks = async () => {
@@ -473,6 +499,10 @@ export default function Home() {
       filtered = filtered.filter(loc => filters.locations.includes(loc.location));
     }
     
+    if (filters.market !== 'all') {
+      filtered = filtered.filter(loc => getMarket(loc.location) === filters.market);
+    }
+    
     if (filters.actVsOptVariance === 'positive') {
       filtered = filtered.filter(loc => loc.actVsOptHours > 0);
     } else if (filters.actVsOptVariance === 'negative') {
@@ -488,11 +518,44 @@ export default function Home() {
     setFilteredLocations(filtered);
   };
 
+  const applyFlashFilters = () => {
+    let filtered = [...flashData];
+    
+    if (flashFilters.locations.length > 0) {
+      filtered = filtered.filter(loc => flashFilters.locations.includes(loc.location));
+    }
+    
+    if (flashFilters.market !== 'all') {
+      filtered = filtered.filter(loc => getMarket(loc.location) === flashFilters.market);
+    }
+    
+    if (flashFilters.salesVariance === 'positive') {
+      filtered = filtered.filter(loc => loc.percentChange > 0);
+    } else if (flashFilters.salesVariance === 'negative') {
+      filtered = filtered.filter(loc => loc.percentChange < 0);
+    }
+    
+    if (flashFilters.guestCountVariance === 'positive') {
+      filtered = filtered.filter(loc => ((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) > 0);
+    } else if (flashFilters.guestCountVariance === 'negative') {
+      filtered = filtered.filter(loc => ((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) < 0);
+    }
+    
+    setFilteredFlashData(filtered);
+  };
+
   const handleLocationToggle = (location) => {
     const newLocations = filters.locations.includes(location)
       ? filters.locations.filter(l => l !== location)
       : [...filters.locations, location];
     setFilters({...filters, locations: newLocations});
+  };
+
+  const handleFlashLocationToggle = (location) => {
+    const newLocations = flashFilters.locations.includes(location)
+      ? flashFilters.locations.filter(l => l !== location)
+      : [...flashFilters.locations, location];
+    setFlashFilters({...flashFilters, locations: newLocations});
   };
 
   const calculateTotals = () => {
@@ -761,6 +824,21 @@ export default function Home() {
                     </div>
 
                     <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                      <select
+                        value={filters.market}
+                        onChange={(e) => setFilters({...filters, market: e.target.value})}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      >
+                        <option value="all">All Markets</option>
+                        <option value="Tulsa">Tulsa</option>
+                        <option value="Oklahoma City">Oklahoma City</option>
+                        <option value="Dallas">Dallas</option>
+                        <option value="Orlando">Orlando</option>
+                      </select>
+                    </div>
+
+                    <div className="flex-1">
                       <label className="block text-xs font-medium text-slate-400 mb-1">Act vs Opt Hours</label>
                       <select
                         value={filters.actVsOptVariance}
@@ -951,6 +1029,94 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Filters */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Filter className="w-4 h-4 text-blue-400" />
+                <h3 className="text-sm font-semibold text-white">Filters</h3>
+              </div>
+              <div className="flex flex-col md:flex-row gap-2">
+                <div className="flex-1 relative">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsLocationDropdownOpen(!isLocationDropdownOpen);
+                    }}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center justify-between"
+                  >
+                    <span>{flashFilters.locations.length === 0 ? 'All Locations' : `${flashFilters.locations.length} selected`}</span>
+                    <span className="text-slate-400">▼</span>
+                  </button>
+                  {isLocationDropdownOpen && (
+                    <div className="absolute z-10 mt-1 w-full bg-slate-700 border border-slate-600 rounded shadow-lg max-h-60 overflow-y-auto">
+                      <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600 border-b border-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={flashFilters.locations.length === 0}
+                          onChange={() => setFlashFilters({...flashFilters, locations: []})}
+                          className="rounded"
+                        />
+                        <span className="text-white text-xs font-semibold">All Locations</span>
+                      </label>
+                      {flashData.map(loc => (
+                        <label key={loc.location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={flashFilters.locations.includes(loc.location)}
+                            onChange={() => handleFlashLocationToggle(loc.location)}
+                            className="rounded"
+                          />
+                          <span className="text-white text-xs">{loc.location}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                  <select
+                    value={flashFilters.market}
+                    onChange={(e) => setFlashFilters({...flashFilters, market: e.target.value})}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Markets</option>
+                    <option value="Tulsa">Tulsa</option>
+                    <option value="Oklahoma City">Oklahoma City</option>
+                    <option value="Dallas">Dallas</option>
+                    <option value="Orlando">Orlando</option>
+                  </select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Sales Variance</label>
+                  <select
+                    value={flashFilters.salesVariance}
+                    onChange={(e) => setFlashFilters({...flashFilters, salesVariance: e.target.value})}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Variances</option>
+                    <option value="positive">Above LY</option>
+                    <option value="negative">Below LY</option>
+                  </select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Guest Count Variance</label>
+                  <select
+                    value={flashFilters.guestCountVariance}
+                    onChange={(e) => setFlashFilters({...flashFilters, guestCountVariance: e.target.value})}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Variances</option>
+                    <option value="positive">Above LY</option>
+                    <option value="negative">Below LY</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             {flashError && (
               <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
                 <strong>Error:</strong> {flashError}
@@ -967,7 +1133,7 @@ export default function Home() {
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
-                {flashData.map((loc, idx) => (
+                {filteredFlashData.map((loc, idx) => (
                   <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
                     <div className="flex items-start justify-between mb-2 md:mb-3">
                       <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
@@ -1063,6 +1229,94 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Filters */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Filter className="w-4 h-4 text-blue-400" />
+                <h3 className="text-sm font-semibold text-white">Filters</h3>
+              </div>
+              <div className="flex flex-col md:flex-row gap-2">
+                <div className="flex-1 relative">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsLocationDropdownOpen(!isLocationDropdownOpen);
+                    }}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center justify-between"
+                  >
+                    <span>{flashFilters.locations.length === 0 ? 'All Locations' : `${flashFilters.locations.length} selected`}</span>
+                    <span className="text-slate-400">▼</span>
+                  </button>
+                  {isLocationDropdownOpen && (
+                    <div className="absolute z-10 mt-1 w-full bg-slate-700 border border-slate-600 rounded shadow-lg max-h-60 overflow-y-auto">
+                      <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600 border-b border-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={flashFilters.locations.length === 0}
+                          onChange={() => setFlashFilters({...flashFilters, locations: []})}
+                          className="rounded"
+                        />
+                        <span className="text-white text-xs font-semibold">All Locations</span>
+                      </label>
+                      {flashData.map(loc => (
+                        <label key={loc.location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={flashFilters.locations.includes(loc.location)}
+                            onChange={() => handleFlashLocationToggle(loc.location)}
+                            className="rounded"
+                          />
+                          <span className="text-white text-xs">{loc.location}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                  <select
+                    value={flashFilters.market}
+                    onChange={(e) => setFlashFilters({...flashFilters, market: e.target.value})}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Markets</option>
+                    <option value="Tulsa">Tulsa</option>
+                    <option value="Oklahoma City">Oklahoma City</option>
+                    <option value="Dallas">Dallas</option>
+                    <option value="Orlando">Orlando</option>
+                  </select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Sales Variance</label>
+                  <select
+                    value={flashFilters.salesVariance}
+                    onChange={(e) => setFlashFilters({...flashFilters, salesVariance: e.target.value})}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Variances</option>
+                    <option value="positive">Above LY</option>
+                    <option value="negative">Below LY</option>
+                  </select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Guest Count Variance</label>
+                  <select
+                    value={flashFilters.guestCountVariance}
+                    onChange={(e) => setFlashFilters({...flashFilters, guestCountVariance: e.target.value})}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Variances</option>
+                    <option value="positive">Above LY</option>
+                    <option value="negative">Below LY</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             {flashError && (
               <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
                 <strong>Error:</strong> {flashError}
@@ -1079,7 +1333,7 @@ export default function Home() {
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
-                {flashData.map((loc, idx) => {
+                {filteredFlashData.map((loc, idx) => {
                   return (
                     <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
                       <div className="flex items-start justify-between mb-2 md:mb-3">
