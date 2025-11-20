@@ -1,3 +1,5 @@
+import { useSession, signOut } from "next-auth/react"
+import { useRouter } from "next/router"
 import { useState, useEffect } from 'react';
 import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle } from 'lucide-react';
 
@@ -11,6 +13,27 @@ const FLASH_WTD_SHEET = 'Flash - WTD';
 const SCHEDULED_TODAY_SHEET = 'Scheduled Today';
 
 export default function Home() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin")
+    }
+  }, [status, router])
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white text-lg">Loading...</div>
+      </div>
+    )
+  }
+
+  if (!session) {
+    return null
+  }
+
   const [activeTab, setActiveTab] = useState('sales'); // 'sales', 'clockouts', 'scheduled-today', 'flash-sales', 'flash-discounts'
   const [flashView, setFlashView] = useState('day'); // 'day' or 'wtd'
   
@@ -725,6 +748,15 @@ export default function Home() {
                 title="Refresh data"
               >
                 <RefreshCw size={16} className="text-white" />
+              </button>
+
+              {/* Sign Out Button */}
+              <button
+                onClick={() => signOut()}
+                className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                title="Sign out"
+              >
+                Sign Out
               </button>
             </div>
           </div>
