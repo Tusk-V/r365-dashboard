@@ -8,9 +8,10 @@ const SHEET_NAME = 'Sheet1';
 const AUTO_CLOCKOUTS_SHEET = 'Auto-Clockouts';
 const FLASH_DAY_SHEET = 'Flash - Day';
 const FLASH_WTD_SHEET = 'Flash - WTD';
+const SCHEDULED_TODAY_SHEET = 'Scheduled Today';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState('sales'); // 'sales', 'clockouts', 'flash-sales', 'flash-discounts'
+  const [activeTab, setActiveTab] = useState('sales'); // 'sales', 'clockouts', 'scheduled-today', 'flash-sales', 'flash-discounts'
   const [flashView, setFlashView] = useState('day'); // 'day' or 'wtd'
   
   // Sales Dashboard State
@@ -38,6 +39,13 @@ export default function Home() {
   const [clockoutsError, setClockoutsError] = useState(null);
   const [locationFilter, setLocationFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+
+  // Scheduled Today State
+  const [scheduledToday, setScheduledToday] = useState([]);
+  const [filteredScheduled, setFilteredScheduled] = useState([]);
+  const [scheduledLoading, setScheduledLoading] = useState(false);
+  const [scheduledError, setScheduledError] = useState(null);
+  const [scheduledLocationFilter, setScheduledLocationFilter] = useState('all');
 
   // Flash Report State
   const [flashData, setFlashData] = useState([]);
@@ -75,12 +83,14 @@ export default function Home() {
     loadDataFromGoogleSheets();
     loadAvailableWeeks();
     loadAutoClockouts();
+    loadScheduledToday();
     loadFlashData();
     const interval = setInterval(() => {
       if (selectedWeek === 'current') {
         loadDataFromGoogleSheets();
       }
       loadAutoClockouts();
+      loadScheduledToday();
       loadFlashData();
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
@@ -105,6 +115,10 @@ export default function Home() {
   useEffect(() => {
     applyClockoutFilters();
   }, [clockouts, locationFilter, statusFilter]);
+
+  useEffect(() => {
+    applyScheduledFilters();
+  }, [scheduledToday, scheduledLocationFilter]);
 
   // Sales Dashboard Functions
   const loadDataFromGoogleSheets = async () => {
@@ -313,6 +327,56 @@ export default function Home() {
       loadFlashData();
     }
   }, [flashView]);
+
+  // Scheduled Today Functions
+  const loadScheduledToday = async () => {
+    setScheduledLoading(true);
+    setScheduledError(null);
+    
+    try {
+      const range = `${SCHEDULED_TODAY_SHEET}!A2:E`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to load scheduled data');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        setScheduledToday([]);
+        return;
+      }
+      
+      const parsedScheduled = data.values.map(row => ({
+        date: row[0] || '',
+        location: row[1] || '',
+        employee: row[2] || '',
+        schStart: row[3] || '',
+        schEnd: row[4] || ''
+      }));
+      
+      setScheduledToday(parsedScheduled);
+    } catch (err) {
+      console.error('Error loading scheduled data:', err);
+      setScheduledError(err.message);
+    } finally {
+      setScheduledLoading(false);
+    }
+  };
+
+  const applyScheduledFilters = () => {
+    let filtered = [...scheduledToday];
+    
+    if (scheduledLocationFilter !== 'all') {
+      filtered = filtered.filter(emp => emp.location === scheduledLocationFilter);
+    }
+    
+    setFilteredScheduled(filtered);
+  };
 
   const applyClockoutFilters = () => {
     let filtered = [...clockouts];
@@ -621,9 +685,10 @@ export default function Home() {
                   className="w-full md:w-auto px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                 >
                   <option value="sales">Weekly Sales & Labor</option>
-                  <option value="clockouts">Auto-Clockouts</option>
+                  <option value="scheduled-today">Scheduled Today</option>
                   <option value="flash-sales">Sales/Guest Counts</option>
                   <option value="flash-discounts">Comps/Discounts/Voids</option>
+                  <option value="clockouts">Auto-Clockouts</option>
                 </select>
               </div>
 
@@ -977,19 +1042,83 @@ export default function Home() {
             ) : (
               <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
                 {/* Header */}
-                <div className="grid grid-cols-3 gap-4 p-4 border-b border-slate-700 bg-slate-900">
-                  <div className="text-slate-400 text-sm font-semibold">Date</div>
-                  <div className="text-slate-400 text-sm font-semibold">Name</div>
-                  <div className="text-slate-400 text-sm font-semibold">Location</div>
+                <div className="grid grid-cols-3 gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900">
+                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Date</div>
+                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
+                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
                 </div>
                 
                 {/* List */}
                 <div className="divide-y divide-slate-700">
                   {filteredClockouts.map((clockout, idx) => (
-                    <div key={idx} className="grid grid-cols-3 gap-4 p-4 hover:bg-slate-750 transition-colors">
-                      <div className="text-slate-300">{clockout.reportDate}</div>
-                      <div className="text-white font-medium">{clockout.employee}</div>
-                      <div className="text-slate-300">{clockout.location}</div>
+                    <div key={idx} className="grid grid-cols-3 gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors">
+                      <div className="text-slate-300 text-xs md:text-sm">{clockout.reportDate}</div>
+                      <div className="text-white font-medium text-xs md:text-sm">{clockout.employee}</div>
+                      <div className="text-slate-300 text-xs md:text-sm">{clockout.location}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Scheduled Today Dashboard */}
+        {activeTab === 'scheduled-today' && (
+          <>
+            {/* Location Filter */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Filter className="w-4 h-4 text-blue-400" />
+                <h3 className="text-sm font-semibold text-white">Filter</h3>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                  <select
+                    value={scheduledLocationFilter}
+                    onChange={(e) => setScheduledLocationFilter(e.target.value)}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Locations</option>
+                    {[...new Set(scheduledToday.map(emp => emp.location))].sort().map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {scheduledError && (
+              <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                <strong>Error:</strong> {scheduledError}
+              </div>
+            )}
+
+            {scheduledLoading ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="text-white text-lg">Loading scheduled employees...</div>
+              </div>
+            ) : filteredScheduled.length === 0 ? (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                <p className="text-slate-400">No scheduled employees found</p>
+              </div>
+            ) : (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
+                {/* Header */}
+                <div className="grid grid-cols-3 gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900">
+                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
+                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Employee</div>
+                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Schedule</div>
+                </div>
+                
+                {/* List */}
+                <div className="divide-y divide-slate-700">
+                  {filteredScheduled.map((emp, idx) => (
+                    <div key={idx} className="grid grid-cols-3 gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors">
+                      <div className="text-slate-300 text-xs md:text-sm">{emp.location}</div>
+                      <div className="text-white font-medium text-xs md:text-sm">{emp.employee}</div>
+                      <div className="text-slate-300 text-xs md:text-sm">{emp.schStart} - {emp.schEnd}</div>
                     </div>
                   ))}
                 </div>
