@@ -692,9 +692,9 @@ export default function Home() {
                   className="w-full md:w-auto px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                 >
                   <option value="sales">Weekly Sales & Labor</option>
-                  <option value="scheduled-today">Scheduled Today</option>
                   <option value="flash-sales">Sales/Guest Counts</option>
                   <option value="flash-discounts">Comps/Discounts/Voids</option>
+                  <option value="scheduled-today">Scheduled Today</option>
                   <option value="clockouts">Auto-Clockouts</option>
                 </select>
               </div>
@@ -713,8 +713,12 @@ export default function Home() {
                     } else {
                       loadHistoricalWeek(selectedWeek);
                     }
-                  } else {
+                  } else if (activeTab === 'clockouts') {
                     loadAutoClockouts();
+                  } else if (activeTab === 'scheduled-today') {
+                    loadScheduledToday();
+                  } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
+                    loadFlashData();
                   }
                 }}
                 className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
