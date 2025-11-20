@@ -265,7 +265,7 @@ export default function Home() {
     
     try {
       const sheetName = flashView === 'day' ? FLASH_DAY_SHEET : FLASH_WTD_SHEET;
-      const range = `${sheetName}!A2:M`;
+      const range = `${sheetName}!A2:N`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
       
       const response = await fetch(url);
@@ -294,8 +294,9 @@ export default function Home() {
         sameDayLYCounts: parseFloat(row[8]) || 0,
         comps: parseFloat(row[9]) || 0,
         discounts: parseFloat(row[10]) || 0,
-        totalDiscounts: parseFloat(row[11]) || 0,
-        discountPercent: parseFloat(row[12]) || 0
+        voids: parseFloat(row[11]) || 0,
+        totalDiscounts: parseFloat(row[12]) || 0,
+        discountPercent: parseFloat(row[13]) || 0
       }));
       
       setFlashData(parsedFlash);
@@ -622,7 +623,7 @@ export default function Home() {
                   <option value="sales">Weekly Sales & Labor</option>
                   <option value="clockouts">Auto-Clockouts</option>
                   <option value="flash-sales">Sales/Guest Counts</option>
-                  <option value="flash-discounts">Comps/Discounts</option>
+                  <option value="flash-discounts">Comps/Discounts/Voids</option>
                 </select>
               </div>
 
@@ -1350,6 +1351,10 @@ export default function Home() {
                           <div className="flex justify-between items-center">
                             <span className="text-slate-500 text-xs">Discounts</span>
                             <span className="text-white font-semibold text-xs">${loc.discounts.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Voids</span>
+                            <span className="text-white font-semibold text-xs">${loc.voids.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                           </div>
                           <div className="flex justify-between items-center pt-1 border-t border-slate-700">
                             <span className="text-slate-500 text-xs">Total</span>
