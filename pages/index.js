@@ -39,6 +39,8 @@ export default function Home() {
   const [clockoutsError, setClockoutsError] = useState(null);
   const [locationFilter, setLocationFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showClockoutModal, setShowClockoutModal] = useState(false);
+  const [clockoutModalData, setClockoutModalData] = useState({ location: '', employees: [] });
 
   // Scheduled Today State
   const [scheduledToday, setScheduledToday] = useState([]);
@@ -947,12 +949,16 @@ export default function Home() {
                           const employees = getAutoClockoutEmployees(loc.location);
                           if (employees.length > 0) {
                             return (
-                              <span 
-                                className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-help" 
+                              <button
+                                onClick={() => {
+                                  setClockoutModalData({ location: loc.location, employees });
+                                  setShowClockoutModal(true);
+                                }}
+                                className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-red-700 transition-colors" 
                                 title={employees.join(', ')}
                               >
                                 AUTO-CLOCKOUT ({employees.length})
-                              </span>
+                              </button>
                             );
                           }
                           return null;
@@ -1535,6 +1541,51 @@ export default function Home() {
           </>
         )}
       </div>
+
+      {/* Auto-Clockout Employees Modal */}
+      {showClockoutModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowClockoutModal(false)}
+        >
+          <div 
+            className="bg-slate-800 border border-slate-700 rounded-lg p-4 max-w-md w-full shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-white">Auto-Clockouts</h3>
+              <button
+                onClick={() => setShowClockoutModal(false)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <span className="text-2xl">×</span>
+              </button>
+            </div>
+            
+            <div className="mb-3">
+              <p className="text-sm text-slate-400 mb-2">Location: <span className="text-white font-semibold">{clockoutModalData.location}</span></p>
+              <p className="text-xs text-slate-500">The following employees have auto-clockouts this week:</p>
+            </div>
+
+            <div className="bg-slate-900 rounded-lg p-3 max-h-64 overflow-y-auto">
+              <ul className="space-y-2">
+                {clockoutModalData.employees.map((emp, idx) => (
+                  <li key={idx} className="text-white text-sm py-1 border-b border-slate-700 last:border-b-0">
+                    {emp}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <button
+              onClick={() => setShowClockoutModal(false)}
+              className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
