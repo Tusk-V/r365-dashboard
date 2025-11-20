@@ -8,6 +8,7 @@ const API_KEY = 'AIzaSyAbUI3oP_0ofBG9tiAudYLUjZ4MSSaFNDA';
 const SPREADSHEET_ID = '1WsHBn5qLczH8QZ1c-CyVGfCWzMuLg2vmx5R5MZdHY20';
 const SHEET_NAME = 'Sheet1';
 const AUTO_CLOCKOUTS_SHEET = 'Auto-Clockouts';
+const CALL_OFFS_SHEET = 'Call-Offs';
 const FLASH_DAY_SHEET = 'Flash - Day';
 const FLASH_WTD_SHEET = 'Flash - WTD';
 const SCHEDULED_TODAY_SHEET = 'Scheduled Today';
@@ -35,7 +36,6 @@ export default function Home() {
   const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [reportDate, setReportDate] = useState('Loading...');
-  const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState(null);
 
   // Auto-Clockouts State
@@ -47,6 +47,13 @@ export default function Home() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showClockoutModal, setShowClockoutModal] = useState(false);
   const [clockoutModalData, setClockoutModalData] = useState({ location: '', employees: [] });
+
+  // Call-Offs State
+  const [callOffs, setCallOffs] = useState([]);
+  const [filteredCallOffs, setFilteredCallOffs] = useState([]);
+  const [callOffsLoading, setCallOffsLoading] = useState(false);
+  const [callOffsError, setCallOffsError] = useState(null);
+  const [callOffLocationFilter, setCallOffLocationFilter] = useState('all');
 
   // Scheduled Today State
   const [scheduledToday, setScheduledToday] = useState([]);
@@ -243,7 +250,6 @@ export default function Home() {
         if (parsedData[0].reportDate) {
           setReportDate(parsedData[0].reportDate);
         }
-        setLastUpdated(new Date());
       } else {
         setError('No valid data found in Google Sheet');
       }
@@ -302,7 +308,6 @@ export default function Home() {
       const parsedData = parseHistoricalData(weekData);
       setLocations(parsedData);
       setReportDate(weekDate);
-      setLastUpdated(new Date());
     } catch (err) {
       console.error('Error loading historical week:', err);
       setError(err.message);
@@ -349,6 +354,55 @@ export default function Home() {
     } finally {
       setClockoutsLoading(false);
     }
+  };
+
+  // Call-Offs Functions
+  const loadCallOffs = async () => {
+    setCallOffsLoading(true);
+    setCallOffsError(null);
+    
+    try {
+      const range = `${CALL_OFFS_SHEET}!A2:D`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to load call-offs');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        setCallOffs([]);
+        return;
+      }
+      
+      const parsedCallOffs = data.values.map(row => ({
+        reportDate: row[0] || '',
+        location: row[1] || '',
+        employee: row[2] || '',
+        scheduledTime: row[3] || ''
+      }));
+      
+      setCallOffs(parsedCallOffs);
+    } catch (err) {
+      console.error('Error loading call-offs:', err);
+      setCallOffsError(err.message);
+    } finally {
+      setCallOffsLoading(false);
+    }
+  };
+
+  const applyCallOffFilters = () => {
+    let filtered = [...callOffs];
+    
+    if (callOffLocationFilter !== 'all') {
+      filtered = filtered.filter(c => c.location === callOffLocationFilter);
+    }
+    
+    setFilteredCallOffs(filtered);
   };
 
   const loadFlashData = async () => {
@@ -623,19 +677,9 @@ export default function Home() {
       loadDataFromGoogleSheets();
       loadAvailableWeeks();
       loadAutoClockouts();
+      loadCallOffs();
       loadScheduledToday();
       loadFlashData();
-      
-      const interval = setInterval(() => {
-        if (selectedWeek === 'current') {
-          loadDataFromGoogleSheets();
-        }
-        loadAutoClockouts();
-        loadScheduledToday();
-        loadFlashData();
-      }, 5 * 60 * 1000);
-      
-      return () => clearInterval(interval);
     }
   }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -658,6 +702,10 @@ export default function Home() {
   useEffect(() => {
     applyClockoutFilters();
   }, [clockouts, locationFilter, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    applyCallOffFilters();
+  }, [callOffs, callOffLocationFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     applyScheduledFilters();
@@ -691,13 +739,13 @@ export default function Home() {
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 md:mb-4 shadow-2xl">
           {/* Line 1: Logo and Title */}
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 justify-center md:justify-start w-full md:w-auto">
               <img 
                 src="https://i.imgur.com/kkJMVz0.png" 
                 alt="Andy's Frozen Custard" 
                 className="h-12 md:h-16"
               />
-              <div>
+              <div className="hidden md:block">
                 <h1 className="text-xl md:text-2xl font-bold text-white mb-1">R365 Dashboards</h1>
                 {activeTab === 'sales' && reportDate && reportDate !== 'Loading...' && !reportDate.includes('.') && (
                   <p className="text-xs md:text-sm text-slate-400">Week Ending: {reportDate}</p>
@@ -716,59 +764,53 @@ export default function Home() {
           </div>
           
           {/* Line 2: Dashboard Selector and Actions */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-            <div className="flex items-center gap-2 flex-1">
-              <label className="text-sm font-medium text-slate-400 whitespace-nowrap hidden md:block">Select Dashboard:</label>
-              <select
-                value={activeTab}
-                onChange={(e) => setActiveTab(e.target.value)}
-                className="flex-1 md:flex-initial px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-              >
-                <option value="sales">Weekly Sales & Labor</option>
-                <option value="flash-sales">Sales/Guest Counts</option>
-                <option value="flash-discounts">Comps/Discounts/Voids</option>
-                <option value="scheduled-today">Scheduled Today</option>
-                <option value="clockouts">Auto-Clockouts</option>
-              </select>
-              
-              <button
-                onClick={() => {
-                  if (activeTab === 'sales') {
-                    if (selectedWeek === 'current') {
-                      loadDataFromGoogleSheets();
-                    } else {
-                      loadHistoricalWeek(selectedWeek);
-                    }
-                  } else if (activeTab === 'clockouts') {
-                    loadAutoClockouts();
-                  } else if (activeTab === 'scheduled-today') {
-                    loadScheduledToday();
-                  } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
-                    loadFlashData();
-                  }
-                }}
-                className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex-shrink-0"
-                title="Refresh data"
-              >
-                <RefreshCw size={16} className="text-white" />
-              </button>
-
-              {/* Sign Out Button - Mobile only on line 2 */}
-              <button
-                onClick={() => signOut()}
-                className="md:hidden px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
-                title="Sign out"
-              >
-                Sign Out
-              </button>
-            </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-slate-400 whitespace-nowrap hidden md:block">Select Dashboard:</label>
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value)}
+              className="flex-1 md:flex-initial px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+            >
+              <option value="sales">Weekly Sales & Labor</option>
+              <option value="flash-sales">Sales/Guest Counts</option>
+              <option value="flash-discounts">Comps/Discounts/Voids</option>
+              <option value="scheduled-today">Scheduled Today</option>
+              <option value="clockouts">Auto-Clockouts</option>
+              <option value="call-offs">Call-Offs</option>
+            </select>
             
-            {/* Updated timestamp */}
-            {lastUpdated && (
-              <div className="text-xs text-slate-400 text-left md:text-right">
-                Updated: {lastUpdated.toLocaleTimeString()}
-              </div>
-            )}
+            <button
+              onClick={() => {
+                if (activeTab === 'sales') {
+                  if (selectedWeek === 'current') {
+                    loadDataFromGoogleSheets();
+                  } else {
+                    loadHistoricalWeek(selectedWeek);
+                  }
+                } else if (activeTab === 'clockouts') {
+                  loadAutoClockouts();
+                } else if (activeTab === 'call-offs') {
+                  loadCallOffs();
+                } else if (activeTab === 'scheduled-today') {
+                  loadScheduledToday();
+                } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
+                  loadFlashData();
+                }
+              }}
+              className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex-shrink-0"
+              title="Refresh data"
+            >
+              <RefreshCw size={16} className="text-white" />
+            </button>
+
+            {/* Sign Out Button - Mobile only on line 2 */}
+            <button
+              onClick={() => signOut()}
+              className="md:hidden px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+              title="Sign out"
+            >
+              Sign Out
+            </button>
           </div>
         </div>
 
@@ -1121,6 +1163,51 @@ export default function Home() {
                       <div className="text-slate-300 text-xs md:text-sm">{clockout.reportDate}</div>
                       <div className="text-white font-medium text-xs md:text-sm">{clockout.employee}</div>
                       <div className="text-slate-300 text-xs md:text-sm">{clockout.location}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Call-Offs Dashboard */}
+        {activeTab === 'call-offs' && (
+          <>
+            {callOffsError && (
+              <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                <strong>Error:</strong> {callOffsError}
+              </div>
+            )}
+
+            {callOffsLoading ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="text-white text-lg">Loading call-offs...</div>
+              </div>
+            ) : filteredCallOffs.length === 0 ? (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                <AlertCircle className="mx-auto mb-3 text-green-400" size={48} />
+                <h3 className="text-xl font-bold text-white mb-2">No Call-Offs Found</h3>
+                <p className="text-slate-400">All scheduled employees showed up!</p>
+              </div>
+            ) : (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
+                {/* Header */}
+                <div className="grid gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900" style={{gridTemplateColumns: '80px 1fr 120px 150px'}}>
+                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Date</div>
+                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
+                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
+                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Scheduled Time</div>
+                </div>
+                
+                {/* List */}
+                <div className="divide-y divide-slate-700">
+                  {filteredCallOffs.map((callOff, idx) => (
+                    <div key={idx} className="grid gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '80px 1fr 120px 150px'}}>
+                      <div className="text-slate-300 text-xs md:text-sm">{callOff.reportDate}</div>
+                      <div className="text-white font-medium text-xs md:text-sm">{callOff.employee}</div>
+                      <div className="text-slate-300 text-xs md:text-sm">{callOff.location}</div>
+                      <div className="text-slate-300 text-xs md:text-sm">{callOff.scheduledTime}</div>
                     </div>
                   ))}
                 </div>
