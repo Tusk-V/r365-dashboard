@@ -935,7 +935,7 @@ export default function Home() {
                         : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                     }`}
                   >
-                    Day of
+                    Yesterday
                   </button>
                   <button
                     onClick={() => setFlashView('wtd')}
@@ -1015,6 +1015,18 @@ export default function Home() {
                             <span className="text-slate-500 text-xs">LY</span>
                             <span className="text-slate-300 text-xs">{loc.sameDayLYCounts.toLocaleString('en-US')}</span>
                           </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Var</span>
+                            <span className={`font-semibold text-xs ${(loc.totalCounts - loc.sameDayLYCounts) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {(loc.totalCounts - loc.sameDayLYCounts) >= 0 ? '+' : ''}{(loc.totalCounts - loc.sameDayLYCounts).toLocaleString('en-US')}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">% Chg</span>
+                            <span className={`font-semibold text-xs ${((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) >= 0 ? '+' : ''}{(((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) * 100).toFixed(1)}%
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1041,7 +1053,7 @@ export default function Home() {
                         : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                     }`}
                   >
-                    Day of
+                    Yesterday
                   </button>
                   <button
                     onClick={() => setFlashView('wtd')}
@@ -1097,7 +1109,9 @@ export default function Home() {
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-slate-500 text-xs">% of Sales</span>
-                            <span className="text-orange-400 font-bold text-xs">{(loc.discountPercent * 100).toFixed(2)}%</span>
+                            <span className={`font-bold text-xs ${(loc.discountPercent * 100) > 3 ? 'text-orange-400' : 'text-white'}`}>
+                              {(loc.discountPercent * 100).toFixed(2)}%
+                            </span>
                           </div>
                         </div>
                       </div>
