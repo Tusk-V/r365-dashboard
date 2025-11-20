@@ -704,13 +704,14 @@ export default function Home() {
               </div>
             </div>
             
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              {/* Dashboard Selector */}
-              <div className="flex-1 md:flex-initial">
+            <div className="flex flex-col gap-2 w-full md:w-auto">
+              <div className="flex items-center gap-3">
+                {/* Dashboard Selector */}
+                <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
                 <select
                   value={activeTab}
                   onChange={(e) => setActiveTab(e.target.value)}
-                  className="w-full md:w-auto px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  className="flex-1 md:flex-initial md:w-auto px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                 >
                   <option value="sales">Weekly Sales & Labor</option>
                   <option value="flash-sales">Sales/Guest Counts</option>
@@ -718,44 +719,45 @@ export default function Home() {
                   <option value="scheduled-today">Scheduled Today</option>
                   <option value="clockouts">Auto-Clockouts</option>
                 </select>
-              </div>
+                
+                <button
+                  onClick={() => {
+                    if (activeTab === 'sales') {
+                      if (selectedWeek === 'current') {
+                        loadDataFromGoogleSheets();
+                      } else {
+                        loadHistoricalWeek(selectedWeek);
+                      }
+                    } else if (activeTab === 'clockouts') {
+                      loadAutoClockouts();
+                    } else if (activeTab === 'scheduled-today') {
+                      loadScheduledToday();
+                    } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
+                      loadFlashData();
+                    }
+                  }}
+                  className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  title="Refresh data"
+                >
+                  <RefreshCw size={16} className="text-white" />
+                </button>
 
+                {/* Sign Out Button */}
+                <button
+                  onClick={() => signOut()}
+                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                  title="Sign out"
+                >
+                  Sign Out
+                </button>
+              </div>
+              
+              {/* Updated timestamp below Sign Out */}
               {lastUpdated && (
-                <div className="text-xs text-slate-400 hidden md:block">
+                <div className="text-xs text-slate-400 text-right">
                   Updated: {lastUpdated.toLocaleTimeString()}
                 </div>
               )}
-              
-              <button
-                onClick={() => {
-                  if (activeTab === 'sales') {
-                    if (selectedWeek === 'current') {
-                      loadDataFromGoogleSheets();
-                    } else {
-                      loadHistoricalWeek(selectedWeek);
-                    }
-                  } else if (activeTab === 'clockouts') {
-                    loadAutoClockouts();
-                  } else if (activeTab === 'scheduled-today') {
-                    loadScheduledToday();
-                  } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
-                    loadFlashData();
-                  }
-                }}
-                className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                title="Refresh data"
-              >
-                <RefreshCw size={16} className="text-white" />
-              </button>
-
-              {/* Sign Out Button */}
-              <button
-                onClick={() => signOut()}
-                className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
-                title="Sign out"
-              >
-                Sign Out
-              </button>
             </div>
           </div>
         </div>
