@@ -239,7 +239,7 @@ export default function Home() {
     
     try {
       const sheetName = flashView === 'day' ? FLASH_DAY_SHEET : FLASH_WTD_SHEET;
-      const range = `${sheetName}!A2:K`;
+      const range = `${sheetName}!A2:M`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
       
       const response = await fetch(url);
@@ -267,7 +267,9 @@ export default function Home() {
         totalCounts: parseFloat(row[7]) || 0,
         sameDayLYCounts: parseFloat(row[8]) || 0,
         comps: parseFloat(row[9]) || 0,
-        discounts: parseFloat(row[10]) || 0
+        discounts: parseFloat(row[10]) || 0,
+        totalDiscounts: parseFloat(row[11]) || 0,
+        discountPercent: parseFloat(row[12]) || 0
       }));
       
       setFlashData(parsedFlash);
@@ -556,8 +558,8 @@ export default function Home() {
                 >
                   <option value="sales">Weekly Sales & Labor</option>
                   <option value="clockouts">Auto-Clockouts</option>
-                  <option value="flash-sales">Flash Report - Sales</option>
-                  <option value="flash-discounts">Flash Report - Discounts</option>
+                  <option value="flash-sales">Sales/Guest Counts</option>
+                  <option value="flash-discounts">Comps/Discounts</option>
                 </select>
               </div>
 
@@ -964,39 +966,60 @@ export default function Home() {
                 <p className="text-slate-400">No flash data available</p>
               </div>
             ) : (
-              <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-slate-900 border-b border-slate-700">
-                    <tr>
-                      <th className="text-left p-3 text-slate-400 text-sm font-semibold">Location</th>
-                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Sales</th>
-                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Same Day LY</th>
-                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">$ Change</th>
-                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">% Change</th>
-                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Avg Sales/Guest</th>
-                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Counts</th>
-                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Same Day LY</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-700">
-                    {flashData.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-750 transition-colors">
-                        <td className="p-3 text-white font-medium">{row.location}</td>
-                        <td className="p-3 text-right text-white">${row.sales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                        <td className="p-3 text-right text-slate-300">${row.sameDayLY.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                        <td className={`p-3 text-right font-semibold ${row.dollarChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {row.dollarChange >= 0 ? '+' : ''}${row.dollarChange.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                        </td>
-                        <td className={`p-3 text-right font-semibold ${row.percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {row.percentChange >= 0 ? '+' : ''}{(row.percentChange * 100).toFixed(1)}%
-                        </td>
-                        <td className="p-3 text-right text-white">${row.avgSalesPerGuest.toFixed(2)}</td>
-                        <td className="p-3 text-right text-white">{row.totalCounts.toLocaleString('en-US')}</td>
-                        <td className="p-3 text-right text-slate-300">{row.sameDayLYCounts.toLocaleString('en-US')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
+                {flashData.map((loc, idx) => (
+                  <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                    <div className="flex items-start justify-between mb-2 md:mb-3">
+                      <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 md:gap-2">
+                      <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                        <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">SALES</p>
+                        <div className="space-y-0.5 md:space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Sales</span>
+                            <span className="text-white font-bold text-xs">${loc.sales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">LY</span>
+                            <span className="text-slate-300 text-xs">${loc.sameDayLY.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Var</span>
+                            <span className={`font-semibold text-xs ${loc.dollarChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {loc.dollarChange >= 0 ? '+' : ''}${Math.abs(loc.dollarChange).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">% Chg</span>
+                            <span className={`font-semibold text-xs ${loc.percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {loc.percentChange >= 0 ? '+' : ''}{(loc.percentChange * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                        <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">GUESTS</p>
+                        <div className="space-y-0.5 md:space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Avg Ticket</span>
+                            <span className="text-white font-bold text-xs">${loc.avgSalesPerGuest.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Counts</span>
+                            <span className="text-white font-semibold text-xs">{loc.totalCounts.toLocaleString('en-US')}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">LY</span>
+                            <span className="text-slate-300 text-xs">{loc.sameDayLYCounts.toLocaleString('en-US')}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </>
@@ -1049,25 +1072,38 @@ export default function Home() {
                 <p className="text-slate-400">No flash data available</p>
               </div>
             ) : (
-              <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-slate-900 border-b border-slate-700">
-                    <tr>
-                      <th className="text-left p-3 text-slate-400 text-sm font-semibold">Location</th>
-                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Comps</th>
-                      <th className="text-right p-3 text-slate-400 text-sm font-semibold">Discounts</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-700">
-                    {flashData.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-750 transition-colors">
-                        <td className="p-3 text-white font-medium">{row.location}</td>
-                        <td className="p-3 text-right text-white">${row.comps.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                        <td className="p-3 text-right text-white">${row.discounts.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
+                {flashData.map((loc, idx) => {
+                  return (
+                    <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                      <div className="flex items-start justify-between mb-2 md:mb-3">
+                        <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
+                      </div>
+
+                      <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                        <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">DISCOUNTS</p>
+                        <div className="space-y-0.5 md:space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Comps</span>
+                            <span className="text-white font-bold text-xs">${loc.comps.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Discounts</span>
+                            <span className="text-white font-semibold text-xs">${loc.discounts.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-1 border-t border-slate-700">
+                            <span className="text-slate-500 text-xs">Total</span>
+                            <span className="text-white font-bold text-xs">${loc.totalDiscounts.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">% of Sales</span>
+                            <span className="text-orange-400 font-bold text-xs">{(loc.discountPercent * 100).toFixed(2)}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </>
