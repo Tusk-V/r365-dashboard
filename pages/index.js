@@ -85,19 +85,6 @@ export default function Home() {
     return 'Other';
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const year = date.getFullYear();
-      return `${month}/${day}/${year}`;
-    } catch (e) {
-      return dateString;
-    }
-  };
-
   const parseSheetData = (rows) => {
     const parsedData = [];
     
@@ -348,7 +335,7 @@ export default function Home() {
       }
       
       const parsedClockouts = data.values.map(row => ({
-        reportDate: formatDate(row[0]) || '',
+        reportDate: row[0] || '',
         location: row[1] || '',
         employee: row[2] || '',
         clockIn: row[3] || '',
@@ -425,7 +412,7 @@ export default function Home() {
       }
       
       const parsedCallOffs = data.values.map(row => ({
-        reportDate: formatDate(row[0]) || '',
+        reportDate: row[0] || '',
         location: row[1] || '',
         employee: row[2] || '',
         scheduledTime: adjustTimeForTimezone(row[3] || '')
@@ -1352,7 +1339,8 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
-                  <div className="grid gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900" style={{gridTemplateColumns: '80px 1fr 120px 150px'}}>
+                  {/* Desktop Header */}
+                  <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900" style={{gridTemplateColumns: '100px 1fr 120px 150px'}}>
                     <div className="text-slate-400 text-xs md:text-sm font-semibold">Date</div>
                     <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
                     <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
@@ -1361,11 +1349,24 @@ export default function Home() {
                   
                   <div className="divide-y divide-slate-700">
                     {filteredCallOffs.map((callOff, idx) => (
-                      <div key={idx} className="grid gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '80px 1fr 120px 150px'}}>
-                        <div className="text-slate-300 text-xs md:text-sm">{callOff.reportDate}</div>
-                        <div className="text-white font-medium text-xs md:text-sm">{callOff.employee}</div>
-                        <div className="text-slate-300 text-xs md:text-sm">{callOff.location}</div>
-                        <div className="text-slate-300 text-xs md:text-sm">{callOff.scheduledTime}</div>
+                      <div key={idx}>
+                        {/* Desktop Layout */}
+                        <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '100px 1fr 120px 150px'}}>
+                          <div className="text-slate-300 text-xs md:text-sm">{callOff.reportDate}</div>
+                          <div className="text-white font-medium text-xs md:text-sm">{callOff.employee}</div>
+                          <div className="text-slate-300 text-xs md:text-sm">{callOff.location}</div>
+                          <div className="text-slate-300 text-xs md:text-sm">{callOff.scheduledTime}</div>
+                        </div>
+                        
+                        {/* Mobile Layout */}
+                        <div className="md:hidden p-3 space-y-1">
+                          <div className="flex justify-between items-start">
+                            <div className="text-white font-medium text-sm">{callOff.employee}</div>
+                            <div className="text-slate-400 text-xs">{callOff.reportDate}</div>
+                          </div>
+                          <div className="text-slate-300 text-xs">{callOff.location}</div>
+                          <div className="text-slate-400 text-xs">{callOff.scheduledTime}</div>
+                        </div>
                       </div>
                     ))}
                   </div>
