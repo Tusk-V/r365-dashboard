@@ -1117,9 +1117,483 @@ export default function Home() {
           </>
         )}
 
-        {/* REST OF THE DASHBOARDS - Truncated for brevity, but they're all the same structure */}
-        {/* Just copy the rest from your original file after the clockouts section */}
+        {/* Scheduled Today Dashboard */}
+        {activeTab === 'scheduled-today' && (
+          <>
+            {/* Filters */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Filter className="w-4 h-4 text-blue-400" />
+                <h3 className="text-sm font-semibold text-white">Filters</h3>
+              </div>
+              <div className="flex flex-col md:flex-row gap-2">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                  <select
+                    value={scheduledLocationFilter}
+                    onChange={(e) => setScheduledLocationFilter(e.target.value)}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Locations</option>
+                    {[...new Set(scheduledToday.map(emp => emp.location))].sort().map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                  <select
+                    value={scheduledMarketFilter}
+                    onChange={(e) => setScheduledMarketFilter(e.target.value)}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Markets</option>
+                    <option value="Tulsa">Tulsa</option>
+                    <option value="Oklahoma City">Oklahoma City</option>
+                    <option value="Dallas">Dallas</option>
+                    <option value="Orlando">Orlando</option>
+                  </select>
+                </div>
+              </div>
+            </div>
 
+            {scheduledError && (
+              <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                <strong>Error:</strong> {scheduledError}
+              </div>
+            )}
+
+            {scheduledLoading ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="text-white text-lg">Loading scheduled employees...</div>
+              </div>
+            ) : filteredScheduled.length === 0 ? (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                <p className="text-slate-400">No scheduled employees found</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
+                {(() => {
+                  // Group employees by location
+                  const groupedByLocation = filteredScheduled.reduce((acc, emp) => {
+                    if (!acc[emp.location]) {
+                      acc[emp.location] = [];
+                    }
+                    acc[emp.location].push(emp);
+                    return acc;
+                  }, {});
+
+                  // Sort locations alphabetically
+                  const sortedLocations = Object.keys(groupedByLocation).sort();
+
+                  return sortedLocations.map((location, locIdx) => {
+                    const employees = groupedByLocation[location];
+                    
+                    return (
+                      <div key={locIdx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                        <div className="mb-2 md:mb-3">
+                          <h3 className="text-sm md:text-base font-bold text-white">{location}</h3>
+                          <p className="text-xs text-slate-400">{employees.length} employee{employees.length !== 1 ? 's' : ''} scheduled</p>
+                        </div>
+
+                        <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                          <div className="space-y-1">
+                            {employees.map((emp, empIdx) => (
+                              <div key={empIdx} className="flex justify-between items-center py-1 border-b border-slate-700 last:border-b-0">
+                                <span className="text-white text-xs md:text-sm font-medium">{emp.employee}</span>
+                                <span className="text-slate-300 text-xs md:text-sm whitespace-nowrap ml-2">{emp.schStart} - {emp.schEnd}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Flash Report - Sales Dashboard */}
+        {activeTab === 'flash-sales' && (
+          <>
+            {/* Day/WTD Toggle */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-slate-400">View:</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setFlashView('day')}
+                    className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                      flashView === 'day'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    Yesterday
+                  </button>
+                  <button
+                    onClick={() => setFlashView('wtd')}
+                    className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                      flashView === 'wtd'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    Week To Date
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Filter className="w-4 h-4 text-blue-400" />
+                <h3 className="text-sm font-semibold text-white">Filters</h3>
+              </div>
+              <div className="flex flex-col md:flex-row gap-2">
+                <div className="flex-1 relative">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsLocationDropdownOpen(!isLocationDropdownOpen);
+                    }}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center justify-between"
+                  >
+                    <span>{flashFilters.locations.length === 0 ? 'All Locations' : `${flashFilters.locations.length} selected`}</span>
+                    <span className="text-slate-400">▼</span>
+                  </button>
+                  {isLocationDropdownOpen && (
+                    <div className="absolute z-10 mt-1 w-full bg-slate-700 border border-slate-600 rounded shadow-lg max-h-60 overflow-y-auto">
+                      <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600 border-b border-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={flashFilters.locations.length === 0}
+                          onChange={() => setFlashFilters({...flashFilters, locations: []})}
+                          className="rounded"
+                        />
+                        <span className="text-white text-xs font-semibold">All Locations</span>
+                      </label>
+                      {flashData.map(loc => (
+                        <label key={loc.location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={flashFilters.locations.includes(loc.location)}
+                            onChange={() => handleFlashLocationToggle(loc.location)}
+                            className="rounded"
+                          />
+                          <span className="text-white text-xs">{loc.location}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                  <select
+                    value={flashFilters.market}
+                    onChange={(e) => setFlashFilters({...flashFilters, market: e.target.value})}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Markets</option>
+                    <option value="Tulsa">Tulsa</option>
+                    <option value="Oklahoma City">Oklahoma City</option>
+                    <option value="Dallas">Dallas</option>
+                    <option value="Orlando">Orlando</option>
+                  </select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Sales Variance</label>
+                  <select
+                    value={flashFilters.salesVariance}
+                    onChange={(e) => setFlashFilters({...flashFilters, salesVariance: e.target.value})}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Variances</option>
+                    <option value="positive">Above LY</option>
+                    <option value="negative">Below LY</option>
+                  </select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Guest Count Variance</label>
+                  <select
+                    value={flashFilters.guestCountVariance}
+                    onChange={(e) => setFlashFilters({...flashFilters, guestCountVariance: e.target.value})}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Variances</option>
+                    <option value="positive">Above LY</option>
+                    <option value="negative">Below LY</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {flashError && (
+              <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                <strong>Error:</strong> {flashError}
+              </div>
+            )}
+
+            {flashLoading ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="text-white text-lg">Loading flash data...</div>
+              </div>
+            ) : flashData.length === 0 ? (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                <p className="text-slate-400">No flash data available</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
+                {filteredFlashData.map((loc, idx) => (
+                  <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                    <div className="flex items-start justify-between mb-2 md:mb-3">
+                      <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 md:gap-2">
+                      <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                        <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">SALES</p>
+                        <div className="space-y-0.5 md:space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Sales</span>
+                            <span className="text-white font-bold text-xs">${loc.sales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">LY</span>
+                            <span className="text-slate-300 text-xs">${loc.sameDayLY.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Var</span>
+                            <span className={`font-semibold text-xs ${loc.dollarChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {loc.dollarChange >= 0 ? '+' : ''}${Math.abs(loc.dollarChange).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">% Chg</span>
+                            <span className={`font-semibold text-xs ${loc.percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {loc.percentChange >= 0 ? '+' : ''}{(loc.percentChange * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                        <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">GUESTS</p>
+                        <div className="space-y-0.5 md:space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Avg Ticket</span>
+                            <span className="text-white font-bold text-xs">${loc.avgSalesPerGuest.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Counts</span>
+                            <span className="text-white font-semibold text-xs">{loc.totalCounts.toLocaleString('en-US')}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">LY</span>
+                            <span className="text-slate-300 text-xs">{loc.sameDayLYCounts.toLocaleString('en-US')}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">% Chg</span>
+                            <span className={`font-semibold text-xs ${((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) >= 0 ? '+' : ''}{(((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Flash Report - Discounts Dashboard */}
+        {activeTab === 'flash-discounts' && (
+          <>
+            {/* Day/WTD Toggle */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-slate-400">View:</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setFlashView('day')}
+                    className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                      flashView === 'day'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    Yesterday
+                  </button>
+                  <button
+                    onClick={() => setFlashView('wtd')}
+                    className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                      flashView === 'wtd'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    Week To Date
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Filter className="w-4 h-4 text-blue-400" />
+                <h3 className="text-sm font-semibold text-white">Filters</h3>
+              </div>
+              <div className="flex flex-col md:flex-row gap-2">
+                <div className="flex-1 relative">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsLocationDropdownOpen(!isLocationDropdownOpen);
+                    }}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center justify-between"
+                  >
+                    <span>{flashFilters.locations.length === 0 ? 'All Locations' : `${flashFilters.locations.length} selected`}</span>
+                    <span className="text-slate-400">▼</span>
+                  </button>
+                  {isLocationDropdownOpen && (
+                    <div className="absolute z-10 mt-1 w-full bg-slate-700 border border-slate-600 rounded shadow-lg max-h-60 overflow-y-auto">
+                      <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600 border-b border-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={flashFilters.locations.length === 0}
+                          onChange={() => setFlashFilters({...flashFilters, locations: []})}
+                          className="rounded"
+                        />
+                        <span className="text-white text-xs font-semibold">All Locations</span>
+                      </label>
+                      {flashData.map(loc => (
+                        <label key={loc.location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={flashFilters.locations.includes(loc.location)}
+                            onChange={() => handleFlashLocationToggle(loc.location)}
+                            className="rounded"
+                          />
+                          <span className="text-white text-xs">{loc.location}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                  <select
+                    value={flashFilters.market}
+                    onChange={(e) => setFlashFilters({...flashFilters, market: e.target.value})}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Markets</option>
+                    <option value="Tulsa">Tulsa</option>
+                    <option value="Oklahoma City">Oklahoma City</option>
+                    <option value="Dallas">Dallas</option>
+                    <option value="Orlando">Orlando</option>
+                  </select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Sales Variance</label>
+                  <select
+                    value={flashFilters.salesVariance}
+                    onChange={(e) => setFlashFilters({...flashFilters, salesVariance: e.target.value})}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Variances</option>
+                    <option value="positive">Above LY</option>
+                    <option value="negative">Below LY</option>
+                  </select>
+                </div>
+
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Guest Count Variance</label>
+                  <select
+                    value={flashFilters.guestCountVariance}
+                    onChange={(e) => setFlashFilters({...flashFilters, guestCountVariance: e.target.value})}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Variances</option>
+                    <option value="positive">Above LY</option>
+                    <option value="negative">Below LY</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {flashError && (
+              <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                <strong>Error:</strong> {flashError}
+              </div>
+            )}
+
+            {flashLoading ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="text-white text-lg">Loading flash data...</div>
+              </div>
+            ) : flashData.length === 0 ? (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                <p className="text-slate-400">No flash data available</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
+                {filteredFlashData.map((loc, idx) => {
+                  return (
+                    <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                      <div className="flex items-start justify-between mb-2 md:mb-3">
+                        <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
+                      </div>
+
+                      <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                        <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">DISCOUNTS</p>
+                        <div className="space-y-0.5 md:space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Comps</span>
+                            <span className="text-white font-bold text-xs">${loc.comps.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Discounts</span>
+                            <span className="text-white font-semibold text-xs">${loc.discounts.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-1 border-t border-slate-700">
+                            <span className="text-slate-500 text-xs">Total</span>
+                            <span className="text-white font-bold text-xs">${loc.totalDiscounts.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">% of Sales</span>
+                            <span className={`font-bold text-xs ${(loc.discountPercent * 100) > 3 ? 'text-orange-400' : 'text-white'}`}>
+                              {(loc.discountPercent * 100).toFixed(2)}%
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 text-xs">Voids</span>
+                            <span className={`font-semibold text-xs ${loc.voids > 20 ? 'text-orange-400' : 'text-white'}`}>
+                              ${loc.voids.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Auto-Clockout Employees Modal */}
