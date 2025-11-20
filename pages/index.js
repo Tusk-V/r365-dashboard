@@ -1016,12 +1016,6 @@ export default function Home() {
                             <span className="text-slate-300 text-xs">{loc.sameDayLYCounts.toLocaleString('en-US')}</span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <span className="text-slate-500 text-xs">Var</span>
-                            <span className={`font-semibold text-xs ${(loc.totalCounts - loc.sameDayLYCounts) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {(loc.totalCounts - loc.sameDayLYCounts) >= 0 ? '+' : ''}{(loc.totalCounts - loc.sameDayLYCounts).toLocaleString('en-US')}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
                             <span className="text-slate-500 text-xs">% Chg</span>
                             <span className={`font-semibold text-xs ${((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                               {((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) >= 0 ? '+' : ''}{(((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) * 100).toFixed(1)}%
