@@ -1138,24 +1138,44 @@ export default function Home() {
                 <p className="text-slate-400">No scheduled employees found</p>
               </div>
             ) : (
-              <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
-                {/* Header */}
-                <div className="grid grid-cols-3 gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900">
-                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
-                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Employee</div>
-                  <div className="text-slate-400 text-xs md:text-sm font-semibold">Schedule</div>
-                </div>
-                
-                {/* List */}
-                <div className="divide-y divide-slate-700">
-                  {filteredScheduled.map((emp, idx) => (
-                    <div key={idx} className="grid grid-cols-3 gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors">
-                      <div className="text-slate-300 text-xs md:text-sm">{emp.location}</div>
-                      <div className="text-white font-medium text-xs md:text-sm">{emp.employee}</div>
-                      <div className="text-slate-300 text-xs md:text-sm">{emp.schStart} - {emp.schEnd}</div>
-                    </div>
-                  ))}
-                </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
+                {(() => {
+                  // Group employees by location
+                  const groupedByLocation = filteredScheduled.reduce((acc, emp) => {
+                    if (!acc[emp.location]) {
+                      acc[emp.location] = [];
+                    }
+                    acc[emp.location].push(emp);
+                    return acc;
+                  }, {});
+
+                  // Sort locations alphabetically
+                  const sortedLocations = Object.keys(groupedByLocation).sort();
+
+                  return sortedLocations.map((location, locIdx) => {
+                    const employees = groupedByLocation[location];
+                    
+                    return (
+                      <div key={locIdx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                        <div className="mb-2 md:mb-3">
+                          <h3 className="text-sm md:text-base font-bold text-white">{location}</h3>
+                          <p className="text-xs text-slate-400">{employees.length} employee{employees.length !== 1 ? 's' : ''} scheduled</p>
+                        </div>
+
+                        <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                          <div className="space-y-1">
+                            {employees.map((emp, empIdx) => (
+                              <div key={empIdx} className="flex justify-between items-center py-1 border-b border-slate-700 last:border-b-0">
+                                <span className="text-white text-xs md:text-sm font-medium">{emp.employee}</span>
+                                <span className="text-slate-300 text-xs md:text-sm whitespace-nowrap ml-2">{emp.schStart} - {emp.schEnd}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             )}
           </>
