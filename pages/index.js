@@ -753,7 +753,7 @@ export default function Home() {
               </div>
             </div>
             
-            {/* Sign Out Button - Desktop only on line 1 */}
+            {/* Desktop: Sign Out Button on line 1 */}
             <button
               onClick={() => signOut()}
               className="hidden md:block px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
@@ -764,7 +764,7 @@ export default function Home() {
           </div>
           
           {/* Line 2: Dashboard Selector and Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center md:justify-end gap-2">
             <label className="text-sm font-medium text-slate-400 whitespace-nowrap hidden md:block">Select Dashboard:</label>
             <select
               value={activeTab}
@@ -803,7 +803,7 @@ export default function Home() {
               <RefreshCw size={16} className="text-white" />
             </button>
 
-            {/* Sign Out Button - Mobile only on line 2 */}
+            {/* Mobile: Sign Out Button on line 2 */}
             <button
               onClick={() => signOut()}
               className="md:hidden px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
