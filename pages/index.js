@@ -46,6 +46,7 @@ export default function Home() {
   const [scheduledLoading, setScheduledLoading] = useState(false);
   const [scheduledError, setScheduledError] = useState(null);
   const [scheduledLocationFilter, setScheduledLocationFilter] = useState('all');
+  const [scheduledMarketFilter, setScheduledMarketFilter] = useState('all');
 
   // Flash Report State
   const [flashData, setFlashData] = useState([]);
@@ -118,7 +119,7 @@ export default function Home() {
 
   useEffect(() => {
     applyScheduledFilters();
-  }, [scheduledToday, scheduledLocationFilter]);
+  }, [scheduledToday, scheduledLocationFilter, scheduledMarketFilter]);
 
   // Sales Dashboard Functions
   const loadDataFromGoogleSheets = async () => {
@@ -375,6 +376,10 @@ export default function Home() {
       filtered = filtered.filter(emp => emp.location === scheduledLocationFilter);
     }
     
+    if (scheduledMarketFilter !== 'all') {
+      filtered = filtered.filter(emp => getMarket(emp.location) === scheduledMarketFilter);
+    }
+    
     setFilteredScheduled(filtered);
   };
 
@@ -396,7 +401,7 @@ export default function Home() {
     return [...new Set(clockouts.map(c => c.location))].sort();
   };
 
-  const hasAutoClockout = (locationName) => {
+  const getAutoClockoutEmployees = (locationName) => {
     // Get the current week's date range (Monday-Sunday)
     const today = new Date();
     const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -412,16 +417,16 @@ export default function Home() {
     sunday.setDate(monday.getDate() + 6);
     sunday.setHours(23, 59, 59, 999);
     
-    // Check if this location has any auto-clockouts in the current week
-    return clockouts.some(c => {
-      if (c.location !== locationName) return false;
-      
-      // Parse the report date
-      const reportDate = new Date(c.reportDate);
-      
-      // Check if it falls within current week
-      return reportDate >= monday && reportDate <= sunday;
-    });
+    // Get all employees with auto-clockouts at this location in the current week
+    const employees = clockouts
+      .filter(c => {
+        if (c.location !== locationName) return false;
+        const reportDate = new Date(c.reportDate);
+        return reportDate >= monday && reportDate <= sunday;
+      })
+      .map(c => c.employee);
+    
+    return employees;
   };
 
   const parseSheetData = (rows) => {
@@ -938,11 +943,20 @@ export default function Home() {
                     <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
                       <div className="flex items-start justify-between mb-2 md:mb-3">
                         <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
-                        {hasAutoClockout(loc.location) && (
-                          <span className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold whitespace-nowrap flex-shrink-0">
-                            AUTO-CLOCKOUT
-                          </span>
-                        )}
+                        {(() => {
+                          const employees = getAutoClockoutEmployees(loc.location);
+                          if (employees.length > 0) {
+                            return (
+                              <span 
+                                className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-help" 
+                                title={employees.join(', ')}
+                              >
+                                AUTO-CLOCKOUT ({employees.length})
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
 
                       <div className="grid grid-cols-3 gap-1.5 md:gap-2">
@@ -1042,7 +1056,7 @@ export default function Home() {
             ) : (
               <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
                 {/* Header */}
-                <div className="grid grid-cols-3 gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900">
+                <div className="grid gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900" style={{gridTemplateColumns: '80px 1fr 120px'}}>
                   <div className="text-slate-400 text-xs md:text-sm font-semibold">Date</div>
                   <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
                   <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
@@ -1051,7 +1065,7 @@ export default function Home() {
                 {/* List */}
                 <div className="divide-y divide-slate-700">
                   {filteredClockouts.map((clockout, idx) => (
-                    <div key={idx} className="grid grid-cols-3 gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors">
+                    <div key={idx} className="grid gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '80px 1fr 120px'}}>
                       <div className="text-slate-300 text-xs md:text-sm">{clockout.reportDate}</div>
                       <div className="text-white font-medium text-xs md:text-sm">{clockout.employee}</div>
                       <div className="text-slate-300 text-xs md:text-sm">{clockout.location}</div>
@@ -1066,13 +1080,13 @@ export default function Home() {
         {/* Scheduled Today Dashboard */}
         {activeTab === 'scheduled-today' && (
           <>
-            {/* Location Filter */}
+            {/* Filters */}
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
               <div className="flex items-center gap-2 mb-2">
                 <Filter className="w-4 h-4 text-blue-400" />
-                <h3 className="text-sm font-semibold text-white">Filter</h3>
+                <h3 className="text-sm font-semibold text-white">Filters</h3>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col md:flex-row gap-2">
                 <div className="flex-1">
                   <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
                   <select
@@ -1084,6 +1098,20 @@ export default function Home() {
                     {[...new Set(scheduledToday.map(emp => emp.location))].sort().map(loc => (
                       <option key={loc} value={loc}>{loc}</option>
                     ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                  <select
+                    value={scheduledMarketFilter}
+                    onChange={(e) => setScheduledMarketFilter(e.target.value)}
+                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Markets</option>
+                    <option value="Tulsa">Tulsa</option>
+                    <option value="Oklahoma City">Oklahoma City</option>
+                    <option value="Dallas">Dallas</option>
+                    <option value="Orlando">Orlando</option>
                   </select>
                 </div>
               </div>
