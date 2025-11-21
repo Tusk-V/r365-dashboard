@@ -116,14 +116,14 @@ export default function Home() {
   };
 
   // P&L Functions
-  const loadPlData = async () => {
-    setPlLoading(true);
-    setPlError(null);
-    try {
-      const response = await fetch('/pl_data.json');
-      if (!response.ok) throw new Error('Failed to load P&L data');
-      const data = await response.json();
-      setPlData(data);
+const loadPlData = async () => {
+  setPlLoading(true);
+  setPlError(null);
+  try {
+    const response = await fetch('/api/get-pl-data');
+    if (!response.ok) throw new Error('Failed to load P&L data');
+    const result = await response.json();
+    setPlData(result.data);
     } catch (err) {
       console.error('Error loading P&L data:', err);
       setPlError(err.message);
