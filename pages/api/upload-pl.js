@@ -1,7 +1,6 @@
 import formidable from 'formidable';
 import * as XLSX from 'xlsx';
-import fs from 'fs';
-import path from 'path';
+import { MongoClient } from 'mongodb';
 
 export const config = {
   api: {
@@ -10,6 +9,7 @@ export const config = {
 };
 
 const ADMIN_PIN = '9999';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -17,8 +17,7 @@ export default async function handler(req, res) {
   }
 
   const form = formidable({
-    uploadDir: '/tmp',
-    keepExtensions: true,
+    maxFileSize: 50 * 1024 * 1024, // 50MB
   });
 
   try {
@@ -46,12 +45,7 @@ export default async function handler(req, res) {
     
     console.log(`Processing workbook with ${workbook.SheetNames.length} sheets`);
     
-    // Load existing data or create new
-    const publicDir = path.join(process.cwd(), 'public');
-    const plFilePath = path.join(publicDir, 'pl_data.json');
-
     let allLocationData = {};
-    
     let periodDate = '';
     let processedCount = 0;
 
@@ -210,11 +204,24 @@ export default async function handler(req, res) {
       }
     }
 
-    // Write all locations to file
-    fs.writeFileSync(plFilePath, JSON.stringify(allLocationData, null, 2));
-
-    // Clean up uploaded file
-    fs.unlinkSync(file.filepath);
+    // Save to MongoDB
+    const client = await MongoClient.connect(MONGODB_URI);
+    const db = client.db();
+    
+    // Store as a single document with all locations
+    await db.collection('pl_data').updateOne(
+      { _id: 'current' },
+      { 
+        $set: { 
+          data: allLocationData,
+          periodDate: periodDate,
+          updatedAt: new Date()
+        }
+      },
+      { upsert: true }
+    );
+    
+    await client.close();
 
     return res.status(200).json({
       success: true,
