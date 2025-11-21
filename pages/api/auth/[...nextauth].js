@@ -1,4 +1,4 @@
-// pages/api/auth/[...nextauth].js
+// pages/api/auth/[...nextauth].js - DEBUG VERSION
 
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
@@ -15,7 +15,8 @@ export const authOptions = {
       clientSecret: process.env.GOOGLE_SECRET,
       authorization: {
         params: {
-          hd: "rancherscustard.com",
+          // TEMPORARILY REMOVE hd restriction to test
+          // hd: "rancherscustard.com",
           prompt: "select_account",
         }
       }
@@ -38,11 +39,18 @@ export const authOptions = {
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
+      console.log('=== SIGN IN ATTEMPT ===');
+      console.log('User email:', user.email);
+      console.log('Account provider:', account.provider);
+      console.log('Profile:', profile);
+      
       // Verify email domain for all providers
       if (user.email && !user.email.endsWith('@rancherscustard.com')) {
-        console.log(`Blocked login attempt from: ${user.email}`);
-        return '/auth/error?error=AccessDenied'; // Redirect to error page
+        console.log(`❌ BLOCKED login attempt from: ${user.email}`);
+        return '/auth/error?error=AccessDenied';
       }
+      
+      console.log(`✅ ALLOWED login from: ${user.email}`);
       return true;
     },
     async session({ session, user }) {
@@ -59,6 +67,7 @@ export const authOptions = {
   session: {
     strategy: "database",
   },
+  debug: true, // Enable debug mode
 };
 
 export default NextAuth(authOptions);
