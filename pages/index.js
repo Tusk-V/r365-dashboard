@@ -1238,34 +1238,6 @@ useEffect(() => {
                       </div>
                     </>
                   )}
-                          <div key={category} className="bg-slate-800 border border-slate-700 rounded-xl shadow-lg overflow-hidden">
-                            <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-3">
-                              <h3 className="text-lg font-bold text-white">{category}</h3>
-                            </div>
-                            <div className="p-4">
-                              <div className="space-y-2">
-                                {Object.entries(items).map(([item, data]) => {
-                                  const isNegative = data.value < 0;
-                                  const isTotalOrNet = item.toLowerCase().includes('total') || item.toLowerCase().includes('net') || item.toLowerCase().includes('income') || item.toLowerCase().includes('profit');
-                                  return (
-                                    <div key={item} className={`flex justify-between items-center py-2 px-3 rounded-lg transition ${isTotalOrNet ? 'bg-indigo-900 bg-opacity-30 border border-indigo-600 font-semibold' : 'bg-slate-900 hover:bg-slate-850'}`}>
-                                      <div className="flex-1">
-                                        <span className={`text-sm ${isTotalOrNet ? 'text-white font-semibold' : 'text-slate-300'}`}>{item}</span>
-                                      </div>
-                                      <div className="flex items-center gap-4">
-                                        <span className={`font-mono text-right min-w-[120px] text-sm ${isNegative ? 'text-red-400' : 'text-white'} ${isTotalOrNet ? 'font-bold text-base' : ''}`}>{formatCurrency(data.value)}</span>
-                                        <span className={`font-mono text-xs min-w-[60px] text-right ${isNegative ? 'text-red-400' : 'text-slate-400'}`}>{formatPercent(data.percent)}</span>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </>
               )}
             </>
