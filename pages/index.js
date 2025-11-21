@@ -1251,8 +1251,10 @@ export default function Home() {
                                 <span className="text-white font-semibold text-xs">{loc.optLaborPercent.toFixed(1)}%</span>
                               </div>
                               <div className="flex justify-between items-center">
-                                <span className="text-slate-500 text-xs">Prod</span>
-                                <span className="text-white font-bold text-xs">${loc.productivity.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                                <span className="text-slate-500 text-xs">Variance</span>
+                                <span className={`font-semibold text-xs ${(loc.laborPercent - loc.optLaborPercent) < 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {(loc.laborPercent - loc.optLaborPercent) > 0 ? '+' : ''}{(loc.laborPercent - loc.optLaborPercent).toFixed(1)}%
+                                </span>
                               </div>
                             </div>
                           </div>
