@@ -1152,13 +1152,92 @@ useEffect(() => {
                   )}
                   {plLoading ? (
                     <div className="flex justify-center items-center py-20"><div className="text-white text-lg">Loading P&L data...</div></div>
-                  ) : !plData || !plData[plSelectedLocation] ? (
+                                    ) : !plData || !plData[plSelectedLocation] ? (
                     <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center"><p className="text-slate-400">No P&L data available for this location</p></div>
                   ) : (
-                    <div className="space-y-3">
-                      {Object.entries(plData[plSelectedLocation]).map(([category, items]) => {
-                        if (Object.keys(items).length === 0) return null;
-                        return (
+                    <>
+                      {/* Header Row */}
+                      <div className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 mb-2">
+                        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-2 text-xs font-semibold text-slate-400">
+                          <div></div>
+                          <div className="text-right">Period</div>
+                          <div className="text-right">%</div>
+                          <div className="text-right">YTD</div>
+                          <div className="text-right">%</div>
+                        </div>
+                      </div>
+
+                      {/* Categories */}
+                      <div className="space-y-2">
+                        {Object.entries(plData[plSelectedLocation]).map(([category, items]) => {
+                          if (Object.keys(items).length === 0) return null;
+                          
+                          const isCollapsed = plCollapsed[category];
+                          const totalSalesPeriod = plData[plSelectedLocation]['Sales']['Total Sales'].period;
+                          const totalSalesYTD = plData[plSelectedLocation]['Sales']['Total Sales'].ytd;
+                          
+                          return (
+                            <div key={category} className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                              <button
+                                onClick={() => setPlCollapsed({...plCollapsed, [category]: !isCollapsed})}
+                                className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-2.5 flex items-center justify-between hover:from-indigo-700 hover:to-indigo-800 transition-colors"
+                              >
+                                <h3 className="text-sm font-bold text-white">{category}</h3>
+                                <span className="text-white text-lg">{isCollapsed ? '▼' : '▲'}</span>
+                              </button>
+                              
+                              {!isCollapsed && (
+                                <div className="p-2">
+                                  <div className="space-y-0.5">
+                                    {Object.entries(items).map(([item, data]) => {
+                                      const isBold = item.toLowerCase().includes('total') || item.toLowerCase() === 'net profit';
+                                      const periodPercent = totalSalesPeriod !== 0 ? (data.period / totalSalesPeriod) * 100 : 0;
+                                      const ytdPercent = totalSalesYTD !== 0 ? (data.ytd / totalSalesYTD) * 100 : 0;
+                                      
+                                      // Indent sub-items
+                                      const isSubItem = !isBold && 
+                                        !item.toLowerCase().includes('salaries and wages') && 
+                                        !item.toLowerCase().includes('payroll taxes') && 
+                                        !item.toLowerCase().includes('payroll benefits') && 
+                                        !item.toLowerCase().includes('food and paper cost') && 
+                                        !item.toLowerCase().includes('utilities') && 
+                                        !item.toLowerCase().includes('advertising') && 
+                                        !item.toLowerCase().includes('general and administrative') && 
+                                        !item.toLowerCase().includes('occupancy costs') && 
+                                        !item.toLowerCase().includes('depreciation and amortization');
+                                      
+                                      return (
+                                        <div 
+                                          key={item} 
+                                          className={`grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-2 px-2 py-1.5 text-xs ${isBold ? 'bg-slate-900 font-semibold border-t border-slate-700' : 'hover:bg-slate-750'}`}
+                                        >
+                                          <div className={`${isBold ? 'text-white font-bold' : 'text-slate-300'} ${isSubItem ? 'pl-4' : ''}`}>
+                                            {item}
+                                          </div>
+                                          <div className={`text-right ${data.period < 0 ? 'text-red-400' : 'text-white'} ${isBold ? 'font-bold' : ''}`}>
+                                            {Math.round(data.period).toLocaleString()}
+                                          </div>
+                                          <div className={`text-right text-slate-400 text-[10px]`}>
+                                            {periodPercent.toFixed(1)}%
+                                          </div>
+                                          <div className={`text-right ${data.ytd < 0 ? 'text-red-400' : 'text-white'} ${isBold ? 'font-bold' : ''}`}>
+                                            {Math.round(data.ytd).toLocaleString()}
+                                          </div>
+                                          <div className={`text-right text-slate-400 text-[10px]`}>
+                                            {ytdPercent.toFixed(1)}%
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                           <div key={category} className="bg-slate-800 border border-slate-700 rounded-xl shadow-lg overflow-hidden">
                             <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-3">
                               <h3 className="text-lg font-bold text-white">{category}</h3>
