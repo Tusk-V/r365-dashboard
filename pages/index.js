@@ -204,21 +204,6 @@ export default function Home() {
     if (orlando.includes(locationName)) return 'Orlando';
     return 'Other';
   };
-  return 'Other';
-  };
-
-  // P&L Functions
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency', currency: 'USD', minimumFractionDigits: 2
-    }).format(value);
-  };
-
-  const formatPercent = (value) => {
-    return `${(value * 100).toFixed(2)}%`;
-  };
-
-  // ... rest of the P&L functions here
 
   const parseSheetData = (rows) => {
     const parsedData = [];
