@@ -40,7 +40,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Read Excel file
+    // Read Excel file - use data_only to get raw values
     const workbook = XLSX.readFile(file.filepath);
     
     console.log(`Processing workbook with ${workbook.SheetNames.length} sheets`);
@@ -53,7 +53,27 @@ export default async function handler(req, res) {
     for (const sheetName of workbook.SheetNames) {
       try {
         const sheet = workbook.Sheets[sheetName];
-        const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+        
+        // Get the range
+        const range = XLSX.utils.decode_range(sheet['!ref']);
+        
+        // Build data array by reading cell values directly
+        const data = [];
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+          const row = [];
+          for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+            const cell = sheet[cellAddress];
+            
+            // Get the cell value (not formula)
+            if (cell && cell.v !== undefined) {
+              row.push(cell.v);
+            } else {
+              row.push(null);
+            }
+          }
+          data.push(row);
+        }
 
         // Extract location name from sheet name or Row 2
         // Remove 3-digit code and dash (e.g., "201 - Carrollton" -> "Carrollton")
@@ -85,10 +105,16 @@ export default async function handler(req, res) {
             return 0;
           }
           const val = data[rowIndex][colIndex];
-          if (typeof val === 'string' && val.includes('IFERROR')) {
-            return 0; // Skip formula cells
+          // Parse numbers from strings or return number directly
+          if (typeof val === 'number') {
+            return val;
           }
-          return typeof val === 'number' ? val : 0;
+          if (typeof val === 'string') {
+            // Try to parse as number, return 0 if it fails
+            const parsed = parseFloat(val.replace(/[^0-9.-]/g, ''));
+            return isNaN(parsed) ? 0 : parsed;
+          }
+          return 0;
         };
 
         // Helper to calculate percentage
@@ -96,101 +122,155 @@ export default async function handler(req, res) {
           return totalSales !== 0 ? value / totalSales : 0;
         };
 
-        // Get Total Sales (Row 143, Column B for Period)
-        const totalSales = getVal(142, 1); // Row 143, Col B (0-indexed: row 142, col 1)
-
-        // Build P&L structure with condensed categories
+        // Build P&L structure with manual calculations
         const plData = {};
 
         // ========== SALES ==========
+        const comps = getVal(9, 1) + getVal(10, 1) + getVal(11, 1); // Sum of Comps & Discounts rows
+        const totalSales = getVal(7, 1) + comps + getVal(13, 1); // Food Sales + Comps + Refunds
+        
         plData['Sales'] = {
           'Net Sales': {
-            value: getVal(13, 1), // Total Sales (Row 14)
-            percent: calcPercent(getVal(13, 1), totalSales)
+            value: totalSales,
+            percent: calcPercent(totalSales, totalSales)
           },
           'Comps & Discounts': {
-            value: getVal(11, 1), // Total Comps & Discounts (Row 12)
-            percent: calcPercent(getVal(11, 1), totalSales)
+            value: comps,
+            percent: calcPercent(comps, totalSales)
           }
         };
 
         // ========== PRIME COST ==========
+        // Food & Paper Cost = sum of rows 17-25
+        const foodPaperCost = getVal(17, 1) + getVal(18, 1) + getVal(19, 1) + getVal(20, 1) + 
+                             getVal(21, 1) + getVal(22, 1) + getVal(23, 1) + getVal(24, 1) + getVal(25, 1);
+        
+        // Manager Wages = sum of rows 29-31
+        const managerWages = getVal(29, 1) + getVal(30, 1) + getVal(31, 1);
+        
+        // Total Salaries = Manager Wages + Hourly + Training + Bonuses
+        const totalSalaries = managerWages + getVal(32, 1) + getVal(33, 1) + getVal(34, 1);
+        
+        // Payroll Taxes = sum of rows 37-41
+        const payrollTaxes = getVal(37, 1) + getVal(38, 1) + getVal(39, 1) + getVal(40, 1) + getVal(41, 1);
+        
+        // Payroll Benefits = sum of rows 44-49
+        const payrollBenefits = getVal(44, 1) + getVal(45, 1) + getVal(46, 1) + getVal(47, 1) + getVal(48, 1) + getVal(49, 1);
+        
+        // Total Prime Cost
+        const totalPrimeCost = foodPaperCost + totalSalaries + payrollTaxes + payrollBenefits;
+        
         plData['Prime Cost'] = {
           'Food & Paper Cost': {
-            value: getVal(25, 1), // Total Food and Paper Cost (Row 26)
-            percent: calcPercent(getVal(25, 1), totalSales)
+            value: foodPaperCost,
+            percent: calcPercent(foodPaperCost, totalSales)
           },
           'Manager Wages': {
-            value: getVal(27, 1), // Manager Wages (Row 28 - already a sum)
-            percent: calcPercent(getVal(27, 1), totalSales)
+            value: managerWages,
+            percent: calcPercent(managerWages, totalSales)
           },
           'Hourly Wages': {
-            value: getVal(31, 1), // Hourly Wages (Row 32)
-            percent: calcPercent(getVal(31, 1), totalSales)
-          },
-          'Training Wages': {
-            value: getVal(32, 1), // Training Wages (Row 33)
+            value: getVal(32, 1),
             percent: calcPercent(getVal(32, 1), totalSales)
           },
-          'Employee Bonuses': {
-            value: getVal(33, 1), // Employee Bonuses (Row 34)
+          'Training Wages': {
+            value: getVal(33, 1),
             percent: calcPercent(getVal(33, 1), totalSales)
           },
+          'Employee Bonuses': {
+            value: getVal(34, 1),
+            percent: calcPercent(getVal(34, 1), totalSales)
+          },
           'Payroll Taxes & Benefits': {
-            value: getVal(41, 1) + getVal(49, 1), // Total Payroll Taxes (Row 42) + Total Payroll Benefits (Row 50)
-            percent: calcPercent(getVal(41, 1) + getVal(49, 1), totalSales)
+            value: payrollTaxes + payrollBenefits,
+            percent: calcPercent(payrollTaxes + payrollBenefits, totalSales)
           },
           'Total Prime Cost': {
-            value: getVal(50, 1), // Total Prime Cost (Row 51)
-            percent: calcPercent(getVal(50, 1), totalSales)
+            value: totalPrimeCost,
+            percent: calcPercent(totalPrimeCost, totalSales)
           }
         };
 
         // ========== OPERATING EXPENSE ==========
+        // Direct Operating = sum of rows 54-73
+        const directOps = getVal(54, 1) + getVal(55, 1) + getVal(56, 1) + getVal(57, 1) + getVal(58, 1) + 
+                         getVal(59, 1) + getVal(60, 1) + getVal(62, 1) + getVal(63, 1) + getVal(64, 1) + 
+                         getVal(65, 1) + getVal(66, 1) + getVal(67, 1) + getVal(68, 1) + getVal(69, 1) + 
+                         getVal(70, 1) + getVal(71, 1) + getVal(72, 1) + getVal(73, 1);
+        
+        // Utilities = sum of rows 76-80
+        const utilities = getVal(76, 1) + getVal(77, 1) + getVal(78, 1) + getVal(79, 1) + getVal(80, 1);
+        
+        // Advertising = sum of rows 83-93
+        const advertising = getVal(83, 1) + getVal(84, 1) + getVal(85, 1) + getVal(86, 1) + getVal(87, 1) + 
+                           getVal(88, 1) + getVal(89, 1) + getVal(90, 1) + getVal(91, 1) + getVal(92, 1) + getVal(93, 1);
+        
+        // G&A Market Manager Benefits = sum of rows 98-105
+        const mmBenefits = getVal(98, 1) + getVal(99, 1) + getVal(100, 1) + getVal(101, 1) + 
+                          getVal(102, 1) + getVal(103, 1) + getVal(104, 1) + getVal(105, 1);
+        
+        // General & Admin = sum of rows 96, 97, 106-122
+        const generalAdmin = getVal(96, 1) + mmBenefits + getVal(106, 1) + getVal(107, 1) + getVal(108, 1) + 
+                            getVal(109, 1) + getVal(110, 1) + getVal(111, 1) + getVal(112, 1) + getVal(113, 1) + 
+                            getVal(114, 1) + getVal(115, 1) + getVal(116, 1) + getVal(117, 1) + getVal(118, 1) + 
+                            getVal(119, 1) + getVal(120, 1) + getVal(121, 1) + getVal(122, 1);
+        
+        const totalOpEx = directOps + utilities + advertising + generalAdmin + getVal(124, 1);
+        
         plData['Operating Expense'] = {
           'Direct Operating Expense': {
-            value: getVal(73, 1), // Total Direct Operating Expense (Row 74)
-            percent: calcPercent(getVal(73, 1), totalSales)
+            value: directOps,
+            percent: calcPercent(directOps, totalSales)
           },
           'Utilities': {
-            value: getVal(80, 1), // Total Utilities (Row 81)
-            percent: calcPercent(getVal(80, 1), totalSales)
+            value: utilities,
+            percent: calcPercent(utilities, totalSales)
           },
           'Advertising': {
-            value: getVal(93, 1), // Total Advertising (Row 94)
-            percent: calcPercent(getVal(93, 1), totalSales)
+            value: advertising,
+            percent: calcPercent(advertising, totalSales)
           },
           'General & Administrative': {
-            value: getVal(122, 1), // Total General and Administrative (Row 123)
-            percent: calcPercent(getVal(122, 1), totalSales)
+            value: generalAdmin,
+            percent: calcPercent(generalAdmin, totalSales)
           },
           'Total Operating Expense': {
-            value: getVal(124, 1), // Total Operating Expense (Row 125)
-            percent: calcPercent(getVal(124, 1), totalSales)
+            value: totalOpEx,
+            percent: calcPercent(totalOpEx, totalSales)
           }
         };
 
         // ========== NON CONTROLLABLE EXPENSE ==========
+        // Occupancy = sum of rows 128-131
+        const occupancy = getVal(128, 1) + getVal(129, 1) + getVal(130, 1) + getVal(131, 1);
+        
+        // Depreciation = sum of rows 134-139
+        const depreciation = getVal(134, 1) + getVal(135, 1) + getVal(136, 1) + getVal(137, 1) + getVal(138, 1) + getVal(139, 1);
+        
+        const totalNonControl = occupancy + depreciation;
+        
         plData['Non Controllable Expense'] = {
           'Occupancy Costs': {
-            value: getVal(131, 1), // Total Occupancy Costs (Row 132)
-            percent: calcPercent(getVal(131, 1), totalSales)
+            value: occupancy,
+            percent: calcPercent(occupancy, totalSales)
           },
           'Depreciation & Amortization': {
-            value: getVal(139, 1), // Total Depreciation and Amortization (Row 140)
-            percent: calcPercent(getVal(139, 1), totalSales)
+            value: depreciation,
+            percent: calcPercent(depreciation, totalSales)
           },
           'Total Non Controllable Expense': {
-            value: getVal(140, 1), // Total Non Controllable Expense (Row 141)
-            percent: calcPercent(getVal(140, 1), totalSales)
+            value: totalNonControl,
+            percent: calcPercent(totalNonControl, totalSales)
           }
         };
 
         // ========== NET PROFIT ==========
+        const netProfit = totalSales - totalPrimeCost - totalOpEx - totalNonControl;
+        
         plData['Net Profit'] = {
           'Net Profit': {
-            value: getVal(141, 1), // Net Profit (Row 142)
-            percent: calcPercent(getVal(141, 1), totalSales)
+            value: netProfit,
+            percent: calcPercent(netProfit, totalSales)
           }
         };
 
