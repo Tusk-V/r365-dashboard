@@ -1042,17 +1042,15 @@ export default function Home() {
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <div className="flex justify-between items-center">
-                                <span className="text-slate-500 text-xs">Opt %</span>
-                                <span className="text-white font-semibold text-xs">{loc.optLaborPercent.toFixed(1)}%</span>
-                              </div>
+                              <span className="text-slate-500 text-xs">Opt %</span>
+                              <span className="text-white font-semibold text-xs">{loc.optLaborPercent.toFixed(1)}%</span>
+                            </div>
                             <div className="flex justify-between items-center">
-                              <div className="flex justify-between items-center">
-                                <span className="text-slate-500 text-xs">Variance</span>
-                                <span className={`font-semibold text-xs ${(loc.laborPercent - loc.optLaborPercent) < 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                  {(loc.laborPercent - loc.optLaborPercent) > 0 ? '+' : ''}{(loc.laborPercent - loc.optLaborPercent).toFixed(1)}%
-                                </span>
-                              </div>
+                              <span className="text-slate-500 text-xs">Variance</span>
+                              <span className={`font-semibold text-xs ${(loc.laborPercent - loc.optLaborPercent) < 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {(loc.laborPercent - loc.optLaborPercent) > 0 ? '+' : ''}{(loc.laborPercent - loc.optLaborPercent).toFixed(1)}%
+                              </span>
+                            </div>
                           </div>
                         </div>
 
