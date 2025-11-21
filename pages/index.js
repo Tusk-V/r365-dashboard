@@ -207,9 +207,6 @@ export default function Home() {
   };
 
   const parseSheetData = (rows) => {
-    // ... rest of your code
-
-  const parseSheetData = (rows) => {
     const parsedData = [];
     
     const parseNumber = (value) => {
