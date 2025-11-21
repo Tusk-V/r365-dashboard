@@ -2,7 +2,7 @@ import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/router"
 import Head from "next/head"
 import { useState, useEffect } from 'react';
-import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle } from 'lucide-react';
+import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, Lock, Upload } from 'lucide-react';
 
 // Google Sheets API Configuration
 const API_KEY = 'AIzaSyAbUI3oP_0ofBG9tiAudYLUjZ4MSSaFNDA';
@@ -13,6 +13,18 @@ const CALL_OFFS_SHEET = 'Call-Offs';
 const FLASH_DAY_SHEET = 'Flash - Day';
 const FLASH_WTD_SHEET = 'Flash - WTD';
 const SCHEDULED_TODAY_SHEET = 'Scheduled Today';
+
+// P&L ACCESS CODES - CHANGE THESE!
+const PL_ACCESS_CODES = {
+  'Allen': '1001', 'Bixby': '1002', 'Broken Arrow': '1003', 'Carrollton': '1004',
+  'Edmond': '1005', 'Frisco #1': '1006', 'Frisco #2': '1007', 'Frisco #3': '1008',
+  'Hillcrest Village': '1009', 'Lake Highlands': '1010', 'Lakeland': '1011',
+  'Norman': '1012', 'Owasso': '1013', 'Penn': '1014', 'Prosper': '1015',
+  'Sanford': '1016', 'The Colony': '1017', 'Treat Truck': '1018',
+  'Warr Acres': '1019', 'Yale': '1020'
+};
+
+const ADMIN_PIN = '9999'; // CHANGE THIS!
 
 export default function Home() {
   const { data: session, status } = useSession()
@@ -72,11 +84,120 @@ export default function Home() {
     guestCountVariance: 'all'
   });
 
+  // P&L Dashboard State
+  const [plData, setPlData] = useState(null);
+  const [plLoading, setPlLoading] = useState(false);
+  const [plError, setPlError] = useState(null);
+  const [plSelectedLocation, setPlSelectedLocation] = useState('');
+  const [plPin, setPlPin] = useState('');
+  const [plAuthenticated, setPlAuthenticated] = useState(false);
+  const [plAuthError, setPlAuthError] = useState('');
+
+  // P&L Admin Upload State
+  const [plAdminAuth, setPlAdminAuth] = useState(false);
+  const [plAdminPin, setPlAdminPin] = useState('');
+  const [plAdminError, setPlAdminError] = useState('');
+  const [plUploadFile, setPlUploadFile] = useState(null);
+  const [plUploading, setPlUploading] = useState(false);
+  const [plUploadError, setPlUploadError] = useState('');
+  const [plUploadSuccess, setPlUploadSuccess] = useState('');
+
   const getMarket = (locationName) => {
     const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
     const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
     const dallas = ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'Lake Highlands', 'Hillcrest Village', 'The Colony', 'Prosper', 'Allen'];
     const orlando = ['Sanford', 'Lakeland'];
+
+    // P&L Functions
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'USD', minimumFractionDigits: 2
+    }).format(value);
+  };
+
+  const formatPercent = (value) => {
+    return `${(value * 100).toFixed(2)}%`;
+  };
+
+  const loadPlData = async () => {
+    setPlLoading(true);
+    setPlError(null);
+    try {
+      const response = await fetch('/pl_data.json');
+      if (!response.ok) throw new Error('Failed to load P&L data');
+      const data = await response.json();
+      setPlData(data);
+    } catch (err) {
+      console.error('Error loading P&L data:', err);
+      setPlError(err.message);
+    } finally {
+      setPlLoading(false);
+    }
+  };
+
+  const handlePlAuth = () => {
+    if (!plSelectedLocation) {
+      setPlAuthError('Please select a location');
+      return;
+    }
+    if (plPin === PL_ACCESS_CODES[plSelectedLocation]) {
+      setPlAuthenticated(true);
+      setPlAuthError('');
+    } else {
+      setPlAuthError('Invalid PIN code');
+      setPlPin('');
+    }
+  };
+
+  const handlePlLogout = () => {
+    setPlAuthenticated(false);
+    setPlPin('');
+    setPlSelectedLocation('');
+    setPlAuthError('');
+  };
+
+  const handlePlAdminAuth = () => {
+    if (plAdminPin === ADMIN_PIN) {
+      setPlAdminAuth(true);
+      setPlAdminError('');
+    } else {
+      setPlAdminError('Invalid admin PIN');
+      setPlAdminPin('');
+    }
+  };
+
+  const handlePlUpload = async () => {
+    if (!plUploadFile) {
+      setPlUploadError('Please select a file');
+      return;
+    }
+    setPlUploading(true);
+    setPlUploadError('');
+    setPlUploadSuccess('');
+    try {
+      const formData = new FormData();
+      formData.append('file', plUploadFile);
+      formData.append('adminPin', plAdminPin);
+      const response = await fetch('/api/upload-pl', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+      setPlUploadSuccess(
+        `P&L data updated! Period: ${data.periodDate}, Locations: ${data.locationCount}`
+      );
+      setPlUploadFile(null);
+      setTimeout(() => loadPlData(), 1000);
+    } catch (error) {
+      console.error('Upload error:', error);
+      setPlUploadError(error.message);
+    } finally {
+      setPlUploading(false);
+    }
+  };
     
     if (tulsa.includes(locationName)) return 'Tulsa';
     if (okc.includes(locationName)) return 'Oklahoma City';
@@ -770,7 +891,7 @@ export default function Home() {
     };
   }, [isLocationDropdownOpen, isWeekDropdownOpen]);
 
-  useEffect(() => {
+useEffect(() => {
     if (status === "authenticated") {
       loadDataFromGoogleSheets();
       loadAvailableWeeks();
@@ -778,8 +899,24 @@ export default function Home() {
       loadCallOffs();
       loadScheduledToday();
       loadFlashData();
+      loadPlData(); // ADD THIS LINE
     }
   }, [status]);
+
+  useEffect(() => {
+    if (activeTab !== 'pl') {
+      setPlAuthenticated(false);
+      setPlPin('');
+      setPlAuthError('');
+    }
+    if (activeTab !== 'pl-admin') {
+      setPlAdminAuth(false);
+      setPlAdminPin('');
+      setPlUploadFile(null);
+      setPlUploadError('');
+      setPlUploadSuccess('');
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (selectedWeek === 'current') {
@@ -865,6 +1002,8 @@ export default function Home() {
                   <option value="scheduled-today">Scheduled Today</option>
                   <option value="clockouts">Auto-Clockouts</option>
                   <option value="call-offs">Call-Offs</option>
+                  <option value="pl">P&L Dashboard</option>
+                  <option value="pl-admin">P&L Admin Upload</option>
                 </select>
                 
                 <button
@@ -928,26 +1067,30 @@ export default function Home() {
                 <option value="scheduled-today">Scheduled Today</option>
                 <option value="clockouts">Auto-Clockouts</option>
                 <option value="call-offs">Call-Offs</option>
+                <option value="pl">P&L Dashboard</option>
+                <option value="pl-admin">P&L Admin Upload</option>
               </select>
               
               <button
                 onClick={() => {
-                  if (activeTab === 'sales') {
-                    if (selectedWeek === 'current') {
-                      loadDataFromGoogleSheets();
-                    } else {
-                      loadHistoricalWeek(selectedWeek);
+                    if (activeTab === 'sales') {
+                      if (selectedWeek === 'current') {
+                        loadDataFromGoogleSheets();
+                      } else {
+                        loadHistoricalWeek(selectedWeek);
+                      }
+                    } else if (activeTab === 'clockouts') {
+                      loadAutoClockouts();
+                    } else if (activeTab === 'call-offs') {
+                      loadCallOffs();
+                    } else if (activeTab === 'scheduled-today') {
+                      loadScheduledToday();
+                    } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
+                      loadFlashData();
+                    } else if (activeTab === 'pl' || activeTab === 'pl-admin') {
+                      loadPlData();
                     }
-                  } else if (activeTab === 'clockouts') {
-                    loadAutoClockouts();
-                  } else if (activeTab === 'call-offs') {
-                    loadCallOffs();
-                  } else if (activeTab === 'scheduled-today') {
-                    loadScheduledToday();
-                  } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
-                    loadFlashData();
-                  }
-                }}
+                  }}
                 className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
                 title="Refresh data"
               >
@@ -955,6 +1098,160 @@ export default function Home() {
               </button>
             </div>
           </div>
+
+            {/* P&L DASHBOARD TAB */}
+          {activeTab === 'pl' && (
+            <>
+              {!plAuthenticated ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl p-8 w-full max-w-md">
+                    <div className="text-center mb-8">
+                      <div className="inline-block p-4 bg-indigo-600 bg-opacity-20 rounded-full mb-4">
+                        <Lock className="w-12 h-12 text-indigo-400" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-white mb-2">P&L Dashboard Access</h2>
+                      <p className="text-slate-400 text-sm">Period Ending 10/31/2025</p>
+                    </div>
+                    <div className="space-y-6">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">Select Location</label>
+                        <select value={plSelectedLocation} onChange={(e) => { setPlSelectedLocation(e.target.value); setPlAuthError(''); }} className="w-full px-4 py-3 border-2 border-slate-600 bg-slate-700 rounded-lg text-white focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 transition">
+                          <option value="">Choose a location...</option>
+                          {Object.keys(PL_ACCESS_CODES).sort().map(loc => (
+                            <option key={loc} value={loc}>{loc}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">4-Digit PIN Code</label>
+                        <input type="password" maxLength="4" value={plPin} onChange={(e) => { setPlPin(e.target.value.replace(/\D/g, '')); setPlAuthError(''); }} onKeyPress={(e) => { if (e.key === 'Enter') handlePlAuth(); }} placeholder="••••" className="w-full px-4 py-3 border-2 border-slate-600 bg-slate-700 rounded-lg text-white focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50 transition text-center text-2xl tracking-widest" />
+                      </div>
+                      {plAuthError && (
+                        <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg text-sm">{plAuthError}</div>
+                      )}
+                      <button onClick={handlePlAuth} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition duration-200 shadow-lg hover:shadow-xl">Access Dashboard</button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h2 className="text-xl font-bold text-white">{plSelectedLocation}</h2>
+                        <p className="text-sm text-slate-400">Period Ending 10/31/2025</p>
+                      </div>
+                      <button onClick={handlePlLogout} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors text-sm">Change Location</button>
+                    </div>
+                  </div>
+                  {plError && (
+                    <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200"><strong>Error:</strong> {plError}</div>
+                  )}
+                  {plLoading ? (
+                    <div className="flex justify-center items-center py-20"><div className="text-white text-lg">Loading P&L data...</div></div>
+                  ) : !plData || !plData[plSelectedLocation] ? (
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center"><p className="text-slate-400">No P&L data available for this location</p></div>
+                  ) : (
+                    <div className="space-y-3">
+                      {Object.entries(plData[plSelectedLocation]).map(([category, items]) => {
+                        if (Object.keys(items).length === 0) return null;
+                        return (
+                          <div key={category} className="bg-slate-800 border border-slate-700 rounded-xl shadow-lg overflow-hidden">
+                            <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-4 py-3">
+                              <h3 className="text-lg font-bold text-white">{category}</h3>
+                            </div>
+                            <div className="p-4">
+                              <div className="space-y-2">
+                                {Object.entries(items).map(([item, data]) => {
+                                  const isNegative = data.value < 0;
+                                  const isTotalOrNet = item.toLowerCase().includes('total') || item.toLowerCase().includes('net') || item.toLowerCase().includes('income') || item.toLowerCase().includes('profit');
+                                  return (
+                                    <div key={item} className={`flex justify-between items-center py-2 px-3 rounded-lg transition ${isTotalOrNet ? 'bg-indigo-900 bg-opacity-30 border border-indigo-600 font-semibold' : 'bg-slate-900 hover:bg-slate-850'}`}>
+                                      <div className="flex-1">
+                                        <span className={`text-sm ${isTotalOrNet ? 'text-white font-semibold' : 'text-slate-300'}`}>{item}</span>
+                                      </div>
+                                      <div className="flex items-center gap-4">
+                                        <span className={`font-mono text-right min-w-[120px] text-sm ${isNegative ? 'text-red-400' : 'text-white'} ${isTotalOrNet ? 'font-bold text-base' : ''}`}>{formatCurrency(data.value)}</span>
+                                        <span className={`font-mono text-xs min-w-[60px] text-right ${isNegative ? 'text-red-400' : 'text-slate-400'}`}>{formatPercent(data.percent)}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {/* P&L ADMIN UPLOAD TAB */}
+          {activeTab === 'pl-admin' && (
+            <div className="max-w-2xl mx-auto">
+              <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl p-6 md:p-8">
+                <div className="text-center mb-6">
+                  <div className="inline-block p-4 bg-blue-600 bg-opacity-20 rounded-full mb-4">
+                    <Upload className="w-12 h-12 text-blue-400" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-white mb-2">Update P&L Data</h2>
+                  <p className="text-slate-400 text-sm">Upload a new P&L Excel file to update all location data</p>
+                </div>
+                {!plAdminAuth ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Admin PIN</label>
+                      <input type="password" maxLength="4" value={plAdminPin} onChange={(e) => { setPlAdminPin(e.target.value.replace(/\D/g, '')); setPlAdminError(''); }} onKeyPress={(e) => { if (e.key === 'Enter') handlePlAdminAuth(); }} placeholder="••••" className="w-full px-4 py-3 border-2 border-slate-600 bg-slate-700 rounded-lg text-white focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 transition text-center text-2xl tracking-widest" />
+                    </div>
+                    {plAdminError && (
+                      <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg text-sm">{plAdminError}</div>
+                    )}
+                    <button onClick={handlePlAdminAuth} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition duration-200">Access Admin Panel</button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">
+                      <h3 className="text-white font-semibold mb-2">Instructions:</h3>
+                      <ol className="text-slate-300 text-sm space-y-1 list-decimal list-inside">
+                        <li>Download the P&L Excel file from R365</li>
+                        <li>Make sure it's the "Profit and Loss Details" report</li>
+                        <li>Click "Choose File" below and select the Excel file</li>
+                        <li>Click "Upload & Update" to process</li>
+                        <li>The system will update all location data automatically</li>
+                      </ol>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Select P&L Excel File</label>
+                      <input type="file" accept=".xlsx,.xls" onChange={(e) => { setPlUploadFile(e.target.files[0]); setPlUploadError(''); setPlUploadSuccess(''); }} className="w-full px-4 py-3 border-2 border-slate-600 bg-slate-700 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 file:cursor-pointer" />
+                      {plUploadFile && (
+                        <p className="text-slate-400 text-sm mt-2">Selected: {plUploadFile.name} ({(plUploadFile.size / 1024).toFixed(2)} KB)</p>
+                      )}
+                    </div>
+                    {plUploadError && (
+                      <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg text-sm"><strong>Error:</strong> {plUploadError}</div>
+                    )}
+                    {plUploadSuccess && (
+                      <div className="bg-green-900 border border-green-700 text-green-200 px-4 py-3 rounded-lg text-sm"><strong>Success!</strong> {plUploadSuccess}</div>
+                    )}
+                    {plUploading ? (
+                      <div className="flex items-center justify-center py-4">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                        <span className="ml-3 text-white">Processing file...</span>
+                      </div>
+                    ) : (
+                      <button onClick={handlePlUpload} disabled={!plUploadFile} className={`w-full font-semibold py-3 rounded-lg transition duration-200 ${plUploadFile ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}>Upload & Update P&L Data</button>
+                    )}
+                    <div className="pt-4 border-t border-slate-700">
+                      <button onClick={() => { setPlAdminAuth(false); setPlAdminPin(''); setPlUploadFile(null); setPlUploadError(''); setPlUploadSuccess(''); }} className="text-slate-400 hover:text-white text-sm transition-colors">← Back to Dashboard</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {activeTab === 'sales' && (
             <>
