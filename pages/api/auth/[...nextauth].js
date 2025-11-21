@@ -15,7 +15,7 @@ export const authOptions = {
       clientSecret: process.env.GOOGLE_SECRET,
       authorization: {
         params: {
-          hd: "rancherscustard.com", // Restricts Google login to this domain
+          hd: "rancherscustard.com",
           prompt: "select_account",
         }
       }
@@ -41,12 +41,11 @@ export const authOptions = {
       // Verify email domain for all providers
       if (user.email && !user.email.endsWith('@rancherscustard.com')) {
         console.log(`Blocked login attempt from: ${user.email}`);
-        return false; // Reject sign in
+        return '/auth/error?error=AccessDenied'; // Redirect to error page
       }
-      return true; // Allow sign in
+      return true;
     },
     async session({ session, user }) {
-      // Add user ID to session
       if (session.user) {
         session.user.id = user.id;
       }
@@ -54,8 +53,8 @@ export const authOptions = {
     },
   },
   pages: {
-    signIn: '/auth/signin', // Custom sign-in page (optional)
-    error: '/auth/error',   // Error page
+    signIn: '/auth/signin',
+    error: '/auth/error',
   },
   session: {
     strategy: "database",
