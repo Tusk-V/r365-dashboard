@@ -101,7 +101,7 @@ export default function Home() {
   const [plUploading, setPlUploading] = useState(false);
   const [plUploadError, setPlUploadError] = useState('');
   const [plUploadSuccess, setPlUploadSuccess] = useState('');
-
+  const [plCollapsed, setPlCollapsed] = useState({});
   const getMarket = (locationName) => {
     const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
     const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
