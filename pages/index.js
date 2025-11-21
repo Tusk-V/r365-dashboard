@@ -125,6 +125,10 @@ export default function Home() {
       const laborCostPerHour = actualHours > 0 ? (actualSales * (laborPercent / 100)) / actualHours : 0;
       const productivity = actualHours > 0 ? actualSales / actualHours : 0;
       
+      // Calculate Opt Labor %
+      const optLaborCost = optimalHours * laborCostPerHour;
+      const optLaborPercent = actualSales > 0 ? (optLaborCost / actualSales) * 100 : 0;
+      
       let reportDate = 'Current Week';
       if (row.length > 19 && row[19]) {
         reportDate = row[19].toString();
@@ -147,6 +151,7 @@ export default function Home() {
         schVsForLaborVar,
         laborCostPerHour,
         productivity,
+        optLaborPercent,
         reportDate
       });
     }
@@ -191,6 +196,10 @@ export default function Home() {
       const laborCostPerHour = actualHours > 0 ? (actualSales * (laborPercent / 100)) / actualHours : 0;
       const productivity = actualHours > 0 ? actualSales / actualHours : 0;
       
+      // Calculate Opt Labor %
+      const optLaborCost = optimalHours * laborCostPerHour;
+      const optLaborPercent = actualSales > 0 ? (optLaborCost / actualSales) * 100 : 0;
+      
       parsedData.push({
         location: locationName,
         actualSales,
@@ -208,6 +217,7 @@ export default function Home() {
         schVsForLaborVar,
         laborCostPerHour,
         productivity,
+        optLaborPercent,
         reportDate: weekEnding
       });
     }
@@ -878,14 +888,14 @@ export default function Home() {
                 </div>
 
                 {/* Filters */}
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg">
-                  <div className="flex items-center gap-2 mb-2 md:mb-3">
-                    <Filter size={14} className="text-slate-400" />
-                    <h3 className="text-xs md:text-sm font-semibold text-white">Filters</h3>
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 mb-3 shadow-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Filter size={12} className="text-slate-400" />
+                    <h3 className="text-xs font-semibold text-white">Filters</h3>
                   </div>
                   
-                  <div className="flex flex-col md:flex-row gap-2 md:gap-3 items-stretch md:items-end">
-                    <div className="relative flex-1">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <div className="relative">
                       <label className="block text-xs font-medium text-slate-400 mb-1">
                         Locations ({filters.locations.length > 0 ? filters.locations.length : 'All'})
                       </label>
@@ -894,7 +904,7 @@ export default function Home() {
                           e.stopPropagation();
                           setIsLocationDropdownOpen(!isLocationDropdownOpen);
                         }}
-                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex justify-between items-center"
+                        className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex justify-between items-center"
                       >
                         <span>{filters.locations.length === 0 ? 'All Locations' : `${filters.locations.length} selected`}</span>
                         <span className="text-slate-400">▼</span>
@@ -930,44 +940,44 @@ export default function Home() {
                       )}
                     </div>
 
-                    <div className="flex-1">
+                    <div>
                       <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
                       <select
                         value={filters.market}
                         onChange={(e) => setFilters({...filters, market: e.target.value})}
-                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                       >
-                        <option value="all">All Markets</option>
+                        <option value="all">All</option>
                         <option value="Tulsa">Tulsa</option>
-                        <option value="Oklahoma City">Oklahoma City</option>
+                        <option value="Oklahoma City">OKC</option>
                         <option value="Dallas">Dallas</option>
                         <option value="Orlando">Orlando</option>
                       </select>
                     </div>
 
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-400 mb-1">Act vs Opt Hours</label>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Act vs Opt</label>
                       <select
                         value={filters.actVsOptVariance}
                         onChange={(e) => setFilters({...filters, actVsOptVariance: e.target.value})}
-                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                       >
-                        <option value="all">All Variances</option>
-                        <option value="positive">Over Optimal</option>
-                        <option value="negative">Under Optimal</option>
+                        <option value="all">All</option>
+                        <option value="positive">Over</option>
+                        <option value="negative">Under</option>
                       </select>
                     </div>
 
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-slate-400 mb-1">Sales Variance</label>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Sales</label>
                       <select
                         value={filters.salesVariance}
                         onChange={(e) => setFilters({...filters, salesVariance: e.target.value})}
-                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                       >
-                        <option value="all">All Variances</option>
-                        <option value="positive">Above Forecast</option>
-                        <option value="negative">Below Forecast</option>
+                        <option value="all">All</option>
+                        <option value="positive">Above</option>
+                        <option value="negative">Below</option>
                       </select>
                     </div>
                   </div>
@@ -1032,12 +1042,14 @@ export default function Home() {
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-slate-500 text-xs">Cost/Hr</span>
-                              <span className="text-white font-semibold text-xs">${loc.laborCostPerHour.toFixed(2)}</span>
+                              <span className="text-slate-500 text-xs">Opt %</span>
+                              <span className="text-white font-semibold text-xs">{loc.optLaborPercent.toFixed(1)}%</span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-slate-500 text-xs">Prod</span>
-                              <span className="text-white font-bold text-xs">${loc.productivity.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                              <span className="text-slate-500 text-xs">Variance</span>
+                              <span className={`font-semibold text-xs ${(loc.laborPercent - loc.optLaborPercent) < 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {(loc.laborPercent - loc.optLaborPercent) > 0 ? '+' : ''}{(loc.laborPercent - loc.optLaborPercent).toFixed(1)}%
+                              </span>
                             </div>
                           </div>
                         </div>
