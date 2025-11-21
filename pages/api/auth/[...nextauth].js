@@ -1,12 +1,11 @@
-// app/api/auth/[...nextauth]/route.js
-// or pages/api/auth/[...nextauth].js (depending on your setup)
+// pages/api/auth/[...nextauth].js
 
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import AppleProvider from "next-auth/providers/apple";
 import EmailProvider from "next-auth/providers/email";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
-import clientPromise from "@/lib/mongodb"; // Adjust path as needed
+import clientPromise from "@/lib/mongodb"; // Adjust path to your mongodb.js file if needed
 
 export const authOptions = {
   adapter: MongoDBAdapter(clientPromise),
@@ -63,10 +62,4 @@ export const authOptions = {
   },
 };
 
-const handler = NextAuth(authOptions);
-
-// For App Router (app directory)
-export { handler as GET, handler as POST };
-
-// For Pages Router (pages directory), export default handler instead:
-// export default handler;
+export default NextAuth(authOptions);
