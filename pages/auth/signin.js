@@ -12,29 +12,22 @@ export default function SignIn({ providers }) {
     : [];
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#1e3a5f' }}>
-      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl">
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#1d2739' }}>
+      <div className="max-w-md w-full space-y-6 bg-white p-10 rounded-2xl shadow-xl">
         {/* Logo */}
         <div className="flex justify-center">
           <Image
             src="/andys-logo.png"
             alt="Andy's Frozen Custard"
-            width={200}
-            height={200}
+            width={250}
+            height={250}
             priority
             className="object-contain"
           />
         </div>
 
-        {/* Title */}
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Andy's Dashboard
-          </h2>
-        </div>
-
         {/* Warning Message - Centered */}
-        <div className="text-center space-y-2 py-4">
+        <div className="text-center space-y-2 py-2">
           <h3 className="text-lg font-semibold text-gray-800">
             Authorized Access Only
           </h3>
