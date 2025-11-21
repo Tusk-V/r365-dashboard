@@ -287,7 +287,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Labor Card - UPDATED */}
+          {/* Labor Card */}
           <div className="bg-slate-800 rounded-lg shadow-lg p-6">
             <h3 className="text-slate-400 text-sm font-medium mb-2">Labor</h3>
             <div className="space-y-2">
@@ -296,18 +296,8 @@ export default function Home() {
                 <span className="text-white text-lg font-bold">{formatPercent(summaryStats.avgLaborPercent)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-white text-xs">Opt Labor %</span>
-                <span className="text-white text-lg font-bold">
-                  {(() => {
-                    // Calculate cost/hr: (actual sales × labor %) ÷ actual hours
-                    const laborCost = summaryStats.totalSales * (summaryStats.avgLaborPercent / 100);
-                    const costPerHour = summaryStats.totalActualHours > 0 ? laborCost / summaryStats.totalActualHours : 0;
-                    // Calculate opt labor %: (optimal hours × cost/hr) ÷ actual sales
-                    const optLaborCost = summaryStats.totalOptimalHours * costPerHour;
-                    const optLaborPercent = summaryStats.totalSales > 0 ? (optLaborCost / summaryStats.totalSales) * 100 : 0;
-                    return formatPercent(optLaborPercent);
-                  })()}
-                </span>
+                <span className="text-white text-xs">Cost/Hr</span>
+                <span className="text-white text-lg font-bold">$15.00</span>
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-slate-700">
                 <span className="text-white text-xs">Prod</span>
@@ -374,18 +364,8 @@ export default function Home() {
                     <span className="text-white font-semibold">{formatPercent(location.laborPercent)}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-white text-xs">Opt Labor %</span>
-                    <span className="text-white font-semibold">
-                      {(() => {
-                        // Calculate cost/hr: (actual sales × labor %) ÷ actual hours
-                        const laborCost = location.sales * (location.laborPercent / 100);
-                        const costPerHour = location.actualHours > 0 ? laborCost / location.actualHours : 0;
-                        // Calculate opt labor %: (optimal hours × cost/hr) ÷ actual sales
-                        const optLaborCost = location.optimalHours * costPerHour;
-                        const optLaborPercent = location.sales > 0 ? (optLaborCost / location.sales) * 100 : 0;
-                        return formatPercent(optLaborPercent);
-                      })()}
-                    </span>
+                    <span className="text-white text-xs">Cost/Hr</span>
+                    <span className="text-white font-semibold">$15.00</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-white text-xs">Prod</span>
