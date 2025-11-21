@@ -107,17 +107,15 @@ export default function Home() {
     const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
     const dallas = ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'Lake Highlands', 'Hillcrest Village', 'The Colony', 'Prosper', 'Allen'];
     const orlando = ['Sanford', 'Lakeland'];
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency', currency: 'USD', minimumFractionDigits: 2
-    }).format(value);
+    
+    if (tulsa.includes(locationName)) return 'Tulsa';
+    if (okc.includes(locationName)) return 'Oklahoma City';
+    if (dallas.includes(locationName)) return 'Dallas';
+    if (orlando.includes(locationName)) return 'Orlando';
+    return 'Other';
   };
 
-  const formatPercent = (value) => {
-    return `${(value * 100).toFixed(2)}%`;
-  };
-
+  // P&L Functions
   const loadPlData = async () => {
     setPlLoading(true);
     setPlError(null);
@@ -132,6 +130,16 @@ export default function Home() {
     } finally {
       setPlLoading(false);
     }
+  };
+
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'USD', minimumFractionDigits: 2
+    }).format(value);
+  };
+
+  const formatPercent = (value) => {
+    return `${(value * 100).toFixed(2)}%`;
   };
 
   const handlePlAuth = () => {
@@ -197,13 +205,9 @@ export default function Home() {
       setPlUploading(false);
     }
   };
-    
-    if (tulsa.includes(locationName)) return 'Tulsa';
-    if (okc.includes(locationName)) return 'Oklahoma City';
-    if (dallas.includes(locationName)) return 'Dallas';
-    if (orlando.includes(locationName)) return 'Orlando';
-    return 'Other';
-  };
+
+  const parseSheetData = (rows) => {
+    // ... rest of your code
 
   const parseSheetData = (rows) => {
     const parsedData = [];
