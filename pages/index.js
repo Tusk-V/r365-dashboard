@@ -84,7 +84,7 @@ export default function Home() {
     guestCountVariance: 'all'
   });
 
-  // P&L Dashboard State
+// P&L Dashboard State
   const [plData, setPlData] = useState(null);
   const [plLoading, setPlLoading] = useState(false);
   const [plError, setPlError] = useState(null);
@@ -101,7 +101,10 @@ export default function Home() {
   const [plUploading, setPlUploading] = useState(false);
   const [plUploadError, setPlUploadError] = useState('');
   const [plUploadSuccess, setPlUploadSuccess] = useState('');
-  const [plCollapsed, setPlCollapsed] = useState({});
+
+  // P&L Collapsible State
+  const [plCollapsed, setPlCollapsed] = useState({});  // ← ADD THIS LINE
+
   const getMarket = (locationName) => {
     const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
     const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
