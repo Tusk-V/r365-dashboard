@@ -1412,15 +1412,15 @@ export default function Home() {
                           {/* Mobile Ultra-Compact - All on one line per day */}
                           <div className="md:hidden">
                             {/* Mobile Headers */}
-                            <div className="border-b border-slate-700 p-1.5 text-xs flex items-center gap-1 bg-slate-800 sticky top-0">
-                              <div className="text-slate-400 font-semibold w-8">Day</div>
-                              <div className="text-slate-400 font-semibold">Sales</div>
-                              <div className="text-slate-400 font-semibold">PY</div>
-                              <div className="text-slate-400 font-semibold">Var</div>
-                              <div className="text-slate-600">|</div>
-                              <div className="text-slate-400 font-semibold">Guests</div>
-                              <div className="text-slate-400 font-semibold">PY</div>
-                              <div className="text-slate-400 font-semibold">Var</div>
+                            <div className="border-b border-slate-700 p-2 text-xs grid grid-cols-8 gap-1 bg-slate-800 sticky top-0">
+                              <div className="text-slate-400 font-semibold">Day</div>
+                              <div className="text-slate-400 font-semibold text-right">Sales</div>
+                              <div className="text-slate-400 font-semibold text-right">PY</div>
+                              <div className="text-slate-400 font-semibold text-right">Var</div>
+                              <div className="text-slate-600 text-center">|</div>
+                              <div className="text-slate-400 font-semibold text-right">Gst</div>
+                              <div className="text-slate-400 font-semibold text-right">PY</div>
+                              <div className="text-slate-400 font-semibold text-right">Var</div>
                             </div>
                             
                             {/* Data rows */}
@@ -1439,32 +1439,32 @@ export default function Home() {
                               })();
                               
                               return (
-                                <div key={idx} className="border-b border-slate-700 last:border-b-0 p-1.5 text-xs flex items-center gap-1">
+                                <div key={idx} className="border-b border-slate-700 last:border-b-0 p-2 text-xs grid grid-cols-8 gap-1 items-center">
                                   {/* Day */}
-                                  <div className="text-slate-300 font-semibold w-8">{dayOfWeek}</div>
+                                  <div className="text-slate-300 font-semibold">{dayOfWeek}</div>
                                   
                                   {/* Sales */}
-                                  <div className="text-white font-semibold">${(day.sales / 1000).toFixed(1)}k</div>
+                                  <div className="text-white font-semibold text-right">${day.sales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
                                   
                                   {/* PY Sales */}
-                                  <div className="text-slate-400">${(day.paySales / 1000).toFixed(1)}k</div>
+                                  <div className="text-slate-400 text-right">${day.paySales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
                                   
                                   {/* Var % */}
-                                  <div className={`font-semibold ${salesVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  <div className={`font-semibold text-right ${salesVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {salesVarPercent >= 0 ? '+' : ''}{salesVarPercent.toFixed(0)}%
                                   </div>
                                   
                                   {/* Separator */}
-                                  <div className="text-slate-600">|</div>
+                                  <div className="text-slate-600 text-center">|</div>
                                   
                                   {/* Guests */}
-                                  <div className="text-white">{day.guestCount}</div>
+                                  <div className="text-white text-right">{day.guestCount}</div>
                                   
                                   {/* PY Guests */}
-                                  <div className="text-slate-400">{day.payGuestCount}</div>
+                                  <div className="text-slate-400 text-right">{day.payGuestCount}</div>
                                   
                                   {/* Guest Var */}
-                                  <div className={day.guestVariance >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                  <div className={`text-right ${day.guestVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {day.guestVariance >= 0 ? '+' : ''}{day.guestVariance}
                                   </div>
                                 </div>
@@ -1580,7 +1580,7 @@ export default function Home() {
                                 </div>
                                 
                                 {/* Mobile Layout - All on one row */}
-                                <div className="md:hidden p-3 flex items-center justify-between gap-2 text-xs">
+                                <div className="md:hidden p-2 flex items-center justify-between gap-2 text-xs">
                                   <div className="text-white font-medium flex-1">{callOff.employee}</div>
                                   <div className="text-slate-300">{callOff.location}</div>
                                   <div className="text-slate-400">{callOff.scheduledTime}</div>
