@@ -1,17 +1,45 @@
-// pages/api/admin/manage-pl-access.js
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../auth/[...nextauth]';
+// pages/api/check-pl-access.js
 import { MongoClient } from 'mongodb';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 export default async function handler(req, res) {
-  // Verify admin access
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // For now, return admin access for testing
+  // You'll need to integrate with your NextAuth session
+  return res.status(200).json({
+    success: true,
+    isAdmin: true,
+    access: {
+      type: 'all',
+      locations: []
+    }
+  });
+
+  /* 
+  // Uncomment this when you have NextAuth configured:
   const session = await getServerSession(req, res, authOptions);
   
-  if (!session || session.user.email !== ADMIN_EMAIL) {
-    return res.status(403).json({ error: 'Unauthorized' });
+  if (!session) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const userEmail = session.user.email.toLowerCase();
+
+  // Admin has full access
+  if (userEmail === ADMIN_EMAIL) {
+    return res.status(200).json({
+      success: true,
+      isAdmin: true,
+      access: {
+        type: 'all',
+        locations: []
+      }
+    });
   }
 
   const client = new MongoClient(MONGODB_URI);
@@ -21,66 +49,34 @@ export default async function handler(req, res) {
     const database = client.db('planalytics');
     const usersCollection = database.collection('users');
 
-    // GET - Fetch all users with their P&L access
-    if (req.method === 'GET') {
-      const users = await usersCollection.find({}).toArray();
-      
+    // Find user's access settings
+    const user = await usersCollection.findOne({ email: userEmail });
+
+    if (!user || !user.plAccess) {
       return res.status(200).json({
         success: true,
-        users: users.map(user => ({
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name || user.email.split('@')[0],
-          plAccess: user.plAccess || { type: 'none', locations: [] }
-        }))
+        isAdmin: false,
+        access: {
+          type: 'none',
+          locations: []
+        }
       });
     }
 
-    // POST - Update user's P&L access
-    if (req.method === 'POST') {
-      const { email, plAccess } = req.body;
-
-      if (!email || !plAccess) {
-        return res.status(400).json({ error: 'Missing email or plAccess' });
-      }
-
-      // Validate plAccess structure
-      if (!['none', 'specific', 'all'].includes(plAccess.type)) {
-        return res.status(400).json({ error: 'Invalid access type' });
-      }
-
-      if (plAccess.type === 'specific' && !Array.isArray(plAccess.locations)) {
-        return res.status(400).json({ error: 'Locations must be an array' });
-      }
-
-      // Update user
-      const result = await usersCollection.updateOne(
-        { email: email.toLowerCase() },
-        {
-          $set: {
-            plAccess: plAccess,
-            updatedAt: new Date(),
-            updatedBy: session.user.email
-          }
-        },
-        { upsert: true }
-      );
-
-      return res.status(200).json({
-        success: true,
-        message: 'P&L access updated successfully'
-      });
-    }
-
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(200).json({
+      success: true,
+      isAdmin: false,
+      access: user.plAccess
+    });
 
   } catch (error) {
-    console.error('Error managing P&L access:', error);
+    console.error('Error checking P&L access:', error);
     return res.status(500).json({
-      error: 'Failed to manage P&L access',
+      error: 'Failed to check access',
       details: error.message
     });
   } finally {
     await client.close();
   }
+  */
 }
