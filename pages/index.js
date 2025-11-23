@@ -69,6 +69,10 @@ export default function Home() {
   });
   const [isDailyFlashLocationDropdownOpen, setIsDailyFlashLocationDropdownOpen] = useState(false);
 
+  const [isFiltersOpen, setIsFiltersOpen] = useState(true);
+  const [isDailyFlashFiltersOpen, setIsDailyFlashFiltersOpen] = useState(true);
+  const [isScheduledFiltersOpen, setIsScheduledFiltersOpen] = useState(true);
+
   const getMarket = (locationName) => {
     const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
     const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
@@ -439,7 +443,7 @@ export default function Home() {
     setDailyFlashError(null);
     
     try {
-      const range = `${FLASH_DAILY_SHEET}!A2:I`;
+      const range = `${FLASH_DAILY_SHEET}!A2:L`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
       
       const response = await fetch(url);
@@ -474,7 +478,10 @@ export default function Home() {
           guestCount: parseFloat(row[5]) || 0,
           payGuestCount: parseFloat(row[6]) || 0,
           guestVariance: parseFloat(row[7]) || 0,
-          laborPercent: parseFloat(row[8]) || 0
+          laborPercent: parseFloat(row[8]) || 0,
+          optimalLaborPercent: parseFloat(row[9]) || 0,
+          actualHours: parseFloat(row[10]) || 0,
+          optimalHours: parseFloat(row[11]) || 0
         });
       });
       
@@ -839,7 +846,8 @@ export default function Home() {
                   className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                 >
                   <option value="sales">Weekly Sales & Labor</option>
-                  <option value="daily-flash">Daily Dashboard</option>
+                  <option value="daily-sales">Daily Sales</option>
+                  <option value="daily-labor">Daily Labor</option>
                   <option value="clockouts">Auto-Clockouts</option>
                   <option value="call-offs">Call-Offs</option>
                   <option value="scheduled-today">Scheduled Today</option>
@@ -859,7 +867,7 @@ export default function Home() {
                       loadCallOffs();
                     } else if (activeTab === 'scheduled-today') {
                       loadScheduledToday();
-                    } else if (activeTab === 'daily-flash') {
+                    } else if (activeTab === 'daily-sales' || activeTab === 'daily-labor') {
                       loadDailyFlash();
                     }
                   }}
@@ -901,7 +909,8 @@ export default function Home() {
                 className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
                 <option value="sales">Weekly Sales & Labor</option>
-                <option value="daily-flash">Daily Dashboard</option>
+                <option value="daily-sales">Daily Sales</option>
+                <option value="daily-labor">Daily Labor</option>
                 <option value="clockouts">Auto-Clockouts</option>
                 <option value="call-offs">Call-Offs</option>
                 <option value="scheduled-today">Scheduled Today</option>
@@ -921,7 +930,7 @@ export default function Home() {
                     loadCallOffs();
                   } else if (activeTab === 'scheduled-today') {
                     loadScheduledToday();
-                  } else if (activeTab === 'daily-flash') {
+                  } else if (activeTab === 'daily-sales' || activeTab === 'daily-labor') {
                     loadDailyFlash();
                   }
                 }}
@@ -1050,98 +1059,106 @@ export default function Home() {
                   </div>
 
                   <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg">
-                    <div className="flex items-center gap-2 mb-2 md:mb-3">
-                      <Filter size={14} className="text-slate-400" />
-                      <h3 className="text-xs md:text-sm font-semibold text-white">Filters</h3>
-                    </div>
+                    <button 
+                      onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                      className="flex items-center justify-between w-full mb-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Filter size={14} className="text-slate-400" />
+                        <h3 className="text-xs md:text-sm font-semibold text-white">Filters</h3>
+                      </div>
+                      <span className="text-slate-400 text-sm">{isFiltersOpen ? '▼' : '▶'}</span>
+                    </button>
                     
-                    <div className="flex flex-col md:flex-row gap-2 md:gap-3 items-stretch md:items-end">
-                      <div className="relative flex-1">
-                        <label className="block text-xs font-medium text-slate-400 mb-1">
-                          Locations ({filters.locations.length > 0 ? filters.locations.length : 'All'})
-                        </label>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsLocationDropdownOpen(!isLocationDropdownOpen);
-                          }}
-                          className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex justify-between items-center"
-                        >
-                          <span>{filters.locations.length === 0 ? 'All Locations' : `${filters.locations.length} selected`}</span>
-                          <span className="text-slate-400">▼</span>
-                        </button>
-                        {isLocationDropdownOpen && (
-                          <div 
-                            className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg max-h-64 overflow-y-auto"
-                            onClick={(e) => e.stopPropagation()}
+                    {isFiltersOpen && (
+                      <div className="flex flex-col md:flex-row gap-2 md:gap-3 items-stretch md:items-end">
+                        <div className="relative flex-1">
+                          <label className="block text-xs font-medium text-slate-400 mb-1">
+                            Locations ({filters.locations.length > 0 ? filters.locations.length : 'All'})
+                          </label>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsLocationDropdownOpen(!isLocationDropdownOpen);
+                            }}
+                            className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex justify-between items-center"
                           >
-                            <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
-                              <input
-                                type="checkbox"
-                                checked={filters.locations.length === 0}
-                                onChange={() => {
-                                  setFilters({...filters, locations: []});
-                                }}
-                                className="rounded"
-                              />
-                              <span className="text-white text-xs">All Locations</span>
-                            </label>
-                            {locations.map(loc => (
-                              <label key={loc.location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                            <span>{filters.locations.length === 0 ? 'All Locations' : `${filters.locations.length} selected`}</span>
+                            <span className="text-slate-400">▼</span>
+                          </button>
+                          {isLocationDropdownOpen && (
+                            <div 
+                              className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg max-h-64 overflow-y-auto"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
                                 <input
                                   type="checkbox"
-                                  checked={filters.locations.includes(loc.location)}
-                                  onChange={() => handleLocationToggle(loc.location)}
+                                  checked={filters.locations.length === 0}
+                                  onChange={() => {
+                                    setFilters({...filters, locations: []});
+                                  }}
                                   className="rounded"
                                 />
-                                <span className="text-white text-xs">{loc.location}</span>
+                                <span className="text-white text-xs">All Locations</span>
                               </label>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                              {locations.map(loc => (
+                                <label key={loc.location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                                  <input
+                                    type="checkbox"
+                                    checked={filters.locations.includes(loc.location)}
+                                    onChange={() => handleLocationToggle(loc.location)}
+                                    className="rounded"
+                                  />
+                                  <span className="text-white text-xs">{loc.location}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
 
-                      <div className="flex-1">
-                        <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
-                        <select
-                          value={filters.market}
-                          onChange={(e) => setFilters({...filters, market: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                        >
-                          <option value="all">All Markets</option>
-                          <option value="Tulsa">Tulsa</option>
-                          <option value="Oklahoma City">Oklahoma City</option>
-                          <option value="Dallas">Dallas</option>
-                          <option value="Orlando">Orlando</option>
-                        </select>
-                      </div>
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                          <select
+                            value={filters.market}
+                            onChange={(e) => setFilters({...filters, market: e.target.value})}
+                            className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                          >
+                            <option value="all">All Markets</option>
+                            <option value="Tulsa">Tulsa</option>
+                            <option value="Oklahoma City">Oklahoma City</option>
+                            <option value="Dallas">Dallas</option>
+                            <option value="Orlando">Orlando</option>
+                          </select>
+                        </div>
 
-                      <div className="flex-1">
-                        <label className="block text-xs font-medium text-slate-400 mb-1">Act vs Opt Hours</label>
-                        <select
-                          value={filters.actVsOptVariance}
-                          onChange={(e) => setFilters({...filters, actVsOptVariance: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                        >
-                          <option value="all">All Variances</option>
-                          <option value="positive">Over Optimal</option>
-                          <option value="negative">Under Optimal</option>
-                        </select>
-                      </div>
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-slate-400 mb-1">Act vs Opt Hours</label>
+                          <select
+                            value={filters.actVsOptVariance}
+                            onChange={(e) => setFilters({...filters, actVsOptVariance: e.target.value})}
+                            className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                          >
+                            <option value="all">All Variances</option>
+                            <option value="positive">Over Optimal</option>
+                            <option value="negative">Under Optimal</option>
+                          </select>
+                        </div>
 
-                      <div className="flex-1">
-                        <label className="block text-xs font-medium text-slate-400 mb-1">Sales Variance</label>
-                        <select
-                          value={filters.salesVariance}
-                          onChange={(e) => setFilters({...filters, salesVariance: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                        >
-                          <option value="all">All Variances</option>
-                          <option value="positive">Above Forecast</option>
-                          <option value="negative">Below Forecast</option>
-                        </select>
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-slate-400 mb-1">Sales Variance</label>
+                          <select
+                            value={filters.salesVariance}
+                            onChange={(e) => setFilters({...filters, salesVariance: e.target.value})}
+                            className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                          >
+                            <option value="all">All Variances</option>
+                            <option value="positive">Above Forecast</option>
+                            <option value="negative">Below Forecast</option>
+                          </select>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
@@ -1266,67 +1283,75 @@ export default function Home() {
             </>
           )}
 
-          {activeTab === 'daily-flash' && (
+          {activeTab === 'daily-sales' && (
             <>
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Filter className="w-4 h-4 text-blue-400" />
-                  <h3 className="text-sm font-semibold text-white">Filters</h3>
-                </div>
-                <div className="flex flex-col md:flex-row gap-2">
-                  <div className="flex-1 relative">
-                    <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsDailyFlashLocationDropdownOpen(!isDailyFlashLocationDropdownOpen);
-                      }}
-                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center justify-between"
-                    >
-                      <span>{dailyFlashFilters.locations.length === 0 ? 'All Locations' : `${dailyFlashFilters.locations.length} selected`}</span>
-                      <span className="text-slate-400">▼</span>
-                    </button>
-                    {isDailyFlashLocationDropdownOpen && (
-                      <div className="absolute z-10 mt-1 w-full bg-slate-700 border border-slate-600 rounded shadow-lg max-h-60 overflow-y-auto">
-                        <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600 border-b border-slate-600">
-                          <input
-                            type="checkbox"
-                            checked={dailyFlashFilters.locations.length === 0}
-                            onChange={() => setDailyFlashFilters({...dailyFlashFilters, locations: []})}
-                            className="rounded"
-                          />
-                          <span className="text-white text-xs font-semibold">All Locations</span>
-                        </label>
-                        {Object.keys(dailyFlashData).sort().map(location => (
-                          <label key={location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                <button 
+                  onClick={() => setIsDailyFlashFiltersOpen(!isDailyFlashFiltersOpen)}
+                  className="flex items-center justify-between w-full mb-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-blue-400" />
+                    <h3 className="text-sm font-semibold text-white">Filters</h3>
+                  </div>
+                  <span className="text-slate-400 text-sm">{isDailyFlashFiltersOpen ? '▼' : '▶'}</span>
+                </button>
+                {isDailyFlashFiltersOpen && (
+                  <div className="flex flex-col md:flex-row gap-2">
+                    <div className="flex-1 relative">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsDailyFlashLocationDropdownOpen(!isDailyFlashLocationDropdownOpen);
+                        }}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center justify-between"
+                      >
+                        <span>{dailyFlashFilters.locations.length === 0 ? 'All Locations' : `${dailyFlashFilters.locations.length} selected`}</span>
+                        <span className="text-slate-400">▼</span>
+                      </button>
+                      {isDailyFlashLocationDropdownOpen && (
+                        <div className="absolute z-10 mt-1 w-full bg-slate-700 border border-slate-600 rounded shadow-lg max-h-60 overflow-y-auto">
+                          <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600 border-b border-slate-600">
                             <input
                               type="checkbox"
-                              checked={dailyFlashFilters.locations.includes(location)}
-                              onChange={() => handleDailyFlashLocationToggle(location)}
+                              checked={dailyFlashFilters.locations.length === 0}
+                              onChange={() => setDailyFlashFilters({...dailyFlashFilters, locations: []})}
                               className="rounded"
                             />
-                            <span className="text-white text-xs">{location}</span>
+                            <span className="text-white text-xs font-semibold">All Locations</span>
                           </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                          {Object.keys(dailyFlashData).sort().map(location => (
+                            <label key={location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                              <input
+                                type="checkbox"
+                                checked={dailyFlashFilters.locations.includes(location)}
+                                onChange={() => handleDailyFlashLocationToggle(location)}
+                                className="rounded"
+                              />
+                              <span className="text-white text-xs">{location}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
-                    <select
-                      value={dailyFlashFilters.market}
-                      onChange={(e) => setDailyFlashFilters({...dailyFlashFilters, market: e.target.value})}
-                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    >
-                      <option value="all">All Markets</option>
-                      <option value="Tulsa">Tulsa</option>
-                      <option value="Oklahoma City">Oklahoma City</option>
-                      <option value="Dallas">Dallas</option>
-                      <option value="Orlando">Orlando</option>
-                    </select>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                      <select
+                        value={dailyFlashFilters.market}
+                        onChange={(e) => setDailyFlashFilters({...dailyFlashFilters, market: e.target.value})}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      >
+                        <option value="all">All Markets</option>
+                        <option value="Tulsa">Tulsa</option>
+                        <option value="Oklahoma City">Oklahoma City</option>
+                        <option value="Dallas">Dallas</option>
+                        <option value="Orlando">Orlando</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {dailyFlashError && (
@@ -1337,14 +1362,14 @@ export default function Home() {
 
               {dailyFlashLoading ? (
                 <div className="flex justify-center items-center py-20">
-                  <div className="text-white text-lg">Loading daily flash data...</div>
+                  <div className="text-white text-lg">Loading daily sales data...</div>
                 </div>
               ) : Object.keys(dailyFlashData).length === 0 ? (
                 <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
-                  <p className="text-slate-400">No daily flash data available</p>
+                  <p className="text-slate-400">No daily sales data available</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
+                <div className="grid grid-cols-1 gap-2 md:gap-3">
                   {filteredDailyFlash.map((location) => {
                     const locationData = dailyFlashData[location];
                     return (
@@ -1354,42 +1379,83 @@ export default function Home() {
                           <p className="text-xs text-slate-400">{locationData.length} day{locationData.length !== 1 ? 's' : ''} of data</p>
                         </div>
 
-                        <div className="bg-slate-900 rounded-lg overflow-hidden">
-                          <table className="w-full text-xs">
+                        <div className="bg-slate-900 rounded-lg overflow-x-auto">
+                          {/* Desktop Table */}
+                          <table className="hidden md:table w-full text-xs">
                             <thead className="bg-slate-800">
                               <tr>
                                 <th className="text-left p-2 text-slate-400 font-semibold">Date</th>
                                 <th className="text-right p-2 text-slate-400 font-semibold">Sales</th>
-                                <th className="text-right p-2 text-slate-400 font-semibold">Var $</th>
-                                <th className="text-right p-2 text-slate-400 font-semibold">Var %</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">PY Sales</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">Sales Var %</th>
                                 <th className="text-right p-2 text-slate-400 font-semibold">Guests</th>
-                                <th className="text-right p-2 text-slate-400 font-semibold">G Var</th>
-                                <th className="text-right p-2 text-slate-400 font-semibold">Labor %</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">PY Guests</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">Guest Var</th>
                               </tr>
                             </thead>
                             <tbody>
                               {locationData.map((day, idx) => {
-                                const varPercent = day.paySales > 0 ? ((day.salesVariance / day.paySales) * 100) : 0;
+                                const salesVarPercent = day.paySales > 0 ? ((day.salesVariance / day.paySales) * 100) : 0;
                                 return (
                                   <tr key={idx} className="border-t border-slate-700">
                                     <td className="p-2 text-slate-300">{day.date}</td>
                                     <td className="text-right p-2 text-white font-semibold">${day.sales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                                    <td className={`text-right p-2 font-semibold ${day.salesVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                      {day.salesVariance >= 0 ? '+' : ''}${Math.abs(day.salesVariance).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                                    </td>
-                                    <td className={`text-right p-2 font-semibold ${varPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                      {varPercent >= 0 ? '+' : ''}{varPercent.toFixed(1)}%
+                                    <td className="text-right p-2 text-slate-300">${day.paySales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                                    <td className={`text-right p-2 font-semibold ${salesVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {salesVarPercent >= 0 ? '+' : ''}{salesVarPercent.toFixed(1)}%
                                     </td>
                                     <td className="text-right p-2 text-white">{day.guestCount.toLocaleString('en-US')}</td>
+                                    <td className="text-right p-2 text-slate-300">{day.payGuestCount.toLocaleString('en-US')}</td>
                                     <td className={`text-right p-2 ${day.guestVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                       {day.guestVariance >= 0 ? '+' : ''}{day.guestVariance}
                                     </td>
-                                    <td className="text-right p-2 text-white font-semibold">{day.laborPercent.toFixed(1)}%</td>
                                   </tr>
                                 );
                               })}
                             </tbody>
                           </table>
+
+                          {/* Mobile Cards */}
+                          <div className="md:hidden divide-y divide-slate-700">
+                            {locationData.map((day, idx) => {
+                              const salesVarPercent = day.paySales > 0 ? ((day.salesVariance / day.paySales) * 100) : 0;
+                              return (
+                                <div key={idx} className="p-3 space-y-2">
+                                  <div className="text-slate-400 text-xs font-semibold mb-2">{day.date}</div>
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div>
+                                      <div className="text-slate-500">Sales</div>
+                                      <div className="text-white font-semibold">${day.sales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-slate-500">PY Sales</div>
+                                      <div className="text-slate-300">${day.paySales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-slate-500">Sales Var %</div>
+                                      <div className={`font-semibold ${salesVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        {salesVarPercent >= 0 ? '+' : ''}{salesVarPercent.toFixed(1)}%
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-slate-500">Guests</div>
+                                      <div className="text-white">{day.guestCount.toLocaleString('en-US')}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-slate-500">PY Guests</div>
+                                      <div className="text-slate-300">{day.payGuestCount.toLocaleString('en-US')}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-slate-500">Guest Var</div>
+                                      <div className={day.guestVariance >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                        {day.guestVariance >= 0 ? '+' : ''}{day.guestVariance}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     );
@@ -1399,6 +1465,245 @@ export default function Home() {
             </>
           )}
 
+          {activeTab === 'daily-labor' && (
+            <>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <button 
+                  onClick={() => setIsDailyFlashFiltersOpen(!isDailyFlashFiltersOpen)}
+                  className="flex items-center justify-between w-full mb-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-blue-400" />
+                    <h3 className="text-sm font-semibold text-white">Filters</h3>
+                  </div>
+                  <span className="text-slate-400 text-sm">{isDailyFlashFiltersOpen ? '▼' : '▶'}</span>
+                </button>
+                {isDailyFlashFiltersOpen && (
+                  <div className="flex flex-col md:flex-row gap-2">
+                    <div className="flex-1 relative">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsDailyFlashLocationDropdownOpen(!isDailyFlashLocationDropdownOpen);
+                        }}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center justify-between"
+                      >
+                        <span>{dailyFlashFilters.locations.length === 0 ? 'All Locations' : `${dailyFlashFilters.locations.length} selected`}</span>
+                        <span className="text-slate-400">▼</span>
+                      </button>
+                      {isDailyFlashLocationDropdownOpen && (
+                        <div className="absolute z-10 mt-1 w-full bg-slate-700 border border-slate-600 rounded shadow-lg max-h-60 overflow-y-auto">
+                          <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600 border-b border-slate-600">
+                            <input
+                              type="checkbox"
+                              checked={dailyFlashFilters.locations.length === 0}
+                              onChange={() => setDailyFlashFilters({...dailyFlashFilters, locations: []})}
+                              className="rounded"
+                            />
+                            <span className="text-white text-xs font-semibold">All Locations</span>
+                          </label>
+                          {Object.keys(dailyFlashData).sort().map(location => (
+                            <label key={location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                              <input
+                                type="checkbox"
+                                checked={dailyFlashFilters.locations.includes(location)}
+                                onChange={() => handleDailyFlashLocationToggle(location)}
+                                className="rounded"
+                              />
+                              <span className="text-white text-xs">{location}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                      <select
+                        value={dailyFlashFilters.market}
+                        onChange={(e) => setDailyFlashFilters({...dailyFlashFilters, market: e.target.value})}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      >
+                        <option value="all">All Markets</option>
+                        <option value="Tulsa">Tulsa</option>
+                        <option value="Oklahoma City">Oklahoma City</option>
+                        <option value="Dallas">Dallas</option>
+                        <option value="Orlando">Orlando</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {dailyFlashError && (
+                <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                  <strong>Error:</strong> {dailyFlashError}
+                </div>
+              )}
+
+              {dailyFlashLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-white text-lg">Loading daily labor data...</div>
+                </div>
+              ) : Object.keys(dailyFlashData).length === 0 ? (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                  <p className="text-slate-400">No daily labor data available</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 md:gap-3">
+                  {filteredDailyFlash.map((location) => {
+                    const locationData = dailyFlashData[location];
+                    return (
+                      <div key={location} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                        <div className="mb-2 md:mb-3">
+                          <h3 className="text-sm md:text-base font-bold text-white">{location}</h3>
+                          <p className="text-xs text-slate-400">{locationData.length} day{locationData.length !== 1 ? 's' : ''} of data</p>
+                        </div>
+
+                        <div className="bg-slate-900 rounded-lg overflow-x-auto">
+                          {/* Desktop Table */}
+                          <table className="hidden md:table w-full text-xs">
+                            <thead className="bg-slate-800">
+                              <tr>
+                                <th className="text-left p-2 text-slate-400 font-semibold">Date</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">Labor %</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">Opt %</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">% Var</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">Act Hrs</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">Opt Hrs</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {locationData.map((day, idx) => {
+                                const laborVariance = day.laborPercent - day.optimalLaborPercent;
+                                return (
+                                  <tr key={idx} className="border-t border-slate-700">
+                                    <td className="p-2 text-slate-300">{day.date}</td>
+                                    <td className="text-right p-2 text-white font-semibold">{day.laborPercent.toFixed(1)}%</td>
+                                    <td className="text-right p-2 text-slate-300">{day.optimalLaborPercent.toFixed(1)}%</td>
+                                    <td className={`text-right p-2 font-semibold ${laborVariance > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                      {laborVariance > 0 ? '+' : ''}{laborVariance.toFixed(1)}%
+                                    </td>
+                                    <td className="text-right p-2 text-white">{day.actualHours.toFixed(1)}</td>
+                                    <td className="text-right p-2 text-slate-300">{day.optimalHours.toFixed(1)}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+
+                          {/* Mobile Cards */}
+                          <div className="md:hidden divide-y divide-slate-700">
+                            {locationData.map((day, idx) => {
+                              const laborVariance = day.laborPercent - day.optimalLaborPercent;
+                              return (
+                                <div key={idx} className="p-3 space-y-2">
+                                  <div className="text-slate-400 text-xs font-semibold mb-2">{day.date}</div>
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div>
+                                      <div className="text-slate-500">Labor %</div>
+                                      <div className="text-white font-semibold">{day.laborPercent.toFixed(1)}%</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-slate-500">Opt %</div>
+                                      <div className="text-slate-300">{day.optimalLaborPercent.toFixed(1)}%</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-slate-500">% Var</div>
+                                      <div className={`font-semibold ${laborVariance > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                        {laborVariance > 0 ? '+' : ''}{laborVariance.toFixed(1)}%
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-slate-500">Act Hrs</div>
+                                      <div className="text-white">{day.actualHours.toFixed(1)}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-slate-500">Opt Hrs</div>
+                                      <div className="text-slate-300">{day.optimalHours.toFixed(1)}</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+            <>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <button 
+                  onClick={() => setIsDailyFlashFiltersOpen(!isDailyFlashFiltersOpen)}
+                  className="flex items-center justify-between w-full mb-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-blue-400" />
+                    <h3 className="text-sm font-semibold text-white">Filters</h3>
+                  </div>
+                  <span className="text-slate-400 text-sm">{isDailyFlashFiltersOpen ? '▼' : '▶'}</span>
+                </button>
+                {isDailyFlashFiltersOpen && (
+                  <div className="flex flex-col md:flex-row gap-2">
+                    <div className="flex-1 relative">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsDailyFlashLocationDropdownOpen(!isDailyFlashLocationDropdownOpen);
+                        }}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center justify-between"
+                      >
+                        <span>{dailyFlashFilters.locations.length === 0 ? 'All Locations' : `${dailyFlashFilters.locations.length} selected`}</span>
+                        <span className="text-slate-400">▼</span>
+                      </button>
+                      {isDailyFlashLocationDropdownOpen && (
+                        <div className="absolute z-10 mt-1 w-full bg-slate-700 border border-slate-600 rounded shadow-lg max-h-60 overflow-y-auto">
+                          <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600 border-b border-slate-600">
+                            <input
+                              type="checkbox"
+                              checked={dailyFlashFilters.locations.length === 0}
+                              onChange={() => setDailyFlashFilters({...dailyFlashFilters, locations: []})}
+                              className="rounded"
+                            />
+                            <span className="text-white text-xs font-semibold">All Locations</span>
+                          </label>
+                          {Object.keys(dailyFlashData).sort().map(location => (
+                            <label key={location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                              <input
+                                type="checkbox"
+                                checked={dailyFlashFilters.locations.includes(location)}
+                                onChange={() => handleDailyFlashLocationToggle(location)}
+                                className="rounded"
+                              />
+                              <span className="text-white text-xs">{location}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                      <select
+                        value={dailyFlashFilters.market}
+                        onChange={(e) => setDailyFlashFilters({...dailyFlashFilters, market: e.target.value})}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      >
+                        <option value="all">All Markets</option>
+                        <option value="Tulsa">Tulsa</option>
+                        <option value="Oklahoma City">Oklahoma City</option>
+                        <option value="Dallas">Dallas</option>
+                        <option value="Orlando">Orlando</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
           {activeTab === 'clockouts' && (
             <>
               {clockoutsError && (
@@ -1458,35 +1763,59 @@ export default function Home() {
                   <p className="text-slate-400">All scheduled employees showed up!</p>
                 </div>
               ) : (
-                <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
-                  <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900" style={{gridTemplateColumns: '100px 1fr 120px 150px'}}>
-                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Date</div>
-                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
-                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
-                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Scheduled Time</div>
-                  </div>
-                  
-                  <div className="divide-y divide-slate-700">
-                    {filteredCallOffs.map((callOff, idx) => (
-                      <div key={idx}>
-                        <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '100px 1fr 120px 150px'}}>
-                          <div className="text-slate-300 text-xs md:text-sm">{callOff.reportDate}</div>
-                          <div className="text-white font-medium text-xs md:text-sm">{callOff.employee}</div>
-                          <div className="text-slate-300 text-xs md:text-sm">{callOff.location}</div>
-                          <div className="text-slate-300 text-xs md:text-sm">{callOff.scheduledTime}</div>
-                        </div>
-                        
-                        <div className="md:hidden p-3 space-y-1">
-                          <div className="flex justify-between items-start">
-                            <div className="text-white font-medium text-sm">{callOff.employee}</div>
-                            <div className="text-slate-400 text-xs">{callOff.reportDate}</div>
+                <div className="space-y-3">
+                  {(() => {
+                    // Group call-offs by date
+                    const groupedByDate = filteredCallOffs.reduce((acc, callOff) => {
+                      if (!acc[callOff.reportDate]) {
+                        acc[callOff.reportDate] = [];
+                      }
+                      acc[callOff.reportDate].push(callOff);
+                      return acc;
+                    }, {});
+
+                    // Sort dates in descending order (most recent first)
+                    const sortedDates = Object.keys(groupedByDate).sort((a, b) => new Date(b) - new Date(a));
+
+                    return sortedDates.map((date) => {
+                      const callOffs = groupedByDate[date];
+                      return (
+                        <div key={date} className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
+                          <div className="bg-slate-900 p-3 border-b border-slate-700">
+                            <h3 className="text-lg font-bold text-white">{date}</h3>
+                            <p className="text-xs text-slate-400">{callOffs.length} call-off{callOffs.length !== 1 ? 's' : ''}</p>
                           </div>
-                          <div className="text-slate-300 text-xs">{callOff.location}</div>
-                          <div className="text-slate-400 text-xs">{callOff.scheduledTime}</div>
+                          
+                          {/* Desktop Header */}
+                          <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-3 border-b border-slate-700 bg-slate-800" style={{gridTemplateColumns: '1fr 120px 150px'}}>
+                            <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
+                            <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
+                            <div className="text-slate-400 text-xs md:text-sm font-semibold">Scheduled Time</div>
+                          </div>
+                          
+                          <div className="divide-y divide-slate-700">
+                            {callOffs.map((callOff, idx) => (
+                              <div key={idx}>
+                                {/* Desktop Layout */}
+                                <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-3 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '1fr 120px 150px'}}>
+                                  <div className="text-white font-medium text-xs md:text-sm">{callOff.employee}</div>
+                                  <div className="text-slate-300 text-xs md:text-sm">{callOff.location}</div>
+                                  <div className="text-slate-300 text-xs md:text-sm">{callOff.scheduledTime}</div>
+                                </div>
+                                
+                                {/* Mobile Layout */}
+                                <div className="md:hidden p-3 space-y-1">
+                                  <div className="text-white font-medium text-sm">{callOff.employee}</div>
+                                  <div className="text-slate-300 text-xs">{callOff.location}</div>
+                                  <div className="text-slate-400 text-xs">{callOff.scheduledTime}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      );
+                    });
+                  })()}
                 </div>
               )}
             </>
@@ -1495,39 +1824,47 @@ export default function Home() {
           {activeTab === 'scheduled-today' && (
             <>
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Filter className="w-4 h-4 text-blue-400" />
-                  <h3 className="text-sm font-semibold text-white">Filters</h3>
-                </div>
-                <div className="flex flex-col md:flex-row gap-2">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
-                    <select
-                      value={scheduledLocationFilter}
-                      onChange={(e) => setScheduledLocationFilter(e.target.value)}
-                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    >
-                      <option value="all">All Locations</option>
-                      {[...new Set(scheduledToday.map(emp => emp.location))].sort().map(loc => (
-                        <option key={loc} value={loc}>{loc}</option>
-                      ))}
-                    </select>
+                <button 
+                  onClick={() => setIsScheduledFiltersOpen(!isScheduledFiltersOpen)}
+                  className="flex items-center justify-between w-full mb-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-blue-400" />
+                    <h3 className="text-sm font-semibold text-white">Filters</h3>
                   </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
-                    <select
-                      value={scheduledMarketFilter}
-                      onChange={(e) => setScheduledMarketFilter(e.target.value)}
-                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    >
-                      <option value="all">All Markets</option>
-                      <option value="Tulsa">Tulsa</option>
-                      <option value="Oklahoma City">Oklahoma City</option>
-                      <option value="Dallas">Dallas</option>
-                      <option value="Orlando">Orlando</option>
-                    </select>
+                  <span className="text-slate-400 text-sm">{isScheduledFiltersOpen ? '▼' : '▶'}</span>
+                </button>
+                {isScheduledFiltersOpen && (
+                  <div className="flex flex-col md:flex-row gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                      <select
+                        value={scheduledLocationFilter}
+                        onChange={(e) => setScheduledLocationFilter(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      >
+                        <option value="all">All Locations</option>
+                        {[...new Set(scheduledToday.map(emp => emp.location))].sort().map(loc => (
+                          <option key={loc} value={loc}>{loc}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                      <select
+                        value={scheduledMarketFilter}
+                        onChange={(e) => setScheduledMarketFilter(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      >
+                        <option value="all">All Markets</option>
+                        <option value="Tulsa">Tulsa</option>
+                        <option value="Oklahoma City">Oklahoma City</option>
+                        <option value="Dallas">Dallas</option>
+                        <option value="Orlando">Orlando</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {scheduledError && (
