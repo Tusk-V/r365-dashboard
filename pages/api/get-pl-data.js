@@ -1,32 +1,103 @@
+// pages/api/get-pl-data.js - UPDATED with access control
+import { getServerSession } from 'next-auth';
+import { authOptions } from './auth/[...nextauth]';
 import { MongoClient } from 'mongodb';
 
 const MONGODB_URI = process.env.MONGODB_URI;
+const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  try {
-    const client = await MongoClient.connect(MONGODB_URI);
-    const db = client.db();
-    
-    const plDocument = await db.collection('pl_data').findOne({ _id: 'current' });
-    
-    await client.close();
+  const session = await getServerSession(req, res, authOptions);
+  
+  if (!session) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
 
-    if (!plDocument) {
-      return res.status(404).json({ error: 'No P&L data found' });
+  const client = new MongoClient(MONGODB_URI);
+
+  try {
+    await client.connect();
+    const database = client.db('planalytics');
+    const plCollection = database.collection('pl_data');
+    const usersCollection = database.collection('users');
+
+    const userEmail = session.user.email.toLowerCase();
+    let allowedLocations = [];
+
+    // Check if admin
+    if (userEmail === ADMIN_EMAIL) {
+      // Admin can see all locations
+      allowedLocations = 'all';
+    } else {
+      // Check user's access
+      const user = await usersCollection.findOne({ email: userEmail });
+      
+      if (!user || !user.plAccess || user.plAccess.type === 'none') {
+        return res.status(403).json({ 
+          error: 'Access denied',
+          message: 'You do not have permission to view P&L data' 
+        });
+      }
+
+      if (user.plAccess.type === 'all') {
+        allowedLocations = 'all';
+      } else if (user.plAccess.type === 'specific') {
+        allowedLocations = user.plAccess.locations || [];
+      }
     }
 
+    // Get all P&L data or filter by allowed locations
+    let query = {};
+    if (allowedLocations !== 'all') {
+      if (allowedLocations.length === 0) {
+        return res.status(403).json({ 
+          error: 'Access denied',
+          message: 'No locations assigned to your account' 
+        });
+      }
+      query = { location: { $in: allowedLocations } };
+    }
+
+    const allData = await plCollection.find(query).toArray();
+
+    if (allData.length === 0) {
+      return res.status(404).json({ 
+        error: 'No P&L data found',
+        message: allowedLocations === 'all' 
+          ? 'Please upload a P&L file first' 
+          : 'No P&L data available for your assigned locations'
+      });
+    }
+
+    // Convert to the format expected by the dashboard
+    const formattedData = {};
+    allData.forEach(item => {
+      formattedData[item.location] = {
+        location: item.location,
+        period: item.period,
+        data: item.data
+      };
+    });
+
     return res.status(200).json({
-      data: plDocument.data,
-      periodDate: plDocument.periodDate,
-      updatedAt: plDocument.updatedAt
+      success: true,
+      data: formattedData,
+      period: allData[0]?.period || '',
+      locationCount: allData.length,
+      availableLocations: Object.keys(formattedData).sort()
     });
 
   } catch (error) {
-    console.error('Error fetching P&L data:', error);
-    return res.status(500).json({ error: 'Failed to fetch P&L data' });
+    console.error('Error retrieving P&L data:', error);
+    return res.status(500).json({
+      error: 'Failed to retrieve P&L data',
+      details: error.message
+    });
+  } finally {
+    await client.close();
   }
 }
