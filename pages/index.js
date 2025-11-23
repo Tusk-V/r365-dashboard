@@ -1135,6 +1135,7 @@ useEffect(() => {
                       loadFlashData();
                     } else if (activeTab === 'daily') {
                       loadDailyData();
+                    }
                   }}
                   className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
                   title="Refresh data"
