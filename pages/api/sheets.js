@@ -16,12 +16,12 @@ export default async function handler(req, res) {
     });
   }
 
-  // Map request types to sheet names
+  // Map request types to sheet names (matching your actual Google Sheet tabs)
   const sheetNames = {
-    sales: 'Weekly Sales Data',
-    flash: 'Flash Report Data',
-    scheduled: 'Scheduled Today',
-    labor: 'Labor Report'
+    sales: 'weekly sales data',
+    flash: 'flash report data',
+    scheduled: 'scheduled today',
+    labor: 'auto-clockouts'  // Primary labor sheet
   };
 
   const sheetName = sheetNames[type];
@@ -34,7 +34,54 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Fetch data from Google Sheets API
+    // For labor, we need to fetch both auto-clockouts and call-offs
+    if (type === 'labor') {
+      const autoClockoutsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent('auto-clockouts')}?key=${API_KEY}`;
+      const callOffsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent('call-offs')}?key=${API_KEY}`;
+      
+      const [autoClockoutsResponse, callOffsResponse] = await Promise.all([
+        fetch(autoClockoutsUrl),
+        fetch(callOffsUrl)
+      ]);
+
+      if (!autoClockoutsResponse.ok || !callOffsResponse.ok) {
+        const errorData = !autoClockoutsResponse.ok ? await autoClockoutsResponse.json() : await callOffsResponse.json();
+        console.error('Google Sheets API Error:', errorData);
+        
+        return res.status(autoClockoutsResponse.status || callOffsResponse.status).json({
+          error: 'Failed to fetch labor data',
+          details: errorData.error?.message || 'Unknown error'
+        });
+      }
+
+      const autoClockoutsData = await autoClockoutsResponse.json();
+      const callOffsData = await callOffsResponse.json();
+
+      // Combine both sheets
+      const combinedData = [];
+      
+      // Add auto-clockouts data
+      if (autoClockoutsData.values && autoClockoutsData.values.length > 0) {
+        combinedData.push(autoClockoutsData.values[0]); // Header
+        autoClockoutsData.values.slice(1).forEach(row => {
+          combinedData.push([...row, 'Auto-Clockout']); // Add type column
+        });
+      }
+      
+      // Add call-offs data
+      if (callOffsData.values && callOffsData.values.length > 1) {
+        callOffsData.values.slice(1).forEach(row => {
+          combinedData.push([...row, 'Call-Off']); // Add type column
+        });
+      }
+
+      return res.status(200).json({
+        data: combinedData,
+        sheetName: 'Labor Data (Combined)'
+      });
+    }
+
+    // For non-labor sheets, fetch normally
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(sheetName)}?key=${API_KEY}`;
     
     const response = await fetch(url);
