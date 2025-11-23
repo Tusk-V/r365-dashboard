@@ -1,6 +1,4 @@
-// pages/api/get-pl-data.js - UPDATED with access control
-import { getServerSession } from 'next-auth';
-import { authOptions } from './auth/[...nextauth]';
+// pages/api/get-pl-data.js
 import { MongoClient } from 'mongodb';
 
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -11,11 +9,17 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // For now, allow all access for testing
+  // You'll need to integrate with your NextAuth session later
+  
+  /* 
+  // Uncomment this when you have NextAuth configured:
   const session = await getServerSession(req, res, authOptions);
   
   if (!session) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
+  */
 
   const client = new MongoClient(MONGODB_URI);
 
@@ -23,14 +27,18 @@ export default async function handler(req, res) {
     await client.connect();
     const database = client.db('planalytics');
     const plCollection = database.collection('pl_data');
-    const usersCollection = database.collection('users');
 
+    // For now, return all locations (remove this when NextAuth is configured)
+    const allowedLocations = 'all';
+
+    /* 
+    // Uncomment this when you have NextAuth configured:
+    const usersCollection = database.collection('users');
     const userEmail = session.user.email.toLowerCase();
     let allowedLocations = [];
 
     // Check if admin
     if (userEmail === ADMIN_EMAIL) {
-      // Admin can see all locations
       allowedLocations = 'all';
     } else {
       // Check user's access
@@ -49,6 +57,7 @@ export default async function handler(req, res) {
         allowedLocations = user.plAccess.locations || [];
       }
     }
+    */
 
     // Get all P&L data or filter by allowed locations
     let query = {};
