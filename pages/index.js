@@ -1415,37 +1415,41 @@ export default function Home() {
                             {locationData.map((day, idx) => {
                               const salesVarPercent = day.paySales > 0 ? ((day.salesVariance / day.paySales) * 100) : 0;
                               return (
-                                <div key={idx} className="p-3 space-y-2">
+                                <div key={idx} className="p-3 space-y-1.5">
                                   <div className="text-slate-400 text-xs font-semibold mb-2">{day.date}</div>
-                                  <div className="grid grid-cols-2 gap-2 text-xs">
-                                    <div>
-                                      <div className="text-slate-500">Sales</div>
-                                      <div className="text-white font-semibold">${day.sales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
-                                    </div>
-                                    <div>
-                                      <div className="text-slate-500">PY Sales</div>
-                                      <div className="text-slate-300">${day.paySales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
-                                    </div>
-                                    <div>
-                                      <div className="text-slate-500">Sales Var %</div>
-                                      <div className={`font-semibold ${salesVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                        {salesVarPercent >= 0 ? '+' : ''}{salesVarPercent.toFixed(1)}%
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <div className="text-slate-500">Guests</div>
-                                      <div className="text-white">{day.guestCount.toLocaleString('en-US')}</div>
-                                    </div>
-                                    <div>
-                                      <div className="text-slate-500">PY Guests</div>
-                                      <div className="text-slate-300">{day.payGuestCount.toLocaleString('en-US')}</div>
-                                    </div>
-                                    <div>
-                                      <div className="text-slate-500">Guest Var</div>
-                                      <div className={day.guestVariance >= 0 ? 'text-green-400' : 'text-red-400'}>
-                                        {day.guestVariance >= 0 ? '+' : ''}{day.guestVariance}
-                                      </div>
-                                    </div>
+                                  
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-slate-500">Sales</span>
+                                    <span className="text-white font-semibold">${day.sales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                                  </div>
+                                  
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-slate-500">PY Sales</span>
+                                    <span className="text-slate-300">${day.paySales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                                  </div>
+                                  
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-slate-500">Sales Var %</span>
+                                    <span className={`font-semibold ${salesVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {salesVarPercent >= 0 ? '+' : ''}{salesVarPercent.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-slate-500">Guests</span>
+                                    <span className="text-white">{day.guestCount.toLocaleString('en-US')}</span>
+                                  </div>
+                                  
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-slate-500">PY Guests</span>
+                                    <span className="text-slate-300">{day.payGuestCount.toLocaleString('en-US')}</span>
+                                  </div>
+                                  
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-slate-500">Guest Var</span>
+                                    <span className={day.guestVariance >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                      {day.guestVariance >= 0 ? '+' : ''}{day.guestVariance}
+                                    </span>
                                   </div>
                                 </div>
                               );
@@ -1559,11 +1563,11 @@ export default function Home() {
                                   <div className="text-slate-300 text-xs md:text-sm">{callOff.scheduledTime}</div>
                                 </div>
                                 
-                                {/* Mobile Layout */}
-                                <div className="md:hidden p-3 space-y-1">
-                                  <div className="text-white font-medium text-sm">{callOff.employee}</div>
-                                  <div className="text-slate-300 text-xs">{callOff.location}</div>
-                                  <div className="text-slate-400 text-xs">{callOff.scheduledTime}</div>
+                                {/* Mobile Layout - All on one row */}
+                                <div className="md:hidden p-3 flex items-center justify-between gap-2 text-xs">
+                                  <div className="text-white font-medium flex-1">{callOff.employee}</div>
+                                  <div className="text-slate-300">{callOff.location}</div>
+                                  <div className="text-slate-400">{callOff.scheduledTime}</div>
                                 </div>
                               </div>
                             ))}
