@@ -84,6 +84,19 @@ export default function Home() {
     guestCountVariance: 'all'
   });
 
+// Daily Sales & Labor State
+const [dailyData, setDailyData] = useState([]);
+const [dailyLoading, setDailyLoading] = useState(false);
+const [dailyError, setDailyError] = useState(null);
+const [filteredDailyData, setFilteredDailyData] = useState([]);
+const [dailyFilters, setDailyFilters] = useState({
+  selectedDate: 'latest',
+  locations: [],
+  market: 'all',
+  salesVariance: 'all'
+});
+const [dailyFiltersCollapsed, setDailyFiltersCollapsed] = useState(false);
+
 // P&L Dashboard State
   const [plData, setPlData] = useState(null);
   const [plLoading, setPlLoading] = useState(false);
@@ -689,6 +702,95 @@ const loadPlData = async () => {
     }
   };
 
+const loadDailyData = async () => {
+    setDailyLoading(true);
+    setDailyError(null);
+    
+    try {
+      const range = `${FLASH_DAY_SHEET}!A2:M`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to load daily data');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        setDailyData([]);
+        return;
+      }
+      
+      const parsedDaily = data.values.map(row => {
+        const actualSales = parseFloat(row[2]) || 0;
+        const lySales = parseFloat(row[3]) || 0;
+        const dollarChange = parseFloat(row[4]) || 0;
+        const percentChange = parseFloat(row[5]) || 0;
+        const avgSalesPerGuest = parseFloat(row[6]) || 0;
+        const guestCount = parseFloat(row[7]) || 0;
+        const lyGuestCount = parseFloat(row[8]) || 0;
+        
+        return {
+          date: row[0] || '',
+          location: row[1] || '',
+          actualSales,
+          lySales,
+          dollarChange,
+          percentChange,
+          avgSalesPerGuest,
+          guestCount,
+          lyGuestCount
+        };
+      });
+      
+      setDailyData(parsedDaily);
+    } catch (err) {
+      console.error('Error loading daily data:', err);
+      setDailyError(err.message);
+    } finally {
+      setDailyLoading(false);
+    }
+  };
+
+  const applyDailyFilters = () => {
+    let filtered = [...dailyData];
+    
+    if (dailyFilters.selectedDate !== 'all' && dailyFilters.selectedDate !== 'latest') {
+      filtered = filtered.filter(d => d.date === dailyFilters.selectedDate);
+    } else if (dailyFilters.selectedDate === 'latest') {
+      const dates = [...new Set(dailyData.map(d => d.date))].sort((a, b) => new Date(b) - new Date(a));
+      if (dates.length > 0) {
+        filtered = filtered.filter(d => d.date === dates[0]);
+      }
+    }
+    
+    if (dailyFilters.locations.length > 0) {
+      filtered = filtered.filter(d => dailyFilters.locations.includes(d.location));
+    }
+    
+    if (dailyFilters.market !== 'all') {
+      filtered = filtered.filter(d => getMarket(d.location) === dailyFilters.market);
+    }
+    
+    if (dailyFilters.salesVariance === 'positive') {
+      filtered = filtered.filter(d => d.dollarChange > 0);
+    } else if (dailyFilters.salesVariance === 'negative') {
+      filtered = filtered.filter(d => d.dollarChange < 0);
+    }
+    
+    setFilteredDailyData(filtered);
+  };
+
+  const handleDailyLocationToggle = (location) => {
+    const newLocations = dailyFilters.locations.includes(location)
+      ? dailyFilters.locations.filter(l => l !== location)
+      : [...dailyFilters.locations, location];
+    setDailyFilters({...dailyFilters, locations: newLocations});
+  };
+
   const applyScheduledFilters = () => {
     let filtered = [...scheduledToday];
     
@@ -902,7 +1004,8 @@ useEffect(() => {
       loadCallOffs();
       loadScheduledToday();
       loadFlashData();
-      loadPlData(); // ADD THIS LINE
+      loadDailyData();  // ADD THIS LINE
+      loadPlData();
     }
   }, [status]);
 
@@ -948,6 +1051,10 @@ useEffect(() => {
   useEffect(() => {
     applyScheduledFilters();
   }, [scheduledToday, scheduledLocationFilter, scheduledMarketFilter]);
+
+  useEffect(() => {
+    applyDailyFilters();
+  }, [dailyData, dailyFilters]);
 
   useEffect(() => {
     if (activeTab.startsWith('flash-')) {
@@ -1000,6 +1107,7 @@ useEffect(() => {
                   className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                 >
                   <option value="sales">Weekly Sales & Labor</option>
+                  <option value="daily">Daily Sales & Labor</option>
                   <option value="flash-sales">Sales/Guest Counts</option>
                   <option value="flash-discounts">Comps/Discounts/Voids</option>
                   <option value="scheduled-today">Scheduled Today</option>
@@ -1025,7 +1133,8 @@ useEffect(() => {
                       loadScheduledToday();
                     } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
                       loadFlashData();
-                    }
+                    } else if (activeTab === 'daily') {
+                      loadDailyData();
                   }}
                   className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
                   title="Refresh data"
@@ -1065,6 +1174,7 @@ useEffect(() => {
                 className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
                 <option value="sales">Weekly Sales & Labor</option>
+                <option value="daily">Daily Sales & Labor</option>
                 <option value="flash-sales">Sales/Guest Counts</option>
                 <option value="flash-discounts">Comps/Discounts/Voids</option>
                 <option value="scheduled-today">Scheduled Today</option>
@@ -1089,10 +1199,12 @@ useEffect(() => {
                     } else if (activeTab === 'scheduled-today') {
                       loadScheduledToday();
                     } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
-                      loadFlashData();
-                    } else if (activeTab === 'pl' || activeTab === 'pl-admin') {
-                      loadPlData();
-                    }
+  loadFlashData();
+} else if (activeTab === 'daily') {
+  loadDailyData();
+} else if (activeTab === 'pl' || activeTab === 'pl-admin') {
+  loadPlData();
+}
                   }}
                 className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
                 title="Refresh data"
@@ -1639,7 +1751,228 @@ useEffect(() => {
               )}
             </>
           )}
+{activeTab === 'daily' && (
+  <>
+    {/* Collapsible Filters */}
+    <div className="bg-slate-800 rounded-lg shadow-lg mb-3 md:mb-4 overflow-hidden">
+      <button
+        onClick={() => setDailyFiltersCollapsed(!dailyFiltersCollapsed)}
+        className="w-full px-3 md:px-4 py-2 md:py-3 flex items-center justify-between text-white hover:bg-slate-750 transition-colors border-b border-slate-700"
+      >
+        <span className="font-semibold text-sm md:text-base flex items-center gap-2">
+          <Filter size={16} className="text-blue-400" />
+          Filters & Controls
+        </span>
+        <svg
+          className={`w-5 h-5 transform transition-transform ${dailyFiltersCollapsed ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      
+      {!dailyFiltersCollapsed && (
+        <div className="p-3 md:p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Date Filter */}
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Date</label>
+              <select
+                value={dailyFilters.selectedDate}
+                onChange={(e) => setDailyFilters({...dailyFilters, selectedDate: e.target.value})}
+                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="latest">Latest</option>
+                <option value="all">All Dates (Last 7 Days)</option>
+                {[...new Set(dailyData.map(d => d.date))].sort((a, b) => new Date(b) - new Date(a)).map(date => (
+                  <option key={date} value={date}>{date}</option>
+                ))}
+              </select>
+            </div>
 
+            {/* Location Filter */}
+            <div className="relative">
+              <label className="block text-xs font-medium text-slate-400 mb-1">
+                Locations ({dailyFilters.locations.length > 0 ? dailyFilters.locations.length : 'All'})
+              </label>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsLocationDropdownOpen(!isLocationDropdownOpen);
+                }}
+                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex justify-between items-center"
+              >
+                <span>{dailyFilters.locations.length === 0 ? 'All Locations' : `${dailyFilters.locations.length} selected`}</span>
+                <span className="text-slate-400">▼</span>
+              </button>
+              {isLocationDropdownOpen && (
+                <div 
+                  className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg max-h-64 overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={dailyFilters.locations.length === 0}
+                      onChange={() => setDailyFilters({...dailyFilters, locations: []})}
+                      className="rounded"
+                    />
+                    <span className="text-white text-xs">All Locations</span>
+                  </label>
+                  {[...new Set(dailyData.map(d => d.location))].sort().map(loc => (
+                    <label key={loc} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={dailyFilters.locations.includes(loc)}
+                        onChange={() => handleDailyLocationToggle(loc)}
+                        className="rounded"
+                      />
+                      <span className="text-white text-xs">{loc}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Market Filter */}
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+              <select
+                value={dailyFilters.market}
+                onChange={(e) => setDailyFilters({...dailyFilters, market: e.target.value})}
+                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="all">All Markets</option>
+                <option value="Tulsa">Tulsa</option>
+                <option value="Oklahoma City">Oklahoma City</option>
+                <option value="Dallas">Dallas</option>
+                <option value="Orlando">Orlando</option>
+              </select>
+            </div>
+
+            {/* Sales Variance Filter */}
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Sales vs LY</label>
+              <select
+                value={dailyFilters.salesVariance}
+                onChange={(e) => setDailyFilters({...dailyFilters, salesVariance: e.target.value})}
+                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="all">All Variances</option>
+                <option value="positive">Above LY</option>
+                <option value="negative">Below LY</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+
+    {/* Error Display */}
+    {dailyError && (
+      <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+        <strong>Error:</strong> {dailyError}
+      </div>
+    )}
+
+    {/* Loading State */}
+    {dailyLoading ? (
+      <div className="flex justify-center items-center py-20">
+        <div className="text-white text-lg">Loading daily data...</div>
+      </div>
+    ) : filteredDailyData.length === 0 ? (
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+        <p className="text-slate-400">No daily data found</p>
+      </div>
+    ) : (
+      /* Location Cards */
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
+        {filteredDailyData.map((loc, idx) => (
+          <div
+            key={idx}
+            className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg"
+          >
+            {/* Card Header */}
+            <div className="flex items-start justify-between mb-2 md:mb-3">
+              <div>
+                <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
+                <p className="text-xs text-slate-400">{loc.date}</p>
+              </div>
+            </div>
+
+            {/* Card Body */}
+            <div className="grid grid-cols-2 gap-1.5 md:gap-2">
+              {/* SALES Section */}
+              <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">SALES</p>
+                <div className="space-y-0.5 md:space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 text-xs">Actual</span>
+                    <span className="font-bold text-xs text-white">
+                      ${loc.actualSales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 text-xs">LY</span>
+                    <span className="text-slate-400 text-xs">
+                      ${loc.lySales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 text-xs">$ Change</span>
+                    <span className={`font-bold text-xs ${loc.dollarChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {loc.dollarChange >= 0 ? '+' : ''}${loc.dollarChange.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 text-xs">% Change</span>
+                    <span className={`font-bold text-xs ${loc.percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {loc.percentChange >= 0 ? '+' : ''}{(loc.percentChange * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* GUESTS Section */}
+              <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">GUESTS</p>
+                <div className="space-y-0.5 md:space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 text-xs">Count</span>
+                    <span className="font-bold text-xs text-white">
+                      {loc.guestCount.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 text-xs">LY Count</span>
+                    <span className="text-slate-400 text-xs">
+                      {loc.lyGuestCount.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 text-xs">Avg Ticket</span>
+                    <span className="text-white font-semibold text-xs">
+                      ${loc.avgSalesPerGuest.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 text-xs">Count Chg</span>
+                    <span className={`font-semibold text-xs ${((loc.guestCount - loc.lyGuestCount) / loc.lyGuestCount) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {((loc.guestCount - loc.lyGuestCount) / loc.lyGuestCount) >= 0 ? '+' : ''}
+                      {(((loc.guestCount - loc.lyGuestCount) / loc.lyGuestCount) * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </>
+)}
           {activeTab === 'clockouts' && (
             <>
               {clockoutsError && (
