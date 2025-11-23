@@ -1,823 +1,1947 @@
-/**
- * R365 Dashboard Data Processor - Consolidated Script
- * Processes all R365 email reports daily at 6:30 AM
- * 
- * Reports Processed:
- * 1. Weekly Sales & Labor Report (Mon-Sun schedule)
- * 2. Flash Report - Daily sales/guest counts
- * 3. Scheduled Today - Employee schedules
- * 4. Labor Actual vs Scheduled - Auto-clockouts & call-offs
- */
+import { useSession, signOut } from "next-auth/react"
+import { useRouter } from "next/router"
+import Head from "next/head"
+import { useState, useEffect } from 'react';
+import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle } from 'lucide-react';
 
-// ============================================================================
-// CONFIGURATION
-// ============================================================================
+// Google Sheets API Configuration
+const API_KEY = 'AIzaSyAbUI3oP_0ofBG9tiAudYLUjZ4MSSaFNDA';
+const SPREADSHEET_ID = '1WsHBn5qLczH8QZ1c-CyVGfCWzMuLg2vmx5R5MZdHY20';
+const SHEET_NAME = 'Sheet1';
+const AUTO_CLOCKOUTS_SHEET = 'Auto-Clockouts';
+const CALL_OFFS_SHEET = 'Call-Offs';
+const FLASH_DAY_SHEET = 'Flash - Day';
+const FLASH_WTD_SHEET = 'Flash - WTD';
+const SCHEDULED_TODAY_SHEET = 'Scheduled Today';
 
-var CONFIG = {
-  // Weekly Sales & Labor
-  WEEKLY_SHEET_NAME: 'Sheet1',
-  HISTORICAL_SHEET_NAME: 'Historical Data',
-  WEEKS_TO_KEEP: 12,
-  PREVIOUS_WEEK_SUBJECT: 'Weekly Sales and Labor Report - Previous Week',
-  CURRENT_WEEK_SUBJECT: 'Weekly Sales and Labor Report',
-  
-  // Flash Report
-  FLASH_DAY_SHEET: 'Flash - Day',
-  FLASH_WTD_SHEET: 'Flash - WTD',
-  FLASH_SUBJECT: 'Flash Report',
-  
-  // Scheduled Today
-  SCHEDULED_SHEET: 'Scheduled Today',
-  SCHEDULED_SUBJECT: 'Labor Actual vs Scheduled - Today',
-  
-  // Labor Report (Auto-clockouts & Call-offs)
-  LABOR_SEARCH_QUERY: 'subject:"Labor Actual vs Scheduled - Punch Details" has:attachment',
-  LABOR_SPREADSHEET_ID: '1WsHBn5qLczH8QZ1c-CyVGfCWzMuLg2vmx5R5MZdHY20',
-  AUTO_CLOCKOUT_SHEET: 'Auto-Clockouts',
-  CALL_OFFS_SHEET: 'Call-Offs',
-  DAYS_TO_KEEP: 7,
-  AUTO_CLOCKOUT_TIME: '5:00 AM'
-};
+export default function Home() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
 
-// ============================================================================
-// MAIN ORCHESTRATOR - Called by daily trigger
-// ============================================================================
+  const [activeTab, setActiveTab] = useState('sales');
+  const [flashView, setFlashView] = useState('day');
+  
+  const [locations, setLocations] = useState([]);
+  const [filteredLocations, setFilteredLocations] = useState([]);
+  const [availableWeeks, setAvailableWeeks] = useState([]);
+  const [selectedWeek, setSelectedWeek] = useState('current');
+  const [filters, setFilters] = useState({
+    locations: [],
+    actVsOptVariance: 'all',
+    salesVariance: 'all',
+    market: 'all'
+  });
+  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
+  const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [reportDate, setReportDate] = useState('Loading...');
+  const [error, setError] = useState(null);
 
-function processAllR365Reports() {
-  var today = new Date().getDay(); // 0=Sunday, 1=Monday, etc.
-  
-  Logger.log('=== Starting R365 Report Processing ===');
-  Logger.log('Day of week: ' + today);
-  
-  try {
-    // 1. Weekly Sales & Labor (day-specific logic)
-    if (today === 1) {
-      Logger.log('Monday: Processing Previous Week report');
-      processWeeklySalesPreviousWeek();
-    } else if (today === 2) {
-      Logger.log('Tuesday: Archiving and processing current week');
-      archiveWeeklySales();
-      processWeeklySalesCurrentWeek();
-    } else {
-      Logger.log('Wed-Sun: Processing current week');
-      processWeeklySalesCurrentWeek();
-    }
+  const [clockouts, setClockouts] = useState([]);
+  const [filteredClockouts, setFilteredClockouts] = useState([]);
+  const [clockoutsLoading, setClockoutsLoading] = useState(false);
+  const [clockoutsError, setClockoutsError] = useState(null);
+  const [locationFilter, setLocationFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [showClockoutModal, setShowClockoutModal] = useState(false);
+  const [clockoutModalData, setClockoutModalData] = useState({ location: '', employees: [] });
+  const [showCallOffModal, setShowCallOffModal] = useState(false);
+  const [callOffModalData, setCallOffModalData] = useState({ location: '', employees: [] });
+
+  const [callOffs, setCallOffs] = useState([]);
+  const [filteredCallOffs, setFilteredCallOffs] = useState([]);
+  const [callOffsLoading, setCallOffsLoading] = useState(false);
+  const [callOffsError, setCallOffsError] = useState(null);
+  const [callOffLocationFilter, setCallOffLocationFilter] = useState('all');
+
+  const [scheduledToday, setScheduledToday] = useState([]);
+  const [filteredScheduled, setFilteredScheduled] = useState([]);
+  const [scheduledLoading, setScheduledLoading] = useState(false);
+  const [scheduledError, setScheduledError] = useState(null);
+  const [scheduledLocationFilter, setScheduledLocationFilter] = useState('all');
+  const [scheduledMarketFilter, setScheduledMarketFilter] = useState('all');
+
+  const [flashData, setFlashData] = useState([]);
+  const [flashLoading, setFlashLoading] = useState(false);
+  const [flashError, setFlashError] = useState(null);
+  const [filteredFlashData, setFilteredFlashData] = useState([]);
+  const [flashFilters, setFlashFilters] = useState({
+    locations: [],
+    market: 'all',
+    salesVariance: 'all',
+    guestCountVariance: 'all'
+  });
+
+  const getMarket = (locationName) => {
+    const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
+    const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
+    const dallas = ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'Lake Highlands', 'Hillcrest Village', 'The Colony', 'Prosper', 'Allen'];
+    const orlando = ['Sanford', 'Lakeland'];
     
-    // 2. Flash Report (daily)
-    Logger.log('Processing Flash Report...');
-    processFlashReport();
+    if (tulsa.includes(locationName)) return 'Tulsa';
+    if (okc.includes(locationName)) return 'Oklahoma City';
+    if (dallas.includes(locationName)) return 'Dallas';
+    if (orlando.includes(locationName)) return 'Orlando';
+    return 'Other';
+  };
+
+  const parseSheetData = (rows) => {
+    const parsedData = [];
     
-    // 3. Scheduled Today (daily)
-    Logger.log('Processing Scheduled Today...');
-    processScheduledToday();
+    const parseNumber = (value) => {
+      if (!value) return 0;
+      const cleaned = value.toString().replace(/[$,\s]/g, '');
+      return parseFloat(cleaned) || 0;
+    };
     
-    // 4. Labor Report - Auto-clockouts & Call-offs (daily)
-    Logger.log('Processing Labor Report...');
-    processLaborReport();
+    const parsePercentage = (value) => {
+      if (!value) return 0;
+      const cleaned = value.toString().replace(/[%\s]/g, '');
+      return parseFloat(cleaned) || 0;
+    };
     
-    Logger.log('=== All Reports Processed Successfully ===');
-  } catch (error) {
-    Logger.log('ERROR in processAllR365Reports: ' + error);
-    throw error;
-  }
-}
-
-// ============================================================================
-// 1. WEEKLY SALES & LABOR REPORT
-// ============================================================================
-
-function processWeeklySalesPreviousWeek() {
-  var threads = GmailApp.search('subject:"' + CONFIG.PREVIOUS_WEEK_SUBJECT + '" newer_than:2h has:attachment');
-  
-  if (threads.length === 0) {
-    Logger.log('No Previous Week report found');
-    return;
-  }
-  
-  var message = threads[0].getMessages()[0];
-  var attachment = getExcelAttachment(message);
-  
-  if (attachment) {
-    processWeeklySalesAttachment(attachment);
-  }
-}
-
-function processWeeklySalesCurrentWeek() {
-  var threads = GmailApp.search('subject:"' + CONFIG.CURRENT_WEEK_SUBJECT + '" -subject:"Previous Week" newer_than:2h has:attachment');
-  
-  if (threads.length === 0) {
-    Logger.log('No current week report found');
-    return;
-  }
-  
-  var message = threads[0].getMessages()[0];
-  var attachment = getExcelAttachment(message);
-  
-  if (attachment) {
-    processWeeklySalesAttachment(attachment);
-  }
-}
-
-function processWeeklySalesAttachment(attachment) {
-  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = spreadsheet.getSheetByName(CONFIG.WEEKLY_SHEET_NAME);
-  
-  if (!sheet) {
-    sheet = spreadsheet.insertSheet(CONFIG.WEEKLY_SHEET_NAME);
-  }
-  
-  var blob = attachment.copyBlob();
-  var file = DriveApp.createFile(blob);
-  var fileId = file.getId();
-  
-  var resource = { mimeType: MimeType.GOOGLE_SHEETS };
-  var convertedFile = Drive.Files.copy(resource, fileId);
-  
-  var tempSheet = SpreadsheetApp.openById(convertedFile.id).getSheets()[0];
-  var lastCol = tempSheet.getLastColumn();
-  var data = tempSheet.getRange(7, 1, 20, lastCol).getValues();
-  
-  sheet.clear();
-  if (data.length > 0) {
-    sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
-  }
-  
-  DriveApp.getFileById(fileId).setTrashed(true);
-  DriveApp.getFileById(convertedFile.id).setTrashed(true);
-  
-  Logger.log('Weekly Sales: Imported ' + data.length + ' rows');
-}
-
-function archiveWeeklySales() {
-  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var mainSheet = spreadsheet.getSheetByName(CONFIG.WEEKLY_SHEET_NAME);
-  
-  if (!mainSheet || mainSheet.getLastRow() < 2) {
-    Logger.log('No data to archive');
-    return;
-  }
-  
-  var histSheet = spreadsheet.getSheetByName(CONFIG.HISTORICAL_SHEET_NAME);
-  if (!histSheet) {
-    histSheet = spreadsheet.insertSheet(CONFIG.HISTORICAL_SHEET_NAME);
-    histSheet.getRange(1, 1, 1, 11).setValues([[
-      'Week Ending', 'Location', 'Actual Sales', 'Forecast Sales',
-      'Sales Variance', 'Prior Year Sales', 'Labor %', 'Optimal Hours',
-      'Actual Hours', 'Scheduled Hours', 'Sch vs For Var'
-    ]]);
-  }
-  
-  var numCols = mainSheet.getLastColumn();
-  var data = mainSheet.getRange(2, 1, mainSheet.getLastRow() - 1, numCols).getValues();
-  
-  var weekDate = data[0][data[0].length - 1];
-  if (!weekDate || weekDate.toString().length < 5) {
-    weekDate = new Date().toLocaleDateString();
-  }
-  
-  for (var i = 0; i < data.length; i++) {
-    var row = data[i];
-    if (row[0]) {
-      histSheet.appendRow([
-        weekDate, row[0], row[7], row[6], row[8], row[9], 
-        row[10], row[12], row[13], row[15], row[18]
-      ]);
-    }
-  }
-  
-  cleanOldWeeklyData(histSheet);
-  Logger.log('Archived week ' + weekDate);
-}
-
-function cleanOldWeeklyData(sheet) {
-  var data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return;
-  
-  var weeks = [];
-  for (var i = 1; i < data.length; i++) {
-    var week = data[i][0].toString();
-    if (weeks.indexOf(week) === -1) weeks.push(week);
-  }
-  
-  weeks.sort(function(a, b) { return new Date(b) - new Date(a); });
-  
-  if (weeks.length > CONFIG.WEEKS_TO_KEEP) {
-    var oldWeeks = weeks.slice(CONFIG.WEEKS_TO_KEEP);
-    for (var i = data.length - 1; i >= 1; i--) {
-      if (oldWeeks.indexOf(data[i][0].toString()) > -1) {
-        sheet.deleteRow(i + 1);
-      }
-    }
-  }
-}
-
-// ============================================================================
-// 2. FLASH REPORT
-// ============================================================================
-
-function processFlashReport() {
-  var threads = GmailApp.search('subject:"' + CONFIG.FLASH_SUBJECT + '" newer_than:2h has:attachment');
-  
-  if (threads.length === 0) {
-    Logger.log('No Flash Report found');
-    return;
-  }
-  
-  var message = threads[0].getMessages()[0];
-  var attachment = getExcelAttachment(message);
-  
-  if (!attachment) {
-    Logger.log('No Flash attachment found');
-    return;
-  }
-  
-  var blob = attachment.copyBlob();
-  var file = DriveApp.createFile(blob);
-  var fileId = file.getId();
-  
-  var resource = { mimeType: MimeType.GOOGLE_SHEETS };
-  var convertedFile = Drive.Files.copy(resource, fileId);
-  
-  var tempSheet = SpreadsheetApp.openById(convertedFile.id).getSheets()[0];
-  var data = tempSheet.getDataRange().getValues();
-  
-  var reportDate = new Date().toLocaleDateString();
-  if (data.length > 3 && data[3][0]) {
-    var dateStr = data[3][0].toString();
-    if (dateStr.includes('Day of ')) {
-      reportDate = dateStr.replace('Day of ', '').trim();
-    }
-  }
-  
-  processFlashDayOfData(data, reportDate);
-  processFlashWTDData(data, reportDate);
-  
-  DriveApp.getFileById(fileId).setTrashed(true);
-  DriveApp.getFileById(convertedFile.id).setTrashed(true);
-  
-  Logger.log('Flash Report processed');
-}
-
-function processFlashDayOfData(data, reportDate) {
-  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = spreadsheet.getSheetByName(CONFIG.FLASH_DAY_SHEET);
-  
-  if (!sheet) {
-    sheet = spreadsheet.insertSheet(CONFIG.FLASH_DAY_SHEET);
-    sheet.getRange(1, 1, 1, 14).setValues([[
-      'Date', 'Location', 'Sales', 'Same Day LY Sales', 'Dollar Change', 
-      'Percent Change', 'Avg Sales per Guest', 'Total Counts', 'Same Day LY Counts',
-      'Comps', 'Discounts', 'Voids', 'Total Discounts', 'Discount %'
-    ]]);
-    sheet.getRange(1, 1, 1, 14).setFontWeight('bold');
-    sheet.setFrozenRows(1);
-  }
-  
-  var lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-    sheet.deleteRows(2, lastRow - 1);
-  }
-  
-  var startRow = 6;
-  
-  for (var i = startRow; i < data.length; i++) {
-    var row = data[i];
-    var location = row[0];
-    
-    if (!location || location === 'Totals' || location === '') break;
-    
-    sheet.appendRow([
-      reportDate, location, row[1], row[3], row[4], row[5], row[6],
-      row[9], row[10], row[27], row[28], row[31], row[29], row[30]
-    ]);
-  }
-  
-  Logger.log('Flash Day processed');
-}
-
-function processFlashWTDData(data, reportDate) {
-  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = spreadsheet.getSheetByName(CONFIG.FLASH_WTD_SHEET);
-  
-  if (!sheet) {
-    sheet = spreadsheet.insertSheet(CONFIG.FLASH_WTD_SHEET);
-    sheet.getRange(1, 1, 1, 14).setValues([[
-      'Date', 'Location', 'Sales', 'Same Week LY Sales', 'Dollar Change', 
-      'Percent Change', 'Avg Sales per Guest', 'Total Counts', 'Same Week LY Counts',
-      'Comps', 'Discounts', 'Voids', 'Total Discounts', 'Discount %'
-    ]]);
-    sheet.getRange(1, 1, 1, 14).setFontWeight('bold');
-    sheet.setFrozenRows(1);
-  }
-  
-  var lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-    sheet.deleteRows(2, lastRow - 1);
-  }
-  
-  var wtdStartRow = -1;
-  for (var i = 0; i < data.length; i++) {
-    if (data[i][0] && data[i][0].toString().includes('Week To Date')) {
-      wtdStartRow = i + 2;
-      break;
-    }
-  }
-  
-  if (wtdStartRow === -1) {
-    Logger.log('WTD section not found');
-    return;
-  }
-  
-  for (var i = wtdStartRow; i < data.length; i++) {
-    var row = data[i];
-    var location = row[0];
-    
-    if (!location || location === 'Totals' || location === '') break;
-    
-    sheet.appendRow([
-      reportDate, location, row[1], row[3], row[4], row[5], row[6],
-      row[9], row[10], row[27], row[28], row[31], row[29], row[30]
-    ]);
-  }
-  
-  Logger.log('Flash WTD processed');
-}
-
-// ============================================================================
-// 3. SCHEDULED TODAY
-// ============================================================================
-
-function processScheduledToday() {
-  var threads = GmailApp.search('subject:"' + CONFIG.SCHEDULED_SUBJECT + '" newer_than:2h has:attachment');
-  
-  if (threads.length === 0) {
-    Logger.log('No Scheduled Today report found');
-    return;
-  }
-  
-  var message = threads[0].getMessages()[0];
-  var attachment = getExcelAttachment(message);
-  
-  if (!attachment) {
-    Logger.log('No Scheduled attachment found');
-    return;
-  }
-  
-  var blob = attachment.copyBlob();
-  var file = DriveApp.createFile(blob);
-  var fileId = file.getId();
-  
-  var resource = { mimeType: MimeType.GOOGLE_SHEETS };
-  var convertedFile = Drive.Files.copy(resource, fileId);
-  
-  var tempSheet = SpreadsheetApp.openById(convertedFile.id).getSheets()[0];
-  var data = tempSheet.getDataRange().getValues();
-  
-  var reportDate = new Date().toLocaleDateString();
-  if (data.length > 3 && data[3][0]) {
-    var dateStr = data[3][0].toString();
-    if (dateStr.includes('Report Date:')) {
-      reportDate = dateStr.replace('Report Date:', '').trim();
-    }
-  }
-  
-  processScheduledData(data, reportDate);
-  
-  DriveApp.getFileById(fileId).setTrashed(true);
-  DriveApp.getFileById(convertedFile.id).setTrashed(true);
-  
-  Logger.log('Scheduled Today processed');
-}
-
-function processScheduledData(data, reportDate) {
-  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = spreadsheet.getSheetByName(CONFIG.SCHEDULED_SHEET);
-  
-  if (!sheet) {
-    sheet = spreadsheet.insertSheet(CONFIG.SCHEDULED_SHEET);
-    sheet.getRange(1, 1, 1, 5).setValues([[
-      'Date', 'Location', 'Employee', 'Sch Start', 'Sch End'
-    ]]);
-    sheet.getRange(1, 1, 1, 5).setFontWeight('bold');
-    sheet.setFrozenRows(1);
-  }
-  
-  var lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-    sheet.deleteRows(2, lastRow - 1);
-  }
-  
-  var currentLocation = '';
-  var previousEmployeeName = '';
-  
-  for (var i = 0; i < data.length; i++) {
-    var row = data[i];
-    
-    if (row[0] && row[0].toString().trim() !== '' && 
-        (!row[1] || row[1].toString().trim() === '') &&
-        (!row[2] || row[2].toString().trim() === '') &&
-        row[5] !== undefined) {
-      var locationName = row[0].toString().trim();
-      if (locationName !== 'Location: More than 5 selected' && 
-          !locationName.includes('Report') &&
-          locationName !== 'Grand Total' &&
-          !locationName.includes('Grand Total')) {
-        currentLocation = locationName;
-        previousEmployeeName = '';
-      }
-      continue;
-    }
-    
-    var employeeName = row[2] ? row[2].toString().trim() : '';
-    if (employeeName && employeeName !== '' && employeeName !== 'Date') {
-      previousEmployeeName = employeeName;
-      continue;
-    }
-    
-    var dateCell = row[4] ? row[4].toString() : '';
-    var schStart = row[17];
-    var schEnd = row[18];
-    
-    if (previousEmployeeName && dateCell && dateCell.includes('2025') && schStart && schEnd) {
-      var formattedStart = formatScheduledTime(schStart);
-      var formattedEnd = formatScheduledTime(schEnd);
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
       
-      if (formattedStart && formattedEnd && currentLocation) {
-        sheet.appendRow([
-          reportDate,
-          currentLocation,
-          previousEmployeeName,
-          formattedStart,
-          formattedEnd
-        ]);
-      }
+      if (!row[0] || row[0].toString().trim() === '') continue;
       
-      previousEmployeeName = '';
-    }
-  }
-  
-  Logger.log('Scheduled data processed');
-}
-
-function formatScheduledTime(timeValue) {
-  if (!timeValue) return '';
-  
-  try {
-    var hours, minutes;
-    
-    if (timeValue instanceof Date) {
-      var formattedTime = Utilities.formatDate(timeValue, Session.getScriptTimeZone(), 'HH:mm');
-      var timeComponents = formattedTime.split(':');
-      hours = parseInt(timeComponents[0]);
-      minutes = parseInt(timeComponents[1]);
-    } else {
-      var timeStr = timeValue.toString();
-      if (timeStr.includes(' ') && timeStr.includes(':')) {
-        var parts = timeStr.split(' ');
-        if (parts.length >= 2) {
-          var timePart = parts[1];
-          var timeComponents = timePart.split(':');
-          hours = parseInt(timeComponents[0]);
-          minutes = parseInt(timeComponents[1]);
-        }
-      } else {
-        return '';
-      }
-    }
-    
-    var period = hours >= 12 ? 'PM' : 'AM';
-    var displayHours = hours > 12 ? hours - 12 : (hours === 0 ? 12 : hours);
-    var displayMinutes = minutes < 10 ? '0' + minutes : minutes;
-    
-    return displayHours + ':' + displayMinutes + ' ' + period;
-  } catch (e) {
-    Logger.log('Error formatting time: ' + e);
-    return '';
-  }
-}
-
-// ============================================================================
-// 4. LABOR REPORT (Auto-clockouts & Call-offs)
-// ============================================================================
-
-function processLaborReport() {
-  var threads = GmailApp.search(CONFIG.LABOR_SEARCH_QUERY, 0, 1);
-  
-  if (threads.length === 0) {
-    Logger.log('No labor report found');
-    return;
-  }
-  
-  var messages = threads[0].getMessages();
-  var latestMessage = messages[messages.length - 1];
-  var attachments = latestMessage.getAttachments();
-  
-  for (var i = 0; i < attachments.length; i++) {
-    var fileName = attachments[i].getName();
-    if (fileName.includes('Labor Actual vs Scheduled') && fileName.endsWith('.xlsx')) {
-      processLaborAttachment(attachments[i], latestMessage.getDate());
-    }
-  }
-  
-  Logger.log('Labor report processed');
-}
-
-function processLaborAttachment(attachment, emailDate) {
-  var blob = attachment.copyBlob();
-  var tempFile = DriveApp.createFile(blob);
-  var tempFileId = tempFile.getId();
-  
-  var resource = { mimeType: MimeType.GOOGLE_SHEETS };
-  var convertedFile = Drive.Files.copy(resource, tempFileId);
-  var tempSheet = SpreadsheetApp.openById(convertedFile.id);
-  var sheet = tempSheet.getSheets()[0];
-  var data = sheet.getDataRange().getValues();
-  
-  DriveApp.getFileById(tempFileId).setTrashed(true);
-  DriveApp.getFileById(convertedFile.id).setTrashed(true);
-  
-  processLaborData(data, emailDate);
-}
-
-function processLaborData(data, emailDate) {
-  var spreadsheet = SpreadsheetApp.openById(CONFIG.LABOR_SPREADSHEET_ID);
-  
-  var reportDateObj = new Date(emailDate);
-  reportDateObj.setDate(reportDateObj.getDate() - 1);
-  
-  var month = String(reportDateObj.getMonth() + 1).padStart(2, '0');
-  var day = String(reportDateObj.getDate()).padStart(2, '0');
-  var year = reportDateObj.getFullYear();
-  var reportDate = month + '/' + day + '/' + year;
-  
-  var currentLocation = '';
-  var autoClockouts = [];
-  var callOffs = [];
-  var employeeData = {};
-  
-  for (var i = 0; i < data.length; i++) {
-    var row = data[i];
-    
-    if (row[0] && typeof row[0] === 'string' && row[0].trim() !== '' && 
-        !row[0].includes('Labor Actual') && 
-        !row[0].includes('Show All') &&
-        !row[0].includes('Date') &&
-        row[4] !== 'Date' &&
-        row[5] && !isNaN(parseFloat(row[5]))) {
+      const locationName = row[0].toString();
       
-      currentLocation = row[0].trim();
-      continue;
-    }
-    
-    if (!row[0] && !row[1] && row[2] && typeof row[2] === 'string' && row[2].trim() !== '') {
-      var employeeName = row[2].trim();
-      
-      if (employeeName.includes('Date') || employeeName === 'Employee') {
+      if (locationName.includes('11/') || locationName.toLowerCase().includes('date')) {
         continue;
       }
       
-      var empKey = currentLocation + '|' + employeeName;
+      const actualSales = parseNumber(row[7]);
+      const forecastSales = parseNumber(row[6]);
+      const priorYearSales = parseNumber(row[9]);
+      const laborPercent = parsePercentage(row[10]);
+      const optimalHours = parseNumber(row[12]);
+      const actualHours = parseNumber(row[13]);
+      const scheduledHours = parseNumber(row[15]);
+      const schVsForLaborVar = parseNumber(row[18]);
       
-      if (!employeeData[empKey]) {
-        employeeData[empKey] = {
-          location: currentLocation,
-          employee: employeeName,
-          actualHrs: 0,
-          schedHrs: 0,
-          hasPunchData: false,
-          schedStart: null,
-          schedEnd: null,
-          actStart: null,
-          actEnd: null,
-          allPunches: []
-        };
+      const salesVariance = actualSales - forecastSales;
+      const pyVariance = actualSales - priorYearSales;
+      const pyVariancePercent = priorYearSales > 0 ? (pyVariance / priorYearSales) * 100 : 0;
+      const actVsOptHours = actualHours - optimalHours;
+      const actVsSchHours = actualHours - scheduledHours;
+      const laborCostPerHour = actualHours > 0 ? (actualSales * (laborPercent / 100)) / actualHours : 0;
+      const productivity = actualHours > 0 ? actualSales / actualHours : 0;
+      const optimalLaborPercent = actualSales > 0 ? (optimalHours * laborCostPerHour) / actualSales * 100 : 0;
+      const laborVariance = laborPercent - optimalLaborPercent;
+      
+      let reportDate = 'Current Week';
+      if (row.length > 19 && row[19]) {
+        reportDate = row[19].toString();
       }
       
-      for (var j = i + 1; j < Math.min(i + 5, data.length); j++) {
-        var detailRow = data[j];
-        
-        if (detailRow[2] && typeof detailRow[2] === 'string' && detailRow[2].trim() !== '') {
-          break;
-        }
-        
-        if (detailRow[4] && detailRow[4] instanceof Date) {
-          var actualHrs = parseFloat(detailRow[5]) || 0;
-          var schedHrs = parseFloat(detailRow[6]) || 0;
-          var actStart = detailRow[15];
-          var actEnd = detailRow[16];
-          var schStart = detailRow[17];
-          var schEnd = detailRow[18];
-          
-          employeeData[empKey].actualHrs += actualHrs;
-          employeeData[empKey].schedHrs += schedHrs;
-          
-          if (schStart) {
-            employeeData[empKey].schedStart = schStart;
-            employeeData[empKey].schedEnd = schEnd;
-          }
-          
-          if (actStart || actualHrs > 0) {
-            employeeData[empKey].hasPunchData = true;
-            
-            if (actStart) employeeData[empKey].actStart = actStart;
-            if (actEnd) employeeData[empKey].actEnd = actEnd;
-            
-            if (actStart && actEnd) {
-              employeeData[empKey].allPunches.push({
-                clockIn: formatLaborTime(actStart),
-                clockOut: formatLaborTime(actEnd)
-              });
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  for (var empKey in employeeData) {
-    var emp = employeeData[empKey];
-    
-    if (emp.schedHrs > 0 && emp.actualHrs === 0 && !emp.hasPunchData) {
-      var schedTime = formatLaborScheduledTime(emp.schedStart, emp.schedEnd);
-      callOffs.push({
-        location: emp.location,
-        employee: emp.employee,
-        scheduledTime: schedTime
+      parsedData.push({
+        location: locationName,
+        actualSales,
+        forecastSales,
+        salesVariance,
+        priorYearSales,
+        pyVariance,
+        pyVariancePercent,
+        laborPercent,
+        optimalHours,
+        actualHours,
+        scheduledHours,
+        actVsOptHours,
+        actVsSchHours,
+        schVsForLaborVar,
+        laborCostPerHour,
+        productivity,
+        optimalLaborPercent,
+        laborVariance,
+        reportDate
       });
     }
     
-    for (var p = 0; p < emp.allPunches.length; p++) {
-      if (emp.allPunches[p].clockOut === CONFIG.AUTO_CLOCKOUT_TIME) {
-        autoClockouts.push({
-          location: emp.location,
-          employee: emp.employee,
-          clockIn: emp.allPunches[p].clockIn,
-          clockOut: emp.allPunches[p].clockOut
-        });
+    return parsedData;
+  };
+
+  const parseHistoricalData = (rows) => {
+    const parsedData = [];
+    
+    const parseNumber = (value) => {
+      if (!value) return 0;
+      const cleaned = value.toString().replace(/[$,\s]/g, '');
+      return parseFloat(cleaned) || 0;
+    };
+    
+    const parsePercentage = (value) => {
+      if (!value) return 0;
+      const cleaned = value.toString().replace(/[%\s]/g, '');
+      return parseFloat(cleaned) || 0;
+    };
+    
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      
+      const weekEnding = row[0] || '';
+      const locationName = row[1] || '';
+      const actualSales = parseNumber(row[2]);
+      const forecastSales = parseNumber(row[3]);
+      const salesVariance = parseNumber(row[4]);
+      const priorYearSales = parseNumber(row[5]);
+      const laborPercent = parsePercentage(row[6]);
+      const optimalHours = parseNumber(row[7]);
+      const actualHours = parseNumber(row[8]);
+      const scheduledHours = parseNumber(row[9]);
+      const schVsForLaborVar = parseNumber(row[10]);
+      
+      const pyVariance = actualSales - priorYearSales;
+      const pyVariancePercent = priorYearSales > 0 ? (pyVariance / priorYearSales) * 100 : 0;
+      const actVsOptHours = actualHours - optimalHours;
+      const actVsSchHours = actualHours - scheduledHours;
+      const laborCostPerHour = actualHours > 0 ? (actualSales * (laborPercent / 100)) / actualHours : 0;
+      const productivity = actualHours > 0 ? actualSales / actualHours : 0;
+      const optimalLaborPercent = actualSales > 0 ? (optimalHours * laborCostPerHour) / actualSales * 100 : 0;
+      const laborVariance = laborPercent - optimalLaborPercent;
+      
+      parsedData.push({
+        location: locationName,
+        actualSales,
+        forecastSales,
+        salesVariance,
+        priorYearSales,
+        pyVariance,
+        pyVariancePercent,
+        laborPercent,
+        optimalHours,
+        actualHours,
+        scheduledHours,
+        actVsOptHours,
+        actVsSchHours,
+        schVsForLaborVar,
+        laborCostPerHour,
+        productivity,
+        optimalLaborPercent,
+        laborVariance,
+        reportDate: weekEnding
+      });
+    }
+    
+    return parsedData;
+  };
+
+  const loadDataFromGoogleSheets = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const range = `${SHEET_NAME}!A2:Z`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to load data from Google Sheets');
       }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        throw new Error('No data found in spreadsheet');
+      }
+      
+      const parsedData = parseSheetData(data.values);
+      
+      if (parsedData.length > 0) {
+        setLocations(parsedData);
+        if (parsedData[0].reportDate) {
+          setReportDate(parsedData[0].reportDate);
+        }
+      } else {
+        setError('No valid data found in Google Sheet');
+      }
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
-  }
-  
-  if (autoClockouts.length > 0) {
-    saveLaborAutoClockouts(spreadsheet, autoClockouts, reportDate);
-  }
-  
-  if (callOffs.length > 0) {
-    saveLaborCallOffs(spreadsheet, callOffs, reportDate);
-  }
-  
-  Logger.log('Labor: ' + callOffs.length + ' call-offs, ' + autoClockouts.length + ' auto-clockouts');
-}
+  };
 
-function formatLaborTime(timeValue) {
-  if (!timeValue) return '';
-  
-  if (timeValue instanceof Date) {
-    return Utilities.formatDate(timeValue, 'America/Chicago', 'h:mm a');
-  }
-  
-  return String(timeValue);
-}
-
-function formatLaborScheduledTime(start, end) {
-  if (!start || !end) return 'Unknown';
-  
-  var startStr = formatLaborTime(start);
-  var endStr = formatLaborTime(end);
-  
-  return startStr + ' - ' + endStr;
-}
-
-function saveLaborAutoClockouts(spreadsheet, clockouts, reportDate) {
-  var sheet = spreadsheet.getSheetByName(CONFIG.AUTO_CLOCKOUT_SHEET);
-  
-  if (!sheet) {
-    sheet = spreadsheet.insertSheet(CONFIG.AUTO_CLOCKOUT_SHEET);
-    sheet.getRange(1, 1, 1, 6).setValues([['Report Date', 'Location', 'Employee', 'Clock In', 'Clock Out', 'Status']]);
-    sheet.getRange(1, 1, 1, 6).setFontWeight('bold');
-    sheet.setFrozenRows(1);
-  }
-  
-  for (var i = 0; i < clockouts.length; i++) {
-    sheet.appendRow([
-      reportDate,
-      clockouts[i].location,
-      clockouts[i].employee,
-      clockouts[i].clockIn,
-      clockouts[i].clockOut,
-      'Needs Fix'
-    ]);
-  }
-  
-  cleanLaborOldData(sheet);
-}
-
-function saveLaborCallOffs(spreadsheet, callOffs, reportDate) {
-  var sheet = spreadsheet.getSheetByName(CONFIG.CALL_OFFS_SHEET);
-  
-  if (!sheet) {
-    sheet = spreadsheet.insertSheet(CONFIG.CALL_OFFS_SHEET);
-    sheet.getRange(1, 1, 1, 4).setValues([['Report Date', 'Location', 'Employee', 'Scheduled Time']]);
-    sheet.getRange(1, 1, 1, 4).setFontWeight('bold');
-    sheet.setFrozenRows(1);
-  }
-  
-  for (var i = 0; i < callOffs.length; i++) {
-    sheet.appendRow([
-      reportDate,
-      callOffs[i].location,
-      callOffs[i].employee,
-      callOffs[i].scheduledTime
-    ]);
-  }
-  
-  cleanLaborOldData(sheet);
-}
-
-function cleanLaborOldData(sheet) {
-  var data = sheet.getDataRange().getValues();
-  var cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - CONFIG.DAYS_TO_KEEP);
-  
-  for (var i = data.length - 1; i > 0; i--) {
-    var rowDate = new Date(data[i][0]);
-    if (rowDate < cutoffDate) {
-      sheet.deleteRow(i + 1);
+  const loadAvailableWeeks = async () => {
+    try {
+      const range = `Historical Data!A2:A`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      if (!response.ok) return;
+      
+      const data = await response.json();
+      if (!data.values || data.values.length === 0) return;
+      
+      const uniqueWeeks = [...new Set(data.values.flat())].sort((a, b) => new Date(b) - new Date(a));
+      setAvailableWeeks(uniqueWeeks);
+    } catch (err) {
+      console.error('Error loading available weeks:', err);
     }
-  }
-}
+  };
 
-// ============================================================================
-// SHARED UTILITIES
-// ============================================================================
-
-function getExcelAttachment(message) {
-  var attachments = message.getAttachments();
-  
-  for (var i = 0; i < attachments.length; i++) {
-    var name = attachments[i].getName().toLowerCase();
-    if (name.indexOf('.xlsx') > -1 || name.indexOf('.xls') > -1) {
-      return attachments[i];
+  const loadHistoricalWeek = async (weekDate) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const range = `Historical Data!A2:K`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error('Failed to load historical data');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        throw new Error('No historical data found');
+      }
+      
+      const weekData = data.values.filter(row => row[0] === weekDate);
+      
+      if (weekData.length === 0) {
+        throw new Error('No data for selected week');
+      }
+      
+      const parsedData = parseHistoricalData(weekData);
+      setLocations(parsedData);
+      setReportDate(weekDate);
+    } catch (err) {
+      console.error('Error loading historical week:', err);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const loadAutoClockouts = async () => {
+    setClockoutsLoading(true);
+    setClockoutsError(null);
+    
+    try {
+      const range = `${AUTO_CLOCKOUTS_SHEET}!A2:F`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to load auto-clockouts');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        setClockouts([]);
+        return;
+      }
+      
+      const parsedClockouts = data.values.map(row => ({
+        reportDate: row[0] || '',
+        location: row[1] || '',
+        employee: row[2] || '',
+        clockIn: row[3] || '',
+        clockOut: row[4] || '',
+        status: row[5] || 'Needs Fix'
+      }));
+      
+      setClockouts(parsedClockouts);
+    } catch (err) {
+      console.error('Error loading auto-clockouts:', err);
+      setClockoutsError(err.message);
+    } finally {
+      setClockoutsLoading(false);
+    }
+  };
+
+  const adjustTimeForTimezone = (timeString) => {
+    if (!timeString || !timeString.includes(' - ')) return timeString;
+    
+    try {
+      const parts = timeString.split(' - ');
+      const adjustTime = (timeStr) => {
+        const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!match) return timeStr;
+        
+        let hours = parseInt(match[1]);
+        const minutes = match[2];
+        const period = match[3].toUpperCase();
+        
+        // Convert to 24-hour format
+        if (period === 'PM' && hours !== 12) hours += 12;
+        if (period === 'AM' && hours === 12) hours = 0;
+        
+        // Subtract 2 hours for timezone correction
+        hours -= 2;
+        
+        // Handle negative hours (wrap to previous day)
+        if (hours < 0) hours += 24;
+        
+        // Convert back to 12-hour format
+        const newPeriod = hours >= 12 ? 'PM' : 'AM';
+        let displayHours = hours % 12;
+        if (displayHours === 0) displayHours = 12;
+        
+        return `${displayHours}:${minutes} ${newPeriod}`;
+      };
+      
+      return `${adjustTime(parts[0])} - ${adjustTime(parts[1])}`;
+    } catch (e) {
+      return timeString;
+    }
+  };
+
+  const loadCallOffs = async () => {
+    setCallOffsLoading(true);
+    setCallOffsError(null);
+    
+    try {
+      const range = `${CALL_OFFS_SHEET}!A2:D`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to load call-offs');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        setCallOffs([]);
+        return;
+      }
+      
+      const parsedCallOffs = data.values.map(row => ({
+        reportDate: row[0] || '',
+        location: row[1] || '',
+        employee: row[2] || '',
+        scheduledTime: adjustTimeForTimezone(row[3] || '')
+      }));
+      
+      setCallOffs(parsedCallOffs);
+    } catch (err) {
+      console.error('Error loading call-offs:', err);
+      setCallOffsError(err.message);
+    } finally {
+      setCallOffsLoading(false);
+    }
+  };
+
+  const applyCallOffFilters = () => {
+    let filtered = [...callOffs];
+    
+    if (callOffLocationFilter !== 'all') {
+      filtered = filtered.filter(c => c.location === callOffLocationFilter);
+    }
+    
+    setFilteredCallOffs(filtered);
+  };
+
+  const loadFlashData = async () => {
+    setFlashLoading(true);
+    setFlashError(null);
+    
+    try {
+      const sheetName = flashView === 'day' ? FLASH_DAY_SHEET : FLASH_WTD_SHEET;
+      const range = `${sheetName}!A2:N`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to load flash data');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        setFlashData([]);
+        return;
+      }
+      
+      const parsedFlash = data.values.map(row => ({
+        date: row[0] || '',
+        location: row[1] || '',
+        sales: parseFloat(row[2]) || 0,
+        sameDayLY: parseFloat(row[3]) || 0,
+        dollarChange: parseFloat(row[4]) || 0,
+        percentChange: parseFloat(row[5]) || 0,
+        avgSalesPerGuest: parseFloat(row[6]) || 0,
+        totalCounts: parseFloat(row[7]) || 0,
+        sameDayLYCounts: parseFloat(row[8]) || 0,
+        comps: parseFloat(row[9]) || 0,
+        discounts: parseFloat(row[10]) || 0,
+        voids: parseFloat(row[11]) || 0,
+        totalDiscounts: parseFloat(row[12]) || 0,
+        discountPercent: parseFloat(row[13]) || 0
+      }));
+      
+      setFlashData(parsedFlash);
+    } catch (err) {
+      console.error('Error loading flash data:', err);
+      setFlashError(err.message);
+    } finally {
+      setFlashLoading(false);
+    }
+  };
+
+  const adjustSingleTime = (timeString) => {
+    if (!timeString) return timeString;
+    
+    try {
+      const match = timeString.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (!match) return timeString;
+      
+      let hours = parseInt(match[1]);
+      const minutes = match[2];
+      const period = match[3].toUpperCase();
+      
+      // Convert to 24-hour format
+      if (period === 'PM' && hours !== 12) hours += 12;
+      if (period === 'AM' && hours === 12) hours = 0;
+      
+      // Subtract 2 hours for timezone correction
+      hours -= 2;
+      
+      // Handle negative hours (wrap to previous day)
+      if (hours < 0) hours += 24;
+      
+      // Convert back to 12-hour format
+      const newPeriod = hours >= 12 ? 'PM' : 'AM';
+      let displayHours = hours % 12;
+      if (displayHours === 0) displayHours = 12;
+      
+      return `${displayHours}:${minutes} ${newPeriod}`;
+    } catch (e) {
+      return timeString;
+    }
+  };
+
+  const loadScheduledToday = async () => {
+    setScheduledLoading(true);
+    setScheduledError(null);
+    
+    try {
+      const range = `${SCHEDULED_TODAY_SHEET}!A2:E`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to load scheduled data');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        setScheduledToday([]);
+        return;
+      }
+      
+      const parsedScheduled = data.values.map(row => ({
+        date: row[0] || '',
+        location: row[1] || '',
+        employee: row[2] || '',
+        schStart: adjustSingleTime(row[3] || ''),
+        schEnd: adjustSingleTime(row[4] || '')
+      }));
+      
+      setScheduledToday(parsedScheduled);
+    } catch (err) {
+      console.error('Error loading scheduled data:', err);
+      setScheduledError(err.message);
+    } finally {
+      setScheduledLoading(false);
+    }
+  };
+
+  const applyScheduledFilters = () => {
+    let filtered = [...scheduledToday];
+    
+    if (scheduledLocationFilter !== 'all') {
+      filtered = filtered.filter(emp => emp.location === scheduledLocationFilter);
+    }
+    
+    if (scheduledMarketFilter !== 'all') {
+      filtered = filtered.filter(emp => getMarket(emp.location) === scheduledMarketFilter);
+    }
+    
+    setFilteredScheduled(filtered);
+  };
+
+  const applyClockoutFilters = () => {
+    let filtered = [...clockouts];
+    
+    if (locationFilter !== 'all') {
+      filtered = filtered.filter(c => c.location === locationFilter);
+    }
+    
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(c => c.status === statusFilter);
+    }
+    
+    setFilteredClockouts(filtered);
+  };
+
+  const getUniqueLocations = () => {
+    return [...new Set(clockouts.map(c => c.location))].sort();
+  };
+
+  const getAutoClockoutEmployees = (locationName) => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    
+    const monday = new Date(today);
+    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    monday.setDate(today.getDate() + diff);
+    monday.setHours(0, 0, 0, 0);
+    
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    
+    const employees = clockouts
+      .filter(c => {
+        if (c.location !== locationName) return false;
+        const reportDate = new Date(c.reportDate);
+        return reportDate >= monday && reportDate <= sunday;
+      })
+      .map(c => c.employee);
+    
+    return employees;
+  };
+
+  const getCallOffEmployees = (locationName) => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    
+    const monday = new Date(today);
+    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    monday.setDate(today.getDate() + diff);
+    monday.setHours(0, 0, 0, 0);
+    
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    
+    const employees = callOffs
+      .filter(c => {
+        if (c.location !== locationName) return false;
+        const reportDate = new Date(c.reportDate);
+        return reportDate >= monday && reportDate <= sunday;
+      })
+      .map(c => c.employee);
+    
+    return employees;
+  };
+
+  const applyFilters = () => {
+    let filtered = [...locations];
+    
+    if (filters.locations.length > 0) {
+      filtered = filtered.filter(loc => filters.locations.includes(loc.location));
+    }
+    
+    if (filters.market !== 'all') {
+      filtered = filtered.filter(loc => getMarket(loc.location) === filters.market);
+    }
+    
+    if (filters.actVsOptVariance === 'positive') {
+      filtered = filtered.filter(loc => loc.actVsOptHours > 0);
+    } else if (filters.actVsOptVariance === 'negative') {
+      filtered = filtered.filter(loc => loc.actVsOptHours < 0);
+    }
+    
+    if (filters.salesVariance === 'positive') {
+      filtered = filtered.filter(loc => loc.salesVariance > 0);
+    } else if (filters.salesVariance === 'negative') {
+      filtered = filtered.filter(loc => loc.salesVariance < 0);
+    }
+    
+    setFilteredLocations(filtered);
+  };
+
+  const applyFlashFilters = () => {
+    let filtered = [...flashData];
+    
+    if (flashFilters.locations.length > 0) {
+      filtered = filtered.filter(loc => flashFilters.locations.includes(loc.location));
+    }
+    
+    if (flashFilters.market !== 'all') {
+      filtered = filtered.filter(loc => getMarket(loc.location) === flashFilters.market);
+    }
+    
+    if (flashFilters.salesVariance === 'positive') {
+      filtered = filtered.filter(loc => loc.percentChange > 0);
+    } else if (flashFilters.salesVariance === 'negative') {
+      filtered = filtered.filter(loc => loc.percentChange < 0);
+    }
+    
+    if (flashFilters.guestCountVariance === 'positive') {
+      filtered = filtered.filter(loc => ((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) > 0);
+    } else if (flashFilters.guestCountVariance === 'negative') {
+      filtered = filtered.filter(loc => ((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) < 0);
+    }
+    
+    setFilteredFlashData(filtered);
+  };
+
+  const handleLocationToggle = (location) => {
+    const newLocations = filters.locations.includes(location)
+      ? filters.locations.filter(l => l !== location)
+      : [...filters.locations, location];
+    setFilters({...filters, locations: newLocations});
+  };
+
+  const handleFlashLocationToggle = (location) => {
+    const newLocations = flashFilters.locations.includes(location)
+      ? flashFilters.locations.filter(l => l !== location)
+      : [...flashFilters.locations, location];
+    setFlashFilters({...flashFilters, locations: newLocations});
+  };
+
+  const calculateTotals = () => {
+    if (filteredLocations.length === 0) {
+      return {
+        totalSales: 0,
+        totalForecast: 0,
+        totalPriorYear: 0,
+        pyVariance: 0,
+        avgLaborPercent: 0,
+        totalActVsOpt: 0,
+        avgProductivity: 0
+      };
+    }
+    
+    const totalSales = filteredLocations.reduce((sum, loc) => sum + loc.actualSales, 0);
+    const totalForecast = filteredLocations.reduce((sum, loc) => sum + loc.forecastSales, 0);
+    const totalPriorYear = filteredLocations.reduce((sum, loc) => sum + loc.priorYearSales, 0);
+    const pyVariance = totalSales - totalPriorYear;
+    const totalLaborCost = filteredLocations.reduce((sum, loc) => sum + (loc.actualSales * loc.laborPercent / 100), 0);
+    const avgLaborPercent = totalSales > 0 ? (totalLaborCost / totalSales) * 100 : 0;
+    const totalActVsOpt = filteredLocations.reduce((sum, loc) => sum + loc.actVsOptHours, 0);
+    const totalHours = filteredLocations.reduce((sum, loc) => sum + loc.actualHours, 0);
+    const avgProductivity = totalHours > 0 ? totalSales / totalHours : 0;
+    
+    return {
+      totalSales,
+      totalForecast,
+      totalPriorYear,
+      pyVariance,
+      avgLaborPercent,
+      totalActVsOpt,
+      avgProductivity
+    };
+  };
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin")
+    }
+  }, [status, router])
+
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (isLocationDropdownOpen) {
+        setIsLocationDropdownOpen(false);
+      }
+      if (isWeekDropdownOpen) {
+        setIsWeekDropdownOpen(false);
+      }
+    };
+    
+    if (isLocationDropdownOpen || isWeekDropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [isLocationDropdownOpen, isWeekDropdownOpen]);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      loadDataFromGoogleSheets();
+      loadAvailableWeeks();
+      loadAutoClockouts();
+      loadCallOffs();
+      loadScheduledToday();
+      loadFlashData();
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (selectedWeek === 'current') {
+      loadDataFromGoogleSheets();
+    } else {
+      loadHistoricalWeek(selectedWeek);
+    }
+  }, [selectedWeek]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [locations, filters]);
+
+  useEffect(() => {
+    applyFlashFilters();
+  }, [flashData, flashFilters]);
+
+  useEffect(() => {
+    applyClockoutFilters();
+  }, [clockouts, locationFilter, statusFilter]);
+
+  useEffect(() => {
+    applyCallOffFilters();
+  }, [callOffs, callOffLocationFilter]);
+
+  useEffect(() => {
+    applyScheduledFilters();
+  }, [scheduledToday, scheduledLocationFilter, scheduledMarketFilter]);
+
+  useEffect(() => {
+    if (activeTab.startsWith('flash-')) {
+      loadFlashData();
+    }
+  }, [flashView]);
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white text-lg">Loading...</div>
+      </div>
+    )
   }
-  
-  return null;
-}
 
-// ============================================================================
-// TRIGGER SETUP
-// ============================================================================
-
-function setupDailyTrigger() {
-  // Delete ALL existing triggers in this project
-  var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i++) {
-    ScriptApp.deleteTrigger(triggers[i]);
+  if (!session) {
+    return null
   }
-  
-  // Create ONE trigger for the main orchestrator function
-  ScriptApp.newTrigger('processAllR365Reports')
-    .timeBased()
-    .atHour(6)
-    .nearMinute(30)
-    .everyDays(1)
-    .create();
-  
-  Logger.log('✓ Daily trigger created for 6:30 AM');
-  Logger.log('✓ Trigger calls: processAllR365Reports()');
-  Logger.log('✓ All 4 reports will be processed automatically');
-}
 
-// ============================================================================
-// MANUAL TEST FUNCTIONS
-// ============================================================================
+  const totals = calculateTotals();
 
-function testAll() {
-  Logger.log('=== MANUAL TEST - ALL REPORTS ===');
-  processAllR365Reports();
-}
+  return (
+    <>
+      <Head>
+        <title>Andy's Dashboards</title>
+      </Head>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
+        <div className="max-w-[1400px] mx-auto">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 md:mb-4 shadow-2xl">
+            <div className="hidden md:flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <img 
+                  src="https://i.imgur.com/kkJMVz0.png" 
+                  alt="Andy's Frozen Custard" 
+                  className="h-16"
+                />
+                <div>
+                  <h1 className="text-2xl font-bold text-white mb-1">R365 Dashboards</h1>
+                  {activeTab === 'sales' && reportDate && reportDate !== 'Loading...' && !reportDate.includes('.') && (
+                    <p className="text-sm text-slate-400">Week Ending: {reportDate}</p>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
+                <select
+                  value={activeTab}
+                  onChange={(e) => setActiveTab(e.target.value)}
+                  className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                >
+                  <option value="sales">Weekly Sales & Labor</option>
+                  <option value="flash-sales">Sales/Guest Counts</option>
+                  <option value="flash-discounts">Comps/Discounts/Voids</option>
+                  <option value="scheduled-today">Scheduled Today</option>
+                  <option value="clockouts">Auto-Clockouts</option>
+                  <option value="call-offs">Call-Offs</option>
+                </select>
+                
+                <button
+                  onClick={() => {
+                    if (activeTab === 'sales') {
+                      if (selectedWeek === 'current') {
+                        loadDataFromGoogleSheets();
+                      } else {
+                        loadHistoricalWeek(selectedWeek);
+                      }
+                    } else if (activeTab === 'clockouts') {
+                      loadAutoClockouts();
+                    } else if (activeTab === 'call-offs') {
+                      loadCallOffs();
+                    } else if (activeTab === 'scheduled-today') {
+                      loadScheduledToday();
+                    } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
+                      loadFlashData();
+                    }
+                  }}
+                  className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  title="Refresh data"
+                >
+                  <RefreshCw size={16} className="text-white" />
+                </button>
 
-function testWeeklySales() {
-  Logger.log('=== Testing Weekly Sales ===');
-  var today = new Date().getDay();
-  if (today === 1) {
-    processWeeklySalesPreviousWeek();
-  } else {
-    processWeeklySalesCurrentWeek();
-  }
-}
+                <button
+                  onClick={() => signOut()}
+                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                  title="Sign out"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
 
-function testFlash() {
-  Logger.log('=== Testing Flash Report ===');
-  processFlashReport();
-}
+            <div className="md:hidden flex items-center justify-between mb-3">
+              <img 
+                src="https://i.imgur.com/kkJMVz0.png" 
+                alt="Andy's Frozen Custard" 
+                className="h-12"
+              />
+              <button
+                onClick={() => signOut()}
+                className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                title="Sign out"
+              >
+                Sign Out
+              </button>
+            </div>
 
-function testScheduled() {
-  Logger.log('=== Testing Scheduled Today ===');
-  processScheduledToday();
-}
+            <div className="md:hidden flex items-center gap-2">
+              <select
+                value={activeTab}
+                onChange={(e) => setActiveTab(e.target.value)}
+                className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="sales">Weekly Sales & Labor</option>
+                <option value="flash-sales">Sales/Guest Counts</option>
+                <option value="flash-discounts">Comps/Discounts/Voids</option>
+                <option value="scheduled-today">Scheduled Today</option>
+                <option value="clockouts">Auto-Clockouts</option>
+                <option value="call-offs">Call-Offs</option>
+              </select>
+              
+              <button
+                onClick={() => {
+                  if (activeTab === 'sales') {
+                    if (selectedWeek === 'current') {
+                      loadDataFromGoogleSheets();
+                    } else {
+                      loadHistoricalWeek(selectedWeek);
+                    }
+                  } else if (activeTab === 'clockouts') {
+                    loadAutoClockouts();
+                  } else if (activeTab === 'call-offs') {
+                    loadCallOffs();
+                  } else if (activeTab === 'scheduled-today') {
+                    loadScheduledToday();
+                  } else if (activeTab === 'flash-sales' || activeTab === 'flash-discounts') {
+                    loadFlashData();
+                  }
+                }}
+                className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                title="Refresh data"
+              >
+                <RefreshCw size={16} className="text-white" />
+              </button>
+            </div>
+          </div>
 
-function testLabor() {
-  Logger.log('=== Testing Labor Report ===');
-  processLaborReport();
+          {activeTab === 'sales' && (
+            <>
+              {availableWeeks.length > 0 && (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium text-slate-400">Select Week:</label>
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsWeekDropdownOpen(!isWeekDropdownOpen);
+                        }}
+                        className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center gap-2"
+                      >
+                        <span>{selectedWeek === 'current' ? 'Current Week' : selectedWeek}</span>
+                        <span className="text-slate-400">▼</span>
+                      </button>
+                      {isWeekDropdownOpen && (
+                        <div 
+                          className="absolute z-10 mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg min-w-[200px]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => {
+                              setSelectedWeek('current');
+                              setIsWeekDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm text-white hover:bg-slate-600"
+                          >
+                            Current Week
+                          </button>
+                          {availableWeeks.map(week => (
+                            <button
+                              key={week}
+                              onClick={() => {
+                                setSelectedWeek(week);
+                                setIsWeekDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm text-white hover:bg-slate-600"
+                            >
+                              {week}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                  <strong>Error:</strong> {error}
+                </div>
+              )}
+
+              {isLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-white text-lg">Loading data...</div>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3 mb-3 md:mb-4">
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+                      <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                        <DollarSign className="text-green-400" size={14} />
+                        <p className="text-slate-400 text-xs font-medium">Actual Sales</p>
+                      </div>
+                      <p className="text-sm md:text-lg font-bold text-white">${totals.totalSales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+                    </div>
+
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+                      <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                        <Target className="text-blue-400" size={14} />
+                        <p className="text-slate-400 text-xs font-medium">Forecast</p>
+                      </div>
+                      <p className="text-sm md:text-lg font-bold text-white">${totals.totalForecast.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+                    </div>
+
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+                      <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                        <TrendingUp className="text-purple-400" size={14} />
+                        <p className="text-slate-400 text-xs font-medium">Prior Year</p>
+                      </div>
+                      <p className="text-sm md:text-lg font-bold text-white">${totals.totalPriorYear.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+                    </div>
+
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+                      <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                        <TrendingUp className="text-cyan-400" size={14} />
+                        <p className="text-slate-400 text-xs font-medium">PY Variance</p>
+                      </div>
+                      <p className={`text-sm md:text-lg font-bold ${totals.pyVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {totals.pyVariance >= 0 ? '+' : ''}${totals.pyVariance.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+                      <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                        <Users className="text-orange-400" size={14} />
+                        <p className="text-slate-400 text-xs font-medium">Labor %</p>
+                      </div>
+                      <p className="text-sm md:text-lg font-bold text-white">{totals.avgLaborPercent.toFixed(1)}%</p>
+                    </div>
+
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+                      <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                        <Clock className="text-red-400" size={14} />
+                        <p className="text-slate-400 text-xs font-medium">Actual vs Optimal</p>
+                      </div>
+                      <p className={`text-sm md:text-lg font-bold ${totals.totalActVsOpt > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {totals.totalActVsOpt > 0 ? '+' : ''}{totals.totalActVsOpt.toFixed(1)} hrs
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg">
+                    <div className="flex items-center gap-2 mb-2 md:mb-3">
+                      <Filter size={14} className="text-slate-400" />
+                      <h3 className="text-xs md:text-sm font-semibold text-white">Filters</h3>
+                    </div>
+                    
+                    <div className="flex flex-col md:flex-row gap-2 md:gap-3 items-stretch md:items-end">
+                      <div className="relative flex-1">
+                        <label className="block text-xs font-medium text-slate-400 mb-1">
+                          Locations ({filters.locations.length > 0 ? filters.locations.length : 'All'})
+                        </label>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsLocationDropdownOpen(!isLocationDropdownOpen);
+                          }}
+                          className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex justify-between items-center"
+                        >
+                          <span>{filters.locations.length === 0 ? 'All Locations' : `${filters.locations.length} selected`}</span>
+                          <span className="text-slate-400">▼</span>
+                        </button>
+                        {isLocationDropdownOpen && (
+                          <div 
+                            className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg max-h-64 overflow-y-auto"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                              <input
+                                type="checkbox"
+                                checked={filters.locations.length === 0}
+                                onChange={() => {
+                                  setFilters({...filters, locations: []});
+                                }}
+                                className="rounded"
+                              />
+                              <span className="text-white text-xs">All Locations</span>
+                            </label>
+                            {locations.map(loc => (
+                              <label key={loc.location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                                <input
+                                  type="checkbox"
+                                  checked={filters.locations.includes(loc.location)}
+                                  onChange={() => handleLocationToggle(loc.location)}
+                                  className="rounded"
+                                />
+                                <span className="text-white text-xs">{loc.location}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                        <select
+                          value={filters.market}
+                          onChange={(e) => setFilters({...filters, market: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        >
+                          <option value="all">All Markets</option>
+                          <option value="Tulsa">Tulsa</option>
+                          <option value="Oklahoma City">Oklahoma City</option>
+                          <option value="Dallas">Dallas</option>
+                          <option value="Orlando">Orlando</option>
+                        </select>
+                      </div>
+
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-slate-400 mb-1">Act vs Opt Hours</label>
+                        <select
+                          value={filters.actVsOptVariance}
+                          onChange={(e) => setFilters({...filters, actVsOptVariance: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        >
+                          <option value="all">All Variances</option>
+                          <option value="positive">Over Optimal</option>
+                          <option value="negative">Under Optimal</option>
+                        </select>
+                      </div>
+
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-slate-400 mb-1">Sales Variance</label>
+                        <select
+                          value={filters.salesVariance}
+                          onChange={(e) => setFilters({...filters, salesVariance: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        >
+                          <option value="all">All Variances</option>
+                          <option value="positive">Above Forecast</option>
+                          <option value="negative">Below Forecast</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
+                    {filteredLocations.map((loc, idx) => (
+                      <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                        <div className="flex items-start justify-between mb-2 md:mb-3">
+                          <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
+                          <div className="flex gap-1">
+                            {(() => {
+                              const clockoutEmployees = getAutoClockoutEmployees(loc.location);
+                              if (clockoutEmployees.length > 0) {
+                                return (
+                                  <button
+                                    onClick={() => {
+                                      setClockoutModalData({ location: loc.location, employees: clockoutEmployees });
+                                      setShowClockoutModal(true);
+                                    }}
+                                    className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-red-700 transition-colors" 
+                                    title={clockoutEmployees.join(', ')}
+                                  >
+                                    AUTO-CLOCKOUT ({clockoutEmployees.length})
+                                  </button>
+                                );
+                              }
+                              return null;
+                            })()}
+                            {(() => {
+                              const callOffEmployees = getCallOffEmployees(loc.location);
+                              if (callOffEmployees.length > 0) {
+                                return (
+                                  <button
+                                    onClick={() => {
+                                      setCallOffModalData({ location: loc.location, employees: callOffEmployees });
+                                      setShowCallOffModal(true);
+                                    }}
+                                    className="bg-orange-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-orange-700 transition-colors" 
+                                    title={callOffEmployees.join(', ')}
+                                  >
+                                    CALL-OFF ({callOffEmployees.length})
+                                  </button>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1.5 md:gap-2">
+                          <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                            <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">SALES</p>
+                            <div className="space-y-0.5 md:space-y-1">
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 text-xs">Actual</span>
+                                <span className="text-white font-bold text-xs">${loc.actualSales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 text-xs">Forecast</span>
+                                <span className={`font-semibold text-xs ${loc.salesVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {loc.salesVariance >= 0 ? '+' : ''}${Math.abs(loc.salesVariance).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 text-xs">Prior Yr</span>
+                                <span className={`font-semibold text-xs ${loc.pyVariancePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {loc.pyVariancePercent >= 0 ? '+' : ''}{loc.pyVariancePercent.toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                            <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">LABOR</p>
+                            <div className="space-y-0.5 md:space-y-1">
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 text-xs">Labor %</span>
+                                <span className="font-bold text-xs text-white">
+                                  {loc.laborPercent.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 text-xs">Opt %</span>
+                                <span className="text-white font-semibold text-xs">{loc.optimalLaborPercent.toFixed(1)}%</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 text-xs">Variance</span>
+                                <span className={`font-bold text-xs ${loc.laborVariance > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                  {loc.laborVariance > 0 ? '+' : ''}{loc.laborVariance.toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                            <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">HOURS</p>
+                            <div className="space-y-0.5 md:space-y-1">
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 text-xs">Sch/For</span>
+                                <span className={`font-semibold text-xs ${loc.schVsForLaborVar > 0 ? 'text-orange-400' : 'text-green-400'}`}>
+                                  {loc.schVsForLaborVar > 0 ? '+' : ''}{loc.schVsForLaborVar.toFixed(1)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 text-xs">Act/Sch</span>
+                                <span className={`font-semibold text-xs ${loc.actVsSchHours > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                  {loc.actVsSchHours > 0 ? '+' : ''}{loc.actVsSchHours.toFixed(1)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 text-xs">Act/Opt</span>
+                                <span className={`font-semibold text-xs ${loc.actVsOptHours > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                  {loc.actVsOptHours > 0 ? '+' : ''}{loc.actVsOptHours.toFixed(1)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
+          {activeTab === 'clockouts' && (
+            <>
+              {clockoutsError && (
+                <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                  <strong>Error:</strong> {clockoutsError}
+                </div>
+              )}
+
+              {clockoutsLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-white text-lg">Loading auto-clockouts...</div>
+                </div>
+              ) : filteredClockouts.length === 0 ? (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                  <AlertCircle className="mx-auto mb-3 text-green-400" size={48} />
+                  <h3 className="text-xl font-bold text-white mb-2">No Auto-Clockouts Found</h3>
+                  <p className="text-slate-400">All employees clocked out properly!</p>
+                </div>
+              ) : (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
+                  <div className="grid gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900" style={{gridTemplateColumns: '80px 1fr 120px'}}>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Date</div>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
+                  </div>
+                  
+                  <div className="divide-y divide-slate-700">
+                    {filteredClockouts.map((clockout, idx) => (
+                      <div key={idx} className="grid gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '80px 1fr 120px'}}>
+                        <div className="text-slate-300 text-xs md:text-sm">{clockout.reportDate}</div>
+                        <div className="text-white font-medium text-xs md:text-sm">{clockout.employee}</div>
+                        <div className="text-slate-300 text-xs md:text-sm">{clockout.location}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'call-offs' && (
+            <>
+              {callOffsError && (
+                <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                  <strong>Error:</strong> {callOffsError}
+                </div>
+              )}
+
+              {callOffsLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-white text-lg">Loading call-offs...</div>
+                </div>
+              ) : filteredCallOffs.length === 0 ? (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                  <AlertCircle className="mx-auto mb-3 text-green-400" size={48} />
+                  <h3 className="text-xl font-bold text-white mb-2">No Call-Offs Found</h3>
+                  <p className="text-slate-400">All scheduled employees showed up!</p>
+                </div>
+              ) : (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
+                  {/* Desktop Header */}
+                  <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900" style={{gridTemplateColumns: '100px 1fr 120px 150px'}}>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Date</div>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Scheduled Time</div>
+                  </div>
+                  
+                  <div className="divide-y divide-slate-700">
+                    {filteredCallOffs.map((callOff, idx) => (
+                      <div key={idx}>
+                        {/* Desktop Layout */}
+                        <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '100px 1fr 120px 150px'}}>
+                          <div className="text-slate-300 text-xs md:text-sm">{callOff.reportDate}</div>
+                          <div className="text-white font-medium text-xs md:text-sm">{callOff.employee}</div>
+                          <div className="text-slate-300 text-xs md:text-sm">{callOff.location}</div>
+                          <div className="text-slate-300 text-xs md:text-sm">{callOff.scheduledTime}</div>
+                        </div>
+                        
+                        {/* Mobile Layout */}
+                        <div className="md:hidden p-3 space-y-1">
+                          <div className="flex justify-between items-start">
+                            <div className="text-white font-medium text-sm">{callOff.employee}</div>
+                            <div className="text-slate-400 text-xs">{callOff.reportDate}</div>
+                          </div>
+                          <div className="text-slate-300 text-xs">{callOff.location}</div>
+                          <div className="text-slate-400 text-xs">{callOff.scheduledTime}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'scheduled-today' && (
+            <>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Filter className="w-4 h-4 text-blue-400" />
+                  <h3 className="text-sm font-semibold text-white">Filters</h3>
+                </div>
+                <div className="flex flex-col md:flex-row gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                    <select
+                      value={scheduledLocationFilter}
+                      onChange={(e) => setScheduledLocationFilter(e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      <option value="all">All Locations</option>
+                      {[...new Set(scheduledToday.map(emp => emp.location))].sort().map(loc => (
+                        <option key={loc} value={loc}>{loc}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                    <select
+                      value={scheduledMarketFilter}
+                      onChange={(e) => setScheduledMarketFilter(e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      <option value="all">All Markets</option>
+                      <option value="Tulsa">Tulsa</option>
+                      <option value="Oklahoma City">Oklahoma City</option>
+                      <option value="Dallas">Dallas</option>
+                      <option value="Orlando">Orlando</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {scheduledError && (
+                <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                  <strong>Error:</strong> {scheduledError}
+                </div>
+              )}
+
+              {scheduledLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-white text-lg">Loading scheduled employees...</div>
+                </div>
+              ) : filteredScheduled.length === 0 ? (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                  <p className="text-slate-400">No scheduled employees found</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
+                  {(() => {
+                    const groupedByLocation = filteredScheduled.reduce((acc, emp) => {
+                      if (!acc[emp.location]) {
+                        acc[emp.location] = [];
+                      }
+                      acc[emp.location].push(emp);
+                      return acc;
+                    }, {});
+
+                    const sortedLocations = Object.keys(groupedByLocation).sort();
+
+                    return sortedLocations.map((location, locIdx) => {
+                      const employees = groupedByLocation[location];
+                      
+                      return (
+                        <div key={locIdx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                          <div className="mb-2 md:mb-3">
+                            <h3 className="text-sm md:text-base font-bold text-white">{location}</h3>
+                            <p className="text-xs text-slate-400">{employees.length} employee{employees.length !== 1 ? 's' : ''} scheduled</p>
+                          </div>
+
+                          <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                            <div className="space-y-1">
+                              {employees.map((emp, empIdx) => (
+                                <div key={empIdx} className="flex justify-between items-center py-1 border-b border-slate-700 last:border-b-0">
+                                  <span className="text-white text-xs md:text-sm font-medium">{emp.employee}</span>
+                                  <span className="text-slate-300 text-xs md:text-sm whitespace-nowrap ml-2">{emp.schStart} - {emp.schEnd}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'flash-sales' && (
+            <>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-slate-400">View:</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setFlashView('day')}
+                      className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                        flashView === 'day'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                      }`}
+                    >
+                      Yesterday
+                    </button>
+                    <button
+                      onClick={() => setFlashView('wtd')}
+                      className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                        flashView === 'wtd'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                      }`}
+                    >
+                      Week To Date
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Filter className="w-4 h-4 text-blue-400" />
+                  <h3 className="text-sm font-semibold text-white">Filters</h3>
+                </div>
+                <div className="flex flex-col md:flex-row gap-2">
+                  <div className="flex-1 relative">
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsLocationDropdownOpen(!isLocationDropdownOpen);
+                      }}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center justify-between"
+                    >
+                      <span>{flashFilters.locations.length === 0 ? 'All Locations' : `${flashFilters.locations.length} selected`}</span>
+                      <span className="text-slate-400">▼</span>
+                    </button>
+                    {isLocationDropdownOpen && (
+                      <div className="absolute z-10 mt-1 w-full bg-slate-700 border border-slate-600 rounded shadow-lg max-h-60 overflow-y-auto">
+                        <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600 border-b border-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={flashFilters.locations.length === 0}
+                            onChange={() => setFlashFilters({...flashFilters, locations: []})}
+                            className="rounded"
+                          />
+                          <span className="text-white text-xs font-semibold">All Locations</span>
+                        </label>
+                        {flashData.map(loc => (
+                          <label key={loc.location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                            <input
+                              type="checkbox"
+                              checked={flashFilters.locations.includes(loc.location)}
+                              onChange={() => handleFlashLocationToggle(loc.location)}
+                              className="rounded"
+                            />
+                            <span className="text-white text-xs">{loc.location}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                    <select
+                      value={flashFilters.market}
+                      onChange={(e) => setFlashFilters({...flashFilters, market: e.target.value})}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      <option value="all">All Markets</option>
+                      <option value="Tulsa">Tulsa</option>
+                      <option value="Oklahoma City">Oklahoma City</option>
+                      <option value="Dallas">Dallas</option>
+                      <option value="Orlando">Orlando</option>
+                    </select>
+                  </div>
+
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Sales Variance</label>
+                    <select
+                      value={flashFilters.salesVariance}
+                      onChange={(e) => setFlashFilters({...flashFilters, salesVariance: e.target.value})}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      <option value="all">All Variances</option>
+                      <option value="positive">Above LY</option>
+                      <option value="negative">Below LY</option>
+                    </select>
+                  </div>
+
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Guest Count Variance</label>
+                    <select
+                      value={flashFilters.guestCountVariance}
+                      onChange={(e) => setFlashFilters({...flashFilters, guestCountVariance: e.target.value})}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      <option value="all">All Variances</option>
+                      <option value="positive">Above LY</option>
+                      <option value="negative">Below LY</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {flashError && (
+                <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                  <strong>Error:</strong> {flashError}
+                </div>
+              )}
+
+              {flashLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-white text-lg">Loading flash data...</div>
+                </div>
+              ) : flashData.length === 0 ? (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                  <p className="text-slate-400">No flash data available</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
+                  {filteredFlashData.map((loc, idx) => (
+                    <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                      <div className="flex items-start justify-between mb-2 md:mb-3">
+                        <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5 md:gap-2">
+                        <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                          <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">SALES</p>
+                          <div className="space-y-0.5 md:space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-xs">Sales</span>
+                              <span className="text-white font-bold text-xs">${loc.sales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-xs">LY</span>
+                              <span className="text-slate-300 text-xs">${loc.sameDayLY.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-xs">Var</span>
+                              <span className={`font-semibold text-xs ${loc.dollarChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {loc.dollarChange >= 0 ? '+' : ''}${Math.abs(loc.dollarChange).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-xs">% Chg</span>
+                              <span className={`font-semibold text-xs ${loc.percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {loc.percentChange >= 0 ? '+' : ''}{(loc.percentChange * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                          <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">GUESTS</p>
+                          <div className="space-y-0.5 md:space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-xs">Avg Ticket</span>
+                              <span className="text-white font-bold text-xs">${loc.avgSalesPerGuest.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-xs">Counts</span>
+                              <span className="text-white font-semibold text-xs">{loc.totalCounts.toLocaleString('en-US')}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-xs">LY</span>
+                              <span className="text-slate-300 text-xs">{loc.sameDayLYCounts.toLocaleString('en-US')}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-xs">% Chg</span>
+                              <span className={`font-semibold text-xs ${((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) >= 0 ? '+' : ''}{(((loc.totalCounts - loc.sameDayLYCounts) / loc.sameDayLYCounts) * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'flash-discounts' && (
+            <>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-slate-400">View:</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setFlashView('day')}
+                      className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                        flashView === 'day'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                      }`}
+                    >
+                      Yesterday
+                    </button>
+                    <button
+                      onClick={() => setFlashView('wtd')}
+                      className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                        flashView === 'wtd'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                      }`}
+                    >
+                      Week To Date
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Filter className="w-4 h-4 text-blue-400" />
+                  <h3 className="text-sm font-semibold text-white">Filters</h3>
+                </div>
+                <div className="flex flex-col md:flex-row gap-2">
+                  <div className="flex-1 relative">
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsLocationDropdownOpen(!isLocationDropdownOpen);
+                      }}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center justify-between"
+                    >
+                      <span>{flashFilters.locations.length === 0 ? 'All Locations' : `${flashFilters.locations.length} selected`}</span>
+                      <span className="text-slate-400">▼</span>
+                    </button>
+                    {isLocationDropdownOpen && (
+                      <div className="absolute z-10 mt-1 w-full bg-slate-700 border border-slate-600 rounded shadow-lg max-h-60 overflow-y-auto">
+                        <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600 border-b border-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={flashFilters.locations.length === 0}
+                            onChange={() => setFlashFilters({...flashFilters, locations: []})}
+                            className="rounded"
+                          />
+                          <span className="text-white text-xs font-semibold">All Locations</span>
+                        </label>
+                        {flashData.map(loc => (
+                          <label key={loc.location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                            <input
+                              type="checkbox"
+                              checked={flashFilters.locations.includes(loc.location)}
+                              onChange={() => handleFlashLocationToggle(loc.location)}
+                              className="rounded"
+                            />
+                            <span className="text-white text-xs">{loc.location}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                    <select
+                      value={flashFilters.market}
+                      onChange={(e) => setFlashFilters({...flashFilters, market: e.target.value})}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      <option value="all">All Markets</option>
+                      <option value="Tulsa">Tulsa</option>
+                      <option value="Oklahoma City">Oklahoma City</option>
+                      <option value="Dallas">Dallas</option>
+                      <option value="Orlando">Orlando</option>
+                    </select>
+                  </div>
+
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Sales Variance</label>
+                    <select
+                      value={flashFilters.salesVariance}
+                      onChange={(e) => setFlashFilters({...flashFilters, salesVariance: e.target.value})}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      <option value="all">All Variances</option>
+                      <option value="positive">Above LY</option>
+                      <option value="negative">Below LY</option>
+                    </select>
+                  </div>
+
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-slate-400 mb-1">Guest Count Variance</label>
+                    <select
+                      value={flashFilters.guestCountVariance}
+                      onChange={(e) => setFlashFilters({...flashFilters, guestCountVariance: e.target.value})}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      <option value="all">All Variances</option>
+                      <option value="positive">Above LY</option>
+                      <option value="negative">Below LY</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {flashError && (
+                <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                  <strong>Error:</strong> {flashError}
+                </div>
+              )}
+
+              {flashLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-white text-lg">Loading flash data...</div>
+                </div>
+              ) : flashData.length === 0 ? (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                  <p className="text-slate-400">No flash data available</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
+                  {filteredFlashData.map((loc, idx) => {
+                    return (
+                      <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                        <div className="flex items-start justify-between mb-2 md:mb-3">
+                          <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
+                        </div>
+
+                        <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                          <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">DISCOUNTS</p>
+                          <div className="space-y-0.5 md:space-y-1">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-xs">Comps</span>
+                              <span className="text-white font-bold text-xs">${loc.comps.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-xs">Discounts</span>
+                              <span className="text-white font-semibold text-xs">${loc.discounts.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-1 border-t border-slate-700">
+                              <span className="text-slate-500 text-xs">Total</span>
+                              <span className="text-white font-bold text-xs">${loc.totalDiscounts.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-xs">% of Sales</span>
+                              <span className={`font-bold text-xs ${(loc.discountPercent * 100) > 3 ? 'text-orange-400' : 'text-white'}`}>
+                                {(loc.discountPercent * 100).toFixed(2)}%
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-500 text-xs">Voids</span>
+                              <span className={`font-semibold text-xs ${loc.voids > 20 ? 'text-orange-400' : 'text-white'}`}>
+                                ${loc.voids.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {showClockoutModal && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowClockoutModal(false)}
+          >
+            <div 
+              className="bg-slate-800 border border-slate-700 rounded-lg p-4 max-w-md w-full shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-white">Auto-Clockouts</h3>
+                <button
+                  onClick={() => setShowClockoutModal(false)}
+                  className="text-slate-400 hover:text-white transition-colors"
+                >
+                  <span className="text-2xl">×</span>
+                </button>
+              </div>
+              
+              <div className="mb-3">
+                <p className="text-sm text-slate-400 mb-2">Location: <span className="text-white font-semibold">{clockoutModalData.location}</span></p>
+                <p className="text-xs text-slate-500">The following employees have auto-clockouts this week:</p>
+              </div>
+
+              <div className="bg-slate-900 rounded-lg p-3 max-h-64 overflow-y-auto">
+                <ul className="space-y-2">
+                  {clockoutModalData.employees.map((emp, idx) => (
+                    <li key={idx} className="text-white text-sm py-1 border-b border-slate-700 last:border-b-0">
+                      {emp}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <button
+                onClick={() => setShowClockoutModal(false)}
+                className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showCallOffModal && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowCallOffModal(false)}
+          >
+            <div 
+              className="bg-slate-800 border border-slate-700 rounded-lg p-4 max-w-md w-full shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-white">Call-Offs</h3>
+                <button
+                  onClick={() => setShowCallOffModal(false)}
+                  className="text-slate-400 hover:text-white transition-colors"
+                >
+                  <span className="text-2xl">×</span>
+                </button>
+              </div>
+              
+              <div className="mb-3">
+                <p className="text-sm text-slate-400 mb-2">Location: <span className="text-white font-semibold">{callOffModalData.location}</span></p>
+                <p className="text-xs text-slate-500">The following employees called off this week:</p>
+              </div>
+
+              <div className="bg-slate-900 rounded-lg p-3 max-h-64 overflow-y-auto">
+                <ul className="space-y-2">
+                  {callOffModalData.employees.map((emp, idx) => (
+                    <li key={idx} className="text-white text-sm py-1 border-b border-slate-700 last:border-b-0">
+                      {emp}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <button
+                onClick={() => setShowCallOffModal(false)}
+                className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
 }
