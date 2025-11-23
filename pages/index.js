@@ -74,6 +74,12 @@ export default function Dashboard() {
   const [plAccessError, setPlAccessError] = useState('');
   const [plAccessSuccess, setPlAccessSuccess] = useState('');
   const [editingUser, setEditingUser] = useState(null);
+  const [plData, setPlData] = useState(null);
+const [plLoading, setPlLoading] = useState(false);
+const [plError, setPlError] = useState(null);
+const [plSelectedLocation, setPlSelectedLocation] = useState('');
+const [userPlAccess, setUserPlAccess] = useState({ type: 'none', locations: [] });
+const [isPlAdmin, setIsPlAdmin] = useState(false);
   const [availableLocations, setAvailableLocations] = useState([]);
   
   // Modal State
@@ -87,6 +93,7 @@ export default function Dashboard() {
   // Load data based on selected dashboard
   useEffect(() => {
     if (status === 'authenticated') {
+      loadUserPlAccess();
       if (selectedDashboard === 'weekly-sales-labor') {
         loadSalesData();
       } else if (selectedDashboard === 'daily-dashboard') {
@@ -97,7 +104,9 @@ export default function Dashboard() {
         loadAutoClockouts();
       } else if (selectedDashboard === 'call-offs') {
         loadCallOffs();
-      } else if (selectedDashboard === 'pl-access-management' && session?.user?.email === 'dalton@rancherscustard.com') {
+      } else if (selectedDashboard === 'pl-dashboard') {
+      loadPlData();
+    } else if (selectedDashboard === 'pl-access-management' && session?.user?.email === 'dalton@rancherscustard.com') {
         loadPlAccessUsers();
         loadAvailableLocations();
       }
@@ -558,6 +567,37 @@ export default function Dashboard() {
     }
   };
 
+  const loadPlData = async () => {
+    setPlLoading(true);
+    setPlError(null);
+    
+    try {
+      const response = await fetch('/api/get-pl-data');
+      if (!response.ok) throw new Error('Failed to load P&L data');
+      
+      const result = await response.json();
+      setPlData(result.data);
+    } catch (error) {
+      console.error('Error loading P&L data:', error);
+      setPlError(error.message);
+    } finally {
+      setPlLoading(false);
+    }
+  };
+
+  const loadUserPlAccess = async () => {
+    try {
+      const response = await fetch('/api/check-pl-access');
+      if (!response.ok) throw new Error('Failed to check access');
+      
+      const result = await response.json();
+      setUserPlAccess(result.access);
+      setIsPlAdmin(result.isAdmin);
+    } catch (error) {
+      console.error('Error checking P&L access:', error);
+    }
+  };
+
   // Update User P&L Access
   const updateUserPlAccess = async (email, plAccess) => {
     setPlAccessLoading(true);
@@ -721,6 +761,7 @@ export default function Dashboard() {
             <option value="auto-clockouts">Auto-Clockouts</option>
             <option value="call-offs">Call-Offs</option>
             <option value="scheduled-today">Scheduled Today</option>
+    <option value="pl-dashboard">P&L Dashboard</option>
             {session?.user?.email === 'dalton@rancherscustard.com' && (
               <>
                 <option value="pl-upload">P&L Upload</option>
@@ -1296,6 +1337,249 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+
+          {/* P&L Dashboard */}
+{selectedDashboard === 'pl-dashboard' && (
+  <div className="space-y-6">
+    {/* Check Access */}
+    {userPlAccess.type === 'none' ? (
+      <div className="bg-red-900 border border-red-700 rounded-lg p-6 text-center">
+        <h2 className="text-xl font-bold text-red-200 mb-2">Access Denied</h2>
+        <p className="text-red-300">You do not have permission to view P&L data.</p>
+        <p className="text-red-400 text-sm mt-2">Contact your administrator for access.</p>
+      </div>
+    ) : (
+      <>
+        {/* Location Selector */}
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <div className="flex gap-4 items-center">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Select Location
+              </label>
+              <select
+                value={plSelectedLocation}
+                onChange={(e) => setPlSelectedLocation(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="">-- Select a Location --</option>
+                {userPlAccess.type === 'all' 
+                  ? plData && Object.keys(plData).sort().map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))
+                  : userPlAccess.locations.sort().map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Loading/Error */}
+        {plError && (
+          <div className="bg-red-900 border border-red-700 rounded-lg p-3 text-red-200">
+            <strong>Error:</strong> {plError}
+          </div>
+        )}
+
+        {plLoading && (
+          <div className="text-center py-10 text-white">Loading P&L data...</div>
+        )}
+
+        {/* P&L Display */}
+        {!plLoading && !plError && plSelectedLocation && plData && plData[plSelectedLocation] && (
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <h2 className="text-2xl font-bold text-white mb-2">{plSelectedLocation}</h2>
+              <p className="text-slate-400">Period: {plData[plSelectedLocation].period}</p>
+            </div>
+
+            {/* Sales Section */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <h3 className="text-xl font-bold text-blue-400 mb-4">💰 Sales</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-700">
+                  <span className="text-slate-300">Net Sales</span>
+                  <span className="text-white font-bold text-lg">
+                    {formatCurrency(plData[plSelectedLocation].data.netSales)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 text-sm">Comps & Discounts</span>
+                  <span className="text-slate-400 text-sm">
+                    {formatCurrency(plData[plSelectedLocation].data.compsDiscounts)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Cost of Goods */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <h3 className="text-xl font-bold text-orange-400 mb-4">📦 Cost of Goods</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Food & Paper Cost</span>
+                  <span className="text-white font-semibold">
+                    {formatCurrency(plData[plSelectedLocation].data.foodPaperCost)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 text-sm">% of Sales</span>
+                  <span className="text-slate-400 text-sm">
+                    {((plData[plSelectedLocation].data.foodPaperCost / plData[plSelectedLocation].data.netSales) * 100).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Labor */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <h3 className="text-xl font-bold text-green-400 mb-4">👥 Labor</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Manager Wages</span>
+                  <span className="text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.managerWages)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Hourly Wages</span>
+                  <span className="text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.hourlyWages)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Training Wages</span>
+                  <span className="text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.trainingWages)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Employee Bonuses</span>
+                  <span className="text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.employeeBonuses)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Payroll Taxes</span>
+                  <span className="text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.payrollTaxes)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Payroll Benefits</span>
+                  <span className="text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.payrollBenefits)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+                  <span className="text-slate-300 font-semibold">Prime Cost</span>
+                  <span className="text-white font-bold">
+                    {formatCurrency(plData[plSelectedLocation].data.primeCost)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 text-sm">% of Sales</span>
+                  <span className="text-slate-400 text-sm">
+                    {((plData[plSelectedLocation].data.primeCost / plData[plSelectedLocation].data.netSales) * 100).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Operating Expenses */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <h3 className="text-xl font-bold text-purple-400 mb-4">🏪 Operating Expenses</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Direct Operating</span>
+                  <span className="text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.directOperating)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Utilities</span>
+                  <span className="text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.utilities)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Advertising</span>
+                  <span className="text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.advertising)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">General & Admin</span>
+                  <span className="text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.generalAdmin)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+                  <span className="text-slate-300 font-semibold">Total Operating</span>
+                  <span className="text-white font-bold">
+                    {formatCurrency(plData[plSelectedLocation].data.totalOperating)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Non-Controllable */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <h3 className="text-xl font-bold text-red-400 mb-4">🏢 Non-Controllable</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Occupancy Costs</span>
+                  <span className="text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.occupancyCosts)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">Depreciation</span>
+                  <span className="text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.depreciation)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+                  <span className="text-slate-300 font-semibold">Total Non-Controllable</span>
+                  <span className="text-white font-bold">
+                    {formatCurrency(plData[plSelectedLocation].data.totalNonControllable)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Net Profit */}
+            <div className="bg-gradient-to-r from-green-900 to-green-800 border border-green-700 rounded-lg p-6">
+              <div className="flex justify-between items-center">
+                <h3 className="text-2xl font-bold text-white">💵 Net Profit</h3>
+                <div className="text-right">
+                  <div className="text-3xl font-bold text-white">
+                    {formatCurrency(plData[plSelectedLocation].data.netProfit)}
+                  </div>
+                  <div className="text-green-300 text-sm mt-1">
+                    {((plData[plSelectedLocation].data.netProfit / plData[plSelectedLocation].data.netSales) * 100).toFixed(1)}% of Sales
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* No Location Selected */}
+        {!plLoading && !plSelectedLocation && (
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-10 text-center">
+            <p className="text-slate-400">Select a location to view P&L data</p>
+          </div>
+        )}
+      </>
+    )}
+  </div>
+)}
+
+
 
           {/* P&L Access Management Dashboard */}
           {selectedDashboard === 'pl-access-management' && session?.user?.email === 'dalton@rancherscustard.com' && (
