@@ -1412,15 +1412,15 @@ export default function Home() {
                           {/* Mobile Ultra-Compact - All on one line per day */}
                           <div className="md:hidden">
                             {/* Mobile Headers */}
-                            <div className="border-b border-slate-700 p-2 text-xs grid grid-cols-8 gap-1 bg-slate-800 sticky top-0">
-                              <div className="text-slate-400 font-semibold">Day</div>
-                              <div className="text-slate-400 font-semibold text-right">Sales</div>
-                              <div className="text-slate-400 font-semibold text-right">PY</div>
-                              <div className="text-slate-400 font-semibold text-right">Var</div>
-                              <div className="text-slate-600 text-center">|</div>
-                              <div className="text-slate-400 font-semibold text-right">Gst</div>
-                              <div className="text-slate-400 font-semibold text-right">PY</div>
-                              <div className="text-slate-400 font-semibold text-right">Var</div>
+                            <div className="border-b border-slate-700 p-2 text-xs flex items-center bg-slate-800 sticky top-0">
+                              <div className="text-slate-400 font-semibold w-9">Day</div>
+                              <div className="text-slate-400 font-semibold text-right flex-1">Sales</div>
+                              <div className="text-slate-400 font-semibold text-right flex-1">PY</div>
+                              <div className="text-slate-400 font-semibold text-right w-12">Var</div>
+                              <div className="text-slate-600 text-center w-4">|</div>
+                              <div className="text-slate-400 font-semibold text-right w-12">Gst</div>
+                              <div className="text-slate-400 font-semibold text-right w-12">PY</div>
+                              <div className="text-slate-400 font-semibold text-right w-11">Var</div>
                             </div>
                             
                             {/* Data rows */}
@@ -1439,32 +1439,32 @@ export default function Home() {
                               })();
                               
                               return (
-                                <div key={idx} className="border-b border-slate-700 last:border-b-0 p-2 text-xs grid grid-cols-8 gap-1 items-center">
+                                <div key={idx} className="border-b border-slate-700 last:border-b-0 p-2 text-xs flex items-center">
                                   {/* Day */}
-                                  <div className="text-slate-300 font-semibold">{dayOfWeek}</div>
+                                  <div className="text-slate-300 font-semibold w-9">{dayOfWeek}</div>
                                   
                                   {/* Sales */}
-                                  <div className="text-white font-semibold text-right">${day.sales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                                  <div className="text-white font-semibold text-right flex-1">${day.sales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
                                   
                                   {/* PY Sales */}
-                                  <div className="text-slate-400 text-right">${day.paySales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                                  <div className="text-slate-400 text-right flex-1">${day.paySales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
                                   
                                   {/* Var % */}
-                                  <div className={`font-semibold text-right ${salesVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  <div className={`font-semibold text-right w-12 ${salesVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {salesVarPercent >= 0 ? '+' : ''}{salesVarPercent.toFixed(0)}%
                                   </div>
                                   
                                   {/* Separator */}
-                                  <div className="text-slate-600 text-center">|</div>
+                                  <div className="text-slate-600 text-center w-4">|</div>
                                   
                                   {/* Guests */}
-                                  <div className="text-white text-right">{day.guestCount}</div>
+                                  <div className="text-white text-right w-12">{day.guestCount}</div>
                                   
                                   {/* PY Guests */}
-                                  <div className="text-slate-400 text-right">{day.payGuestCount}</div>
+                                  <div className="text-slate-400 text-right w-12">{day.payGuestCount}</div>
                                   
                                   {/* Guest Var */}
-                                  <div className={`text-right ${day.guestVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  <div className={`text-right w-11 ${day.guestVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {day.guestVariance >= 0 ? '+' : ''}{day.guestVariance}
                                   </div>
                                 </div>
