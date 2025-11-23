@@ -1156,7 +1156,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className={`bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg ${!isFiltersOpen ? 'w-fit' : ''}`}>
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg">
                     <button 
                       onClick={() => setIsFiltersOpen(!isFiltersOpen)}
                       className="flex items-center justify-between w-full mb-2"
@@ -1383,7 +1383,7 @@ export default function Home() {
 
           {activeTab === 'daily-sales' && (
             <>
-              <div className={`bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg ${!isDailyFlashFiltersOpen ? 'w-fit' : ''}`}>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
                 <button 
                   onClick={() => setIsDailyFlashFiltersOpen(!isDailyFlashFiltersOpen)}
                   className="flex items-center justify-between w-full mb-2"
@@ -1585,7 +1585,7 @@ export default function Home() {
 
           {activeTab === 'daily-labor' && (
             <>
-              <div className={`bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg ${!isDailyLaborFiltersOpen ? 'w-fit' : ''}`}>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
                 <button 
                   onClick={() => setIsDailyLaborFiltersOpen(!isDailyLaborFiltersOpen)}
                   className="flex items-center justify-between w-full mb-2"
@@ -1904,7 +1904,7 @@ export default function Home() {
 
           {activeTab === 'scheduled-today' && (
             <>
-              <div className={`bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg ${!isScheduledFiltersOpen ? 'w-fit' : ''}`}>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
                 <button 
                   onClick={() => setIsScheduledFiltersOpen(!isScheduledFiltersOpen)}
                   className="flex items-center justify-between w-full mb-2"
