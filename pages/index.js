@@ -1410,7 +1410,20 @@ export default function Home() {
                           </table>
 
                           {/* Mobile Ultra-Compact - All on one line per day */}
-                          <div className="md:hidden divide-y divide-slate-700">
+                          <div className="md:hidden">
+                            {/* Mobile Headers */}
+                            <div className="border-b border-slate-700 p-1.5 text-xs flex items-center gap-1 bg-slate-800 sticky top-0">
+                              <div className="text-slate-400 font-semibold w-8">Day</div>
+                              <div className="text-slate-400 font-semibold">Sales</div>
+                              <div className="text-slate-400 font-semibold">PY</div>
+                              <div className="text-slate-400 font-semibold">Var</div>
+                              <div className="text-slate-600">|</div>
+                              <div className="text-slate-400 font-semibold">Guests</div>
+                              <div className="text-slate-400 font-semibold">PY</div>
+                              <div className="text-slate-400 font-semibold">Var</div>
+                            </div>
+                            
+                            {/* Data rows */}
                             {locationData.map((day, idx) => {
                               const salesVarPercent = day.paySales > 0 ? ((day.salesVariance / day.paySales) * 100) : 0;
                               
@@ -1426,9 +1439,9 @@ export default function Home() {
                               })();
                               
                               return (
-                                <div key={idx} className="p-1.5 text-xs flex items-center gap-1">
+                                <div key={idx} className="border-b border-slate-700 last:border-b-0 p-1.5 text-xs flex items-center gap-1">
                                   {/* Day */}
-                                  <div className="text-slate-400 font-semibold w-8">{dayOfWeek}</div>
+                                  <div className="text-slate-300 font-semibold w-8">{dayOfWeek}</div>
                                   
                                   {/* Sales */}
                                   <div className="text-white font-semibold">${(day.sales / 1000).toFixed(1)}k</div>
