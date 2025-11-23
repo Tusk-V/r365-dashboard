@@ -69,9 +69,20 @@ export default function Home() {
   });
   const [isDailyFlashLocationDropdownOpen, setIsDailyFlashLocationDropdownOpen] = useState(false);
 
-  const [isFiltersOpen, setIsFiltersOpen] = useState(true);
+  const [dailyLaborData, setDailyLaborData] = useState({});
+  const [dailyLaborLoading, setDailyLaborLoading] = useState(false);
+  const [dailyLaborError, setDailyLaborError] = useState(null);
+  const [filteredDailyLabor, setFilteredDailyLabor] = useState([]);
+  const [dailyLaborFilters, setDailyLaborFilters] = useState({
+    locations: [],
+    market: 'all'
+  });
+  const [isDailyLaborLocationDropdownOpen, setIsDailyLaborLocationDropdownOpen] = useState(false);
+  const [isDailyLaborFiltersOpen, setIsDailyLaborFiltersOpen] = useState(false);
+
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isDailyFlashFiltersOpen, setIsDailyFlashFiltersOpen] = useState(false);
-  const [isScheduledFiltersOpen, setIsScheduledFiltersOpen] = useState(true);
+  const [isScheduledFiltersOpen, setIsScheduledFiltersOpen] = useState(false);
 
   const getMarket = (locationName) => {
     const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
@@ -495,6 +506,62 @@ export default function Home() {
     }
   };
 
+  const loadDailyLabor = async () => {
+    setDailyLaborLoading(true);
+    setDailyLaborError(null);
+    
+    try {
+      const range = `${FLASH_DAILY_SHEET}!A2:O`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to load daily labor data');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        setDailyLaborData({});
+        return;
+      }
+      
+      const groupedByLocation = {};
+      
+      data.values.forEach(row => {
+        const location = row[1];
+        if (!location) return;
+        
+        if (!groupedByLocation[location]) {
+          groupedByLocation[location] = [];
+        }
+        
+        groupedByLocation[location].push({
+          date: row[0] || '',
+          actualHours: parseFloat(row[9]) || 0,
+          optimalHours: parseFloat(row[10]) || 0,
+          hoursVariance: parseFloat(row[11]) || 0,
+          actualLaborPercent: parseFloat(row[8]) || 0,
+          optimalLaborPercent: parseFloat(row[12]) || 0,
+          laborPercentVariance: parseFloat(row[13]) || 0
+        });
+      });
+      
+      Object.keys(groupedByLocation).forEach(location => {
+        groupedByLocation[location].sort((a, b) => new Date(b.date) - new Date(a.date));
+      });
+      
+      setDailyLaborData(groupedByLocation);
+    } catch (err) {
+      console.error('Error loading daily labor data:', err);
+      setDailyLaborError(err.message);
+    } finally {
+      setDailyLaborLoading(false);
+    }
+  };
+
   const adjustSingleTime = (timeString) => {
     if (!timeString) return timeString;
     
@@ -697,6 +764,28 @@ export default function Home() {
     setDailyFlashFilters({...dailyFlashFilters, locations: newLocations});
   };
 
+  const applyDailyLaborFilters = () => {
+    const allLocations = Object.keys(dailyLaborData);
+    let filtered = allLocations;
+    
+    if (dailyLaborFilters.locations.length > 0) {
+      filtered = filtered.filter(loc => dailyLaborFilters.locations.includes(loc));
+    }
+    
+    if (dailyLaborFilters.market !== 'all') {
+      filtered = filtered.filter(loc => getMarket(loc) === dailyLaborFilters.market);
+    }
+    
+    setFilteredDailyLabor(filtered);
+  };
+
+  const handleDailyLaborLocationToggle = (location) => {
+    const newLocations = dailyLaborFilters.locations.includes(location)
+      ? dailyLaborFilters.locations.filter(l => l !== location)
+      : [...dailyLaborFilters.locations, location];
+    setDailyLaborFilters({...dailyLaborFilters, locations: newLocations});
+  };
+
   const calculateTotals = () => {
     if (filteredLocations.length === 0) {
       return {
@@ -748,16 +837,19 @@ export default function Home() {
       if (isDailyFlashLocationDropdownOpen) {
         setIsDailyFlashLocationDropdownOpen(false);
       }
+      if (isDailyLaborLocationDropdownOpen) {
+        setIsDailyLaborLocationDropdownOpen(false);
+      }
     };
     
-    if (isLocationDropdownOpen || isWeekDropdownOpen || isDailyFlashLocationDropdownOpen) {
+    if (isLocationDropdownOpen || isWeekDropdownOpen || isDailyFlashLocationDropdownOpen || isDailyLaborLocationDropdownOpen) {
       document.addEventListener('click', handleClickOutside);
     }
     
     return () => {
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [isLocationDropdownOpen, isWeekDropdownOpen, isDailyFlashLocationDropdownOpen]);
+  }, [isLocationDropdownOpen, isWeekDropdownOpen, isDailyFlashLocationDropdownOpen, isDailyLaborLocationDropdownOpen]);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -767,6 +859,7 @@ export default function Home() {
       loadCallOffs();
       loadScheduledToday();
       loadDailyFlash();
+      loadDailyLabor();
     }
   }, [status]);
 
@@ -785,6 +878,10 @@ export default function Home() {
   useEffect(() => {
     applyDailyFlashFilters();
   }, [dailyFlashData, dailyFlashFilters]);
+
+  useEffect(() => {
+    applyDailyLaborFilters();
+  }, [dailyLaborData, dailyLaborFilters]);
 
   useEffect(() => {
     applyClockoutFilters();
@@ -844,6 +941,7 @@ export default function Home() {
                 >
                   <option value="sales">Weekly Sales & Labor</option>
                   <option value="daily-sales">Daily Sales</option>
+                  <option value="daily-labor">Daily Labor</option>
                   <option value="clockouts">Auto-Clockouts</option>
                   <option value="call-offs">Call-Offs</option>
                   <option value="scheduled-today">Scheduled Today</option>
@@ -865,6 +963,8 @@ export default function Home() {
                       loadScheduledToday();
                     } else if (activeTab === 'daily-sales') {
                       loadDailyFlash();
+                    } else if (activeTab === 'daily-labor') {
+                      loadDailyLabor();
                     }
                   }}
                   className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -906,6 +1006,7 @@ export default function Home() {
               >
                 <option value="sales">Weekly Sales & Labor</option>
                 <option value="daily-sales">Daily Sales</option>
+                <option value="daily-labor">Daily Labor</option>
                 <option value="clockouts">Auto-Clockouts</option>
                 <option value="call-offs">Call-Offs</option>
                 <option value="scheduled-today">Scheduled Today</option>
@@ -927,6 +1028,8 @@ export default function Home() {
                     loadScheduledToday();
                   } else if (activeTab === 'daily-sales') {
                     loadDailyFlash();
+                  } else if (activeTab === 'daily-labor') {
+                    loadDailyLabor();
                   }
                 }}
                 className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -1053,7 +1156,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg">
+                  <div className={`bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg ${!isFiltersOpen ? 'w-fit' : ''}`}>
                     <button 
                       onClick={() => setIsFiltersOpen(!isFiltersOpen)}
                       className="flex items-center justify-between w-full mb-2"
@@ -1280,7 +1383,7 @@ export default function Home() {
 
           {activeTab === 'daily-sales' && (
             <>
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className={`bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg ${!isDailyFlashFiltersOpen ? 'w-fit' : ''}`}>
                 <button 
                   onClick={() => setIsDailyFlashFiltersOpen(!isDailyFlashFiltersOpen)}
                   className="flex items-center justify-between w-full mb-2"
@@ -1480,6 +1583,208 @@ export default function Home() {
             </>
           )}
 
+          {activeTab === 'daily-labor' && (
+            <>
+              <div className={`bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg ${!isDailyLaborFiltersOpen ? 'w-fit' : ''}`}>
+                <button 
+                  onClick={() => setIsDailyLaborFiltersOpen(!isDailyLaborFiltersOpen)}
+                  className="flex items-center justify-between w-full mb-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-blue-400" />
+                    <h3 className="text-sm font-semibold text-white">Filters</h3>
+                  </div>
+                  <span className="text-slate-400 text-sm">{isDailyLaborFiltersOpen ? '▼' : '▶'}</span>
+                </button>
+                {isDailyLaborFiltersOpen && (
+                  <div className="flex flex-col md:flex-row gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsDailyLaborLocationDropdownOpen(!isDailyLaborLocationDropdownOpen);
+                          }}
+                          className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-600"
+                        >
+                          <span>{dailyLaborFilters.locations.length === 0 ? 'All Locations' : `${dailyLaborFilters.locations.length} selected`}</span>
+                          <ChevronDown size={14} />
+                        </button>
+                        {isDailyLaborLocationDropdownOpen && (
+                          <div className="absolute z-10 mt-1 w-full bg-slate-700 border border-slate-600 rounded shadow-lg max-h-60 overflow-y-auto">
+                            <label className="flex items-center px-3 py-2 hover:bg-slate-600 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={dailyLaborFilters.locations.length === 0}
+                                onChange={() => setDailyLaborFilters({...dailyLaborFilters, locations: []})}
+                                className="mr-2"
+                              />
+                              <span className="text-sm text-white">All Locations</span>
+                            </label>
+                            {Object.keys(dailyLaborData).sort().map((location) => (
+                              <label key={location} className="flex items-center px-3 py-2 hover:bg-slate-600 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={dailyLaborFilters.locations.includes(location)}
+                                  onChange={() => handleDailyLaborLocationToggle(location)}
+                                  className="mr-2"
+                                />
+                                <span className="text-sm text-white">{location}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                      <select
+                        value={dailyLaborFilters.market}
+                        onChange={(e) => setDailyLaborFilters({...dailyLaborFilters, market: e.target.value})}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      >
+                        <option value="all">All Markets</option>
+                        <option value="Tulsa">Tulsa</option>
+                        <option value="Oklahoma City">Oklahoma City</option>
+                        <option value="Dallas">Dallas</option>
+                        <option value="Orlando">Orlando</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {dailyLaborError && (
+                <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                  <strong>Error:</strong> {dailyLaborError}
+                </div>
+              )}
+
+              {dailyLaborLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-white text-lg">Loading labor data...</div>
+                </div>
+              ) : filteredDailyLabor.length === 0 ? (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                  <AlertCircle className="mx-auto mb-3 text-blue-400" size={48} />
+                  <h3 className="text-xl font-bold text-white mb-2">No Labor Data</h3>
+                  <p className="text-slate-400">Select locations to view labor metrics</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredDailyLabor.map((location) => {
+                    const locationData = dailyLaborData[location];
+                    return (
+                      <div key={location} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                        <div className="mb-2 md:mb-3">
+                          <h3 className="text-sm md:text-base font-bold text-white">{location}</h3>
+                        </div>
+
+                        <div className="bg-slate-900 rounded-lg overflow-x-auto">
+                          {/* Desktop Table */}
+                          <table className="hidden md:table w-full text-xs">
+                            <thead className="bg-slate-800">
+                              <tr>
+                                <th className="text-left p-2 text-slate-400 font-semibold">Date</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">Act Hrs</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">Opt Hrs</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">Hrs Var</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">Act %</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">Opt %</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">% Var</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {locationData.map((day, idx) => {
+                                return (
+                                  <tr key={idx} className="border-t border-slate-700">
+                                    <td className="p-2 text-slate-300">{day.date}</td>
+                                    <td className="text-right p-2 text-white font-semibold">{day.actualHours.toFixed(1)}</td>
+                                    <td className="text-right p-2 text-slate-300">{day.optimalHours.toFixed(1)}</td>
+                                    <td className={`text-right p-2 font-semibold ${day.hoursVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                      {day.hoursVariance >= 0 ? '+' : ''}{day.hoursVariance.toFixed(1)}
+                                    </td>
+                                    <td className="text-right p-2 text-white font-semibold">{day.actualLaborPercent.toFixed(1)}%</td>
+                                    <td className="text-right p-2 text-slate-300">{day.optimalLaborPercent.toFixed(1)}%</td>
+                                    <td className={`text-right p-2 font-semibold ${day.laborPercentVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                      {day.laborPercentVariance >= 0 ? '+' : ''}{day.laborPercentVariance.toFixed(1)}%
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+
+                          {/* Mobile Ultra-Compact - All on one line per day */}
+                          <div className="md:hidden">
+                            {/* Mobile Headers */}
+                            <div className="border-b border-slate-700 p-2 text-xs flex items-center bg-slate-800 sticky top-0">
+                              <div className="text-slate-400 font-semibold w-9">Day</div>
+                              <div className="text-slate-400 font-semibold text-right flex-1">Act</div>
+                              <div className="text-slate-400 font-semibold text-right flex-1">Opt</div>
+                              <div className="text-slate-400 font-semibold text-right w-12">Var</div>
+                              <div className="text-slate-600 text-center w-4">|</div>
+                              <div className="text-slate-400 font-semibold text-right flex-1">Act%</div>
+                              <div className="text-slate-400 font-semibold text-right flex-1">Opt%</div>
+                              <div className="text-slate-400 font-semibold text-right w-12">Var</div>
+                            </div>
+                            
+                            {/* Data rows */}
+                            {locationData.map((day, idx) => {
+                              // Get day of week abbreviation
+                              const dayOfWeek = (() => {
+                                try {
+                                  const date = new Date(day.date);
+                                  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                                  return days[date.getDay()];
+                                } catch {
+                                  return day.date.substring(0, 3);
+                                }
+                              })();
+                              
+                              return (
+                                <div key={idx} className="border-b border-slate-700 last:border-b-0 p-2 text-xs flex items-center">
+                                  {/* Day */}
+                                  <div className="text-slate-300 font-semibold w-9">{dayOfWeek}</div>
+                                  
+                                  {/* Act Hours */}
+                                  <div className="text-white font-semibold text-right flex-1">{day.actualHours.toFixed(1)}</div>
+                                  
+                                  {/* Opt Hours */}
+                                  <div className="text-slate-400 text-right flex-1">{day.optimalHours.toFixed(1)}</div>
+                                  
+                                  {/* Hours Var */}
+                                  <div className={`font-semibold text-right w-12 ${day.hoursVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                    {day.hoursVariance >= 0 ? '+' : ''}{day.hoursVariance.toFixed(1)}
+                                  </div>
+                                  
+                                  {/* Separator */}
+                                  <div className="text-slate-600 text-center w-4">|</div>
+                                  
+                                  {/* Act % */}
+                                  <div className="text-white text-right flex-1">{day.actualLaborPercent.toFixed(1)}%</div>
+                                  
+                                  {/* Opt % */}
+                                  <div className="text-slate-400 text-right flex-1">{day.optimalLaborPercent.toFixed(1)}%</div>
+                                  
+                                  {/* % Var */}
+                                  <div className={`text-right w-12 ${day.laborPercentVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                    {day.laborPercentVariance >= 0 ? '+' : ''}{day.laborPercentVariance.toFixed(1)}%
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
           {activeTab === 'clockouts' && (
             <>
               {clockoutsError && (
@@ -1599,7 +1904,7 @@ export default function Home() {
 
           {activeTab === 'scheduled-today' && (
             <>
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className={`bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg ${!isScheduledFiltersOpen ? 'w-fit' : ''}`}>
                 <button 
                   onClick={() => setIsScheduledFiltersOpen(!isScheduledFiltersOpen)}
                   className="flex items-center justify-between w-full mb-2"
