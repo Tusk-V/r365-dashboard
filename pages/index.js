@@ -70,7 +70,7 @@ export default function Home() {
   const [isDailyFlashLocationDropdownOpen, setIsDailyFlashLocationDropdownOpen] = useState(false);
 
   const [isFiltersOpen, setIsFiltersOpen] = useState(true);
-  const [isDailyFlashFiltersOpen, setIsDailyFlashFiltersOpen] = useState(true);
+  const [isDailyFlashFiltersOpen, setIsDailyFlashFiltersOpen] = useState(false);
   const [isScheduledFiltersOpen, setIsScheduledFiltersOpen] = useState(true);
 
   const getMarket = (locationName) => {
@@ -1371,7 +1371,6 @@ export default function Home() {
                       <div key={location} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
                         <div className="mb-2 md:mb-3">
                           <h3 className="text-sm md:text-base font-bold text-white">{location}</h3>
-                          <p className="text-xs text-slate-400">{locationData.length} day{locationData.length !== 1 ? 's' : ''} of data</p>
                         </div>
 
                         <div className="bg-slate-900 rounded-lg overflow-x-auto">
@@ -1410,46 +1409,50 @@ export default function Home() {
                             </tbody>
                           </table>
 
-                          {/* Mobile Cards */}
+                          {/* Mobile Ultra-Compact - All on one line per day */}
                           <div className="md:hidden divide-y divide-slate-700">
                             {locationData.map((day, idx) => {
                               const salesVarPercent = day.paySales > 0 ? ((day.salesVariance / day.paySales) * 100) : 0;
+                              
+                              // Get day of week abbreviation
+                              const dayOfWeek = (() => {
+                                try {
+                                  const date = new Date(day.date);
+                                  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                                  return days[date.getDay()];
+                                } catch {
+                                  return day.date.substring(0, 3);
+                                }
+                              })();
+                              
                               return (
-                                <div key={idx} className="p-3 space-y-1.5">
-                                  <div className="text-slate-400 text-xs font-semibold mb-2">{day.date}</div>
+                                <div key={idx} className="p-1.5 text-xs flex items-center gap-1">
+                                  {/* Day */}
+                                  <div className="text-slate-400 font-semibold w-8">{dayOfWeek}</div>
                                   
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-slate-500">Sales</span>
-                                    <span className="text-white font-semibold">${day.sales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                                  {/* Sales */}
+                                  <div className="text-white font-semibold">${(day.sales / 1000).toFixed(1)}k</div>
+                                  
+                                  {/* PY Sales */}
+                                  <div className="text-slate-400">${(day.paySales / 1000).toFixed(1)}k</div>
+                                  
+                                  {/* Var % */}
+                                  <div className={`font-semibold ${salesVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {salesVarPercent >= 0 ? '+' : ''}{salesVarPercent.toFixed(0)}%
                                   </div>
                                   
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-slate-500">PY Sales</span>
-                                    <span className="text-slate-300">${day.paySales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
-                                  </div>
+                                  {/* Separator */}
+                                  <div className="text-slate-600">|</div>
                                   
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-slate-500">Sales Var %</span>
-                                    <span className={`font-semibold ${salesVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                      {salesVarPercent >= 0 ? '+' : ''}{salesVarPercent.toFixed(1)}%
-                                    </span>
-                                  </div>
+                                  {/* Guests */}
+                                  <div className="text-white">{day.guestCount}</div>
                                   
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-slate-500">Guests</span>
-                                    <span className="text-white">{day.guestCount.toLocaleString('en-US')}</span>
-                                  </div>
+                                  {/* PY Guests */}
+                                  <div className="text-slate-400">{day.payGuestCount}</div>
                                   
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-slate-500">PY Guests</span>
-                                    <span className="text-slate-300">{day.payGuestCount.toLocaleString('en-US')}</span>
-                                  </div>
-                                  
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-slate-500">Guest Var</span>
-                                    <span className={day.guestVariance >= 0 ? 'text-green-400' : 'text-red-400'}>
-                                      {day.guestVariance >= 0 ? '+' : ''}{day.guestVariance}
-                                    </span>
+                                  {/* Guest Var */}
+                                  <div className={day.guestVariance >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                    {day.guestVariance >= 0 ? '+' : ''}{day.guestVariance}
                                   </div>
                                 </div>
                               );
