@@ -1,726 +1,823 @@
-import { useSession, signIn, signOut } from 'next-auth/react';
-import { useState, useEffect } from 'react';
-import Head from 'next/head';
+/**
+ * R365 Dashboard Data Processor - Consolidated Script
+ * Processes all R365 email reports daily at 6:30 AM
+ * 
+ * Reports Processed:
+ * 1. Weekly Sales & Labor Report (Mon-Sun schedule)
+ * 2. Flash Report - Daily sales/guest counts
+ * 3. Scheduled Today - Employee schedules
+ * 4. Labor Actual vs Scheduled - Auto-clockouts & call-offs
+ */
 
-export default function Dashboard() {
-  const { data: session, status } = useSession();
-  const [activeTab, setActiveTab] = useState('sales');
-  const [salesData, setSalesData] = useState([]);
-  const [historicalData, setHistoricalData] = useState([]);
-  const [flashData, setFlashData] = useState([]);
-  const [scheduledData, setScheduledData] = useState([]);
-  const [laborData, setLaborData] = useState([]);
-  const [selectedWeek, setSelectedWeek] = useState('current');
-  const [selectedDate, setSelectedDate] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
 
-  // Fetch data on component mount
-  useEffect(() => {
-    if (status === 'authenticated') {
-      fetchAllData();
+var CONFIG = {
+  // Weekly Sales & Labor
+  WEEKLY_SHEET_NAME: 'Sheet1',
+  HISTORICAL_SHEET_NAME: 'Historical Data',
+  WEEKS_TO_KEEP: 12,
+  PREVIOUS_WEEK_SUBJECT: 'Weekly Sales and Labor Report - Previous Week',
+  CURRENT_WEEK_SUBJECT: 'Weekly Sales and Labor Report',
+  
+  // Flash Report
+  FLASH_DAY_SHEET: 'Flash - Day',
+  FLASH_WTD_SHEET: 'Flash - WTD',
+  FLASH_SUBJECT: 'Flash Report',
+  
+  // Scheduled Today
+  SCHEDULED_SHEET: 'Scheduled Today',
+  SCHEDULED_SUBJECT: 'Labor Actual vs Scheduled - Today',
+  
+  // Labor Report (Auto-clockouts & Call-offs)
+  LABOR_SEARCH_QUERY: 'subject:"Labor Actual vs Scheduled - Punch Details" has:attachment',
+  LABOR_SPREADSHEET_ID: '1WsHBn5qLczH8QZ1c-CyVGfCWzMuLg2vmx5R5MZdHY20',
+  AUTO_CLOCKOUT_SHEET: 'Auto-Clockouts',
+  CALL_OFFS_SHEET: 'Call-Offs',
+  DAYS_TO_KEEP: 7,
+  AUTO_CLOCKOUT_TIME: '5:00 AM'
+};
+
+// ============================================================================
+// MAIN ORCHESTRATOR - Called by daily trigger
+// ============================================================================
+
+function processAllR365Reports() {
+  var today = new Date().getDay(); // 0=Sunday, 1=Monday, etc.
+  
+  Logger.log('=== Starting R365 Report Processing ===');
+  Logger.log('Day of week: ' + today);
+  
+  try {
+    // 1. Weekly Sales & Labor (day-specific logic)
+    if (today === 1) {
+      Logger.log('Monday: Processing Previous Week report');
+      processWeeklySalesPreviousWeek();
+    } else if (today === 2) {
+      Logger.log('Tuesday: Archiving and processing current week');
+      archiveWeeklySales();
+      processWeeklySalesCurrentWeek();
+    } else {
+      Logger.log('Wed-Sun: Processing current week');
+      processWeeklySalesCurrentWeek();
     }
-  }, [status]);
-
-  const fetchAllData = async () => {
-    setLoading(true);
-    setError(null);
     
-    try {
-      const [salesRes, flashRes, scheduledRes, laborRes] = await Promise.all([
-        fetch('/api/sheets?type=sales'),
-        fetch('/api/sheets?type=flash'),
-        fetch('/api/sheets?type=scheduled'),
-        fetch('/api/sheets?type=labor')
+    // 2. Flash Report (daily)
+    Logger.log('Processing Flash Report...');
+    processFlashReport();
+    
+    // 3. Scheduled Today (daily)
+    Logger.log('Processing Scheduled Today...');
+    processScheduledToday();
+    
+    // 4. Labor Report - Auto-clockouts & Call-offs (daily)
+    Logger.log('Processing Labor Report...');
+    processLaborReport();
+    
+    Logger.log('=== All Reports Processed Successfully ===');
+  } catch (error) {
+    Logger.log('ERROR in processAllR365Reports: ' + error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// 1. WEEKLY SALES & LABOR REPORT
+// ============================================================================
+
+function processWeeklySalesPreviousWeek() {
+  var threads = GmailApp.search('subject:"' + CONFIG.PREVIOUS_WEEK_SUBJECT + '" newer_than:2h has:attachment');
+  
+  if (threads.length === 0) {
+    Logger.log('No Previous Week report found');
+    return;
+  }
+  
+  var message = threads[0].getMessages()[0];
+  var attachment = getExcelAttachment(message);
+  
+  if (attachment) {
+    processWeeklySalesAttachment(attachment);
+  }
+}
+
+function processWeeklySalesCurrentWeek() {
+  var threads = GmailApp.search('subject:"' + CONFIG.CURRENT_WEEK_SUBJECT + '" -subject:"Previous Week" newer_than:2h has:attachment');
+  
+  if (threads.length === 0) {
+    Logger.log('No current week report found');
+    return;
+  }
+  
+  var message = threads[0].getMessages()[0];
+  var attachment = getExcelAttachment(message);
+  
+  if (attachment) {
+    processWeeklySalesAttachment(attachment);
+  }
+}
+
+function processWeeklySalesAttachment(attachment) {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = spreadsheet.getSheetByName(CONFIG.WEEKLY_SHEET_NAME);
+  
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(CONFIG.WEEKLY_SHEET_NAME);
+  }
+  
+  var blob = attachment.copyBlob();
+  var file = DriveApp.createFile(blob);
+  var fileId = file.getId();
+  
+  var resource = { mimeType: MimeType.GOOGLE_SHEETS };
+  var convertedFile = Drive.Files.copy(resource, fileId);
+  
+  var tempSheet = SpreadsheetApp.openById(convertedFile.id).getSheets()[0];
+  var lastCol = tempSheet.getLastColumn();
+  var data = tempSheet.getRange(7, 1, 20, lastCol).getValues();
+  
+  sheet.clear();
+  if (data.length > 0) {
+    sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+  }
+  
+  DriveApp.getFileById(fileId).setTrashed(true);
+  DriveApp.getFileById(convertedFile.id).setTrashed(true);
+  
+  Logger.log('Weekly Sales: Imported ' + data.length + ' rows');
+}
+
+function archiveWeeklySales() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var mainSheet = spreadsheet.getSheetByName(CONFIG.WEEKLY_SHEET_NAME);
+  
+  if (!mainSheet || mainSheet.getLastRow() < 2) {
+    Logger.log('No data to archive');
+    return;
+  }
+  
+  var histSheet = spreadsheet.getSheetByName(CONFIG.HISTORICAL_SHEET_NAME);
+  if (!histSheet) {
+    histSheet = spreadsheet.insertSheet(CONFIG.HISTORICAL_SHEET_NAME);
+    histSheet.getRange(1, 1, 1, 11).setValues([[
+      'Week Ending', 'Location', 'Actual Sales', 'Forecast Sales',
+      'Sales Variance', 'Prior Year Sales', 'Labor %', 'Optimal Hours',
+      'Actual Hours', 'Scheduled Hours', 'Sch vs For Var'
+    ]]);
+  }
+  
+  var numCols = mainSheet.getLastColumn();
+  var data = mainSheet.getRange(2, 1, mainSheet.getLastRow() - 1, numCols).getValues();
+  
+  var weekDate = data[0][data[0].length - 1];
+  if (!weekDate || weekDate.toString().length < 5) {
+    weekDate = new Date().toLocaleDateString();
+  }
+  
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    if (row[0]) {
+      histSheet.appendRow([
+        weekDate, row[0], row[7], row[6], row[8], row[9], 
+        row[10], row[12], row[13], row[15], row[18]
       ]);
-
-      if (!salesRes.ok || !flashRes.ok || !scheduledRes.ok || !laborRes.ok) {
-        throw new Error('Failed to fetch data');
-      }
-
-      const salesJson = await salesRes.json();
-      const flashJson = await flashRes.json();
-      const scheduledJson = await scheduledRes.json();
-      const laborJson = await laborRes.json();
-
-      setSalesData(parseSheetData(salesJson.data));
-      setHistoricalData(parseHistoricalData(salesJson.data));
-      setFlashData(parseFlashData(flashJson.data));
-      setScheduledData(parseScheduledData(scheduledJson.data));
-      setLaborData(parseLaborData(laborJson.data));
-      
-      // Set initial selected date to most recent
-      if (flashJson.data && flashJson.data.length > 1) {
-        const dates = flashJson.data.slice(1).map(row => row[11]).filter(Boolean);
-        if (dates.length > 0) {
-          setSelectedDate(dates[0]);
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
     }
-  };
+  }
+  
+  cleanOldWeeklyData(histSheet);
+  Logger.log('Archived week ' + weekDate);
+}
 
-  const parseSheetData = (data) => {
-    if (!data || data.length < 2) return [];
-    
-    // Skip header row
-    const rows = data.slice(1);
-    
-    return rows.map(row => {
-      const locationName = row[0] || '';
-      const actualSales = parseFloat(row[1]) || 0;
-      const forecastSales = parseFloat(row[2]) || 0;
-      const salesVariance = parseFloat(row[3]) || 0;
-      const lySales = parseFloat(row[4]) || 0;
-      const laborPercent = parseFloat(row[5]) || 0;
-      const optimalHours = parseFloat(row[6]) || 0;
-      const actualHours = parseFloat(row[7]) || 0;
-      const optVsActHours = parseFloat(row[8]) || 0;
-      const schVsForLaborVar = parseFloat(row[9]) || 0;
-      const scheduledHours = actualHours - parseFloat(row[10]) || 0;
-      
-      // Calculate additional metrics
-      const salesChange = actualSales - lySales;
-      const salesChangePercent = lySales > 0 ? (salesChange / lySales) * 100 : 0;
-      const actVsOptHours = actualHours - optimalHours;
-      const actVsSchHours = actualHours - scheduledHours;
-      const laborCostPerHour = actualHours > 0 ? (actualSales * (laborPercent / 100)) / actualHours : 0;
-      const productivity = actualHours > 0 ? actualSales / actualHours : 0;
-      
-      // Calculate Opt % and Variance
-      const optLaborPercent = actualSales > 0 ? (optimalHours * laborCostPerHour / actualSales) * 100 : 0;
-      const laborVariance = laborPercent - optLaborPercent;
+function cleanOldWeeklyData(sheet) {
+  var data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return;
+  
+  var weeks = [];
+  for (var i = 1; i < data.length; i++) {
+    var week = data[i][0].toString();
+    if (weeks.indexOf(week) === -1) weeks.push(week);
+  }
+  
+  weeks.sort(function(a, b) { return new Date(b) - new Date(a); });
+  
+  if (weeks.length > CONFIG.WEEKS_TO_KEEP) {
+    var oldWeeks = weeks.slice(CONFIG.WEEKS_TO_KEEP);
+    for (var i = data.length - 1; i >= 1; i--) {
+      if (oldWeeks.indexOf(data[i][0].toString()) > -1) {
+        sheet.deleteRow(i + 1);
+      }
+    }
+  }
+}
 
-      return {
-        location: locationName,
-        actualSales,
-        forecastSales,
-        salesVariance,
-        lySales,
-        salesChange,
-        salesChangePercent,
-        laborPercent,
-        optimalHours,
-        actualHours,
-        scheduledHours,
-        actVsOptHours,
-        actVsSchHours,
-        schVsForLaborVar,
-        laborCostPerHour,
-        productivity,
-        optLaborPercent,
-        laborVariance
-      };
-    }).filter(loc => loc.location);
-  };
+// ============================================================================
+// 2. FLASH REPORT
+// ============================================================================
 
-  const parseHistoricalData = (data) => {
-    if (!data || data.length < 2) return [];
+function processFlashReport() {
+  var threads = GmailApp.search('subject:"' + CONFIG.FLASH_SUBJECT + '" newer_than:2h has:attachment');
+  
+  if (threads.length === 0) {
+    Logger.log('No Flash Report found');
+    return;
+  }
+  
+  var message = threads[0].getMessages()[0];
+  var attachment = getExcelAttachment(message);
+  
+  if (!attachment) {
+    Logger.log('No Flash attachment found');
+    return;
+  }
+  
+  var blob = attachment.copyBlob();
+  var file = DriveApp.createFile(blob);
+  var fileId = file.getId();
+  
+  var resource = { mimeType: MimeType.GOOGLE_SHEETS };
+  var convertedFile = Drive.Files.copy(resource, fileId);
+  
+  var tempSheet = SpreadsheetApp.openById(convertedFile.id).getSheets()[0];
+  var data = tempSheet.getDataRange().getValues();
+  
+  var reportDate = new Date().toLocaleDateString();
+  if (data.length > 3 && data[3][0]) {
+    var dateStr = data[3][0].toString();
+    if (dateStr.includes('Day of ')) {
+      reportDate = dateStr.replace('Day of ', '').trim();
+    }
+  }
+  
+  processFlashDayOfData(data, reportDate);
+  processFlashWTDData(data, reportDate);
+  
+  DriveApp.getFileById(fileId).setTrashed(true);
+  DriveApp.getFileById(convertedFile.id).setTrashed(true);
+  
+  Logger.log('Flash Report processed');
+}
+
+function processFlashDayOfData(data, reportDate) {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = spreadsheet.getSheetByName(CONFIG.FLASH_DAY_SHEET);
+  
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(CONFIG.FLASH_DAY_SHEET);
+    sheet.getRange(1, 1, 1, 14).setValues([[
+      'Date', 'Location', 'Sales', 'Same Day LY Sales', 'Dollar Change', 
+      'Percent Change', 'Avg Sales per Guest', 'Total Counts', 'Same Day LY Counts',
+      'Comps', 'Discounts', 'Voids', 'Total Discounts', 'Discount %'
+    ]]);
+    sheet.getRange(1, 1, 1, 14).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.deleteRows(2, lastRow - 1);
+  }
+  
+  var startRow = 6;
+  
+  for (var i = startRow; i < data.length; i++) {
+    var row = data[i];
+    var location = row[0];
     
-    const rows = data.slice(1);
-    const grouped = {};
+    if (!location || location === 'Totals' || location === '') break;
     
-    rows.forEach(row => {
-      const location = row[0];
-      const weekDate = row[11]; // Assuming date is in column 11
+    sheet.appendRow([
+      reportDate, location, row[1], row[3], row[4], row[5], row[6],
+      row[9], row[10], row[27], row[28], row[31], row[29], row[30]
+    ]);
+  }
+  
+  Logger.log('Flash Day processed');
+}
+
+function processFlashWTDData(data, reportDate) {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = spreadsheet.getSheetByName(CONFIG.FLASH_WTD_SHEET);
+  
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(CONFIG.FLASH_WTD_SHEET);
+    sheet.getRange(1, 1, 1, 14).setValues([[
+      'Date', 'Location', 'Sales', 'Same Week LY Sales', 'Dollar Change', 
+      'Percent Change', 'Avg Sales per Guest', 'Total Counts', 'Same Week LY Counts',
+      'Comps', 'Discounts', 'Voids', 'Total Discounts', 'Discount %'
+    ]]);
+    sheet.getRange(1, 1, 1, 14).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.deleteRows(2, lastRow - 1);
+  }
+  
+  var wtdStartRow = -1;
+  for (var i = 0; i < data.length; i++) {
+    if (data[i][0] && data[i][0].toString().includes('Week To Date')) {
+      wtdStartRow = i + 2;
+      break;
+    }
+  }
+  
+  if (wtdStartRow === -1) {
+    Logger.log('WTD section not found');
+    return;
+  }
+  
+  for (var i = wtdStartRow; i < data.length; i++) {
+    var row = data[i];
+    var location = row[0];
+    
+    if (!location || location === 'Totals' || location === '') break;
+    
+    sheet.appendRow([
+      reportDate, location, row[1], row[3], row[4], row[5], row[6],
+      row[9], row[10], row[27], row[28], row[31], row[29], row[30]
+    ]);
+  }
+  
+  Logger.log('Flash WTD processed');
+}
+
+// ============================================================================
+// 3. SCHEDULED TODAY
+// ============================================================================
+
+function processScheduledToday() {
+  var threads = GmailApp.search('subject:"' + CONFIG.SCHEDULED_SUBJECT + '" newer_than:2h has:attachment');
+  
+  if (threads.length === 0) {
+    Logger.log('No Scheduled Today report found');
+    return;
+  }
+  
+  var message = threads[0].getMessages()[0];
+  var attachment = getExcelAttachment(message);
+  
+  if (!attachment) {
+    Logger.log('No Scheduled attachment found');
+    return;
+  }
+  
+  var blob = attachment.copyBlob();
+  var file = DriveApp.createFile(blob);
+  var fileId = file.getId();
+  
+  var resource = { mimeType: MimeType.GOOGLE_SHEETS };
+  var convertedFile = Drive.Files.copy(resource, fileId);
+  
+  var tempSheet = SpreadsheetApp.openById(convertedFile.id).getSheets()[0];
+  var data = tempSheet.getDataRange().getValues();
+  
+  var reportDate = new Date().toLocaleDateString();
+  if (data.length > 3 && data[3][0]) {
+    var dateStr = data[3][0].toString();
+    if (dateStr.includes('Report Date:')) {
+      reportDate = dateStr.replace('Report Date:', '').trim();
+    }
+  }
+  
+  processScheduledData(data, reportDate);
+  
+  DriveApp.getFileById(fileId).setTrashed(true);
+  DriveApp.getFileById(convertedFile.id).setTrashed(true);
+  
+  Logger.log('Scheduled Today processed');
+}
+
+function processScheduledData(data, reportDate) {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = spreadsheet.getSheetByName(CONFIG.SCHEDULED_SHEET);
+  
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(CONFIG.SCHEDULED_SHEET);
+    sheet.getRange(1, 1, 1, 5).setValues([[
+      'Date', 'Location', 'Employee', 'Sch Start', 'Sch End'
+    ]]);
+    sheet.getRange(1, 1, 1, 5).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.deleteRows(2, lastRow - 1);
+  }
+  
+  var currentLocation = '';
+  var previousEmployeeName = '';
+  
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    
+    if (row[0] && row[0].toString().trim() !== '' && 
+        (!row[1] || row[1].toString().trim() === '') &&
+        (!row[2] || row[2].toString().trim() === '') &&
+        row[5] !== undefined) {
+      var locationName = row[0].toString().trim();
+      if (locationName !== 'Location: More than 5 selected' && 
+          !locationName.includes('Report') &&
+          locationName !== 'Grand Total' &&
+          !locationName.includes('Grand Total')) {
+        currentLocation = locationName;
+        previousEmployeeName = '';
+      }
+      continue;
+    }
+    
+    var employeeName = row[2] ? row[2].toString().trim() : '';
+    if (employeeName && employeeName !== '' && employeeName !== 'Date') {
+      previousEmployeeName = employeeName;
+      continue;
+    }
+    
+    var dateCell = row[4] ? row[4].toString() : '';
+    var schStart = row[17];
+    var schEnd = row[18];
+    
+    if (previousEmployeeName && dateCell && dateCell.includes('2025') && schStart && schEnd) {
+      var formattedStart = formatScheduledTime(schStart);
+      var formattedEnd = formatScheduledTime(schEnd);
       
-      if (!location || !weekDate) return;
-      
-      if (!grouped[location]) {
-        grouped[location] = [];
+      if (formattedStart && formattedEnd && currentLocation) {
+        sheet.appendRow([
+          reportDate,
+          currentLocation,
+          previousEmployeeName,
+          formattedStart,
+          formattedEnd
+        ]);
       }
       
-      const actualSales = parseFloat(row[1]) || 0;
-      const forecastSales = parseFloat(row[2]) || 0;
-      const salesVariance = parseFloat(row[3]) || 0;
-      const lySales = parseFloat(row[4]) || 0;
-      const laborPercent = parseFloat(row[5]) || 0;
-      const optimalHours = parseFloat(row[6]) || 0;
-      const actualHours = parseFloat(row[7]) || 0;
-      const scheduledHours = actualHours - parseFloat(row[10]) || 0;
-      
-      const salesChange = actualSales - lySales;
-      const salesChangePercent = lySales > 0 ? (salesChange / lySales) * 100 : 0;
-      const actVsOptHours = actualHours - optimalHours;
-      const actVsSchHours = actualHours - scheduledHours;
-      const laborCostPerHour = actualHours > 0 ? (actualSales * (laborPercent / 100)) / actualHours : 0;
-      const productivity = actualHours > 0 ? actualSales / actualHours : 0;
-      
-      // Calculate Opt % and Variance for historical data
-      const optLaborPercent = actualSales > 0 ? (optimalHours * laborCostPerHour / actualSales) * 100 : 0;
-      const laborVariance = laborPercent - optLaborPercent;
-      
-      grouped[location].push({
-        weekDate,
-        actualSales,
-        forecastSales,
-        salesVariance,
-        lySales,
-        salesChange,
-        salesChangePercent,
-        laborPercent,
-        optimalHours,
-        actualHours,
-        scheduledHours,
-        actVsOptHours,
-        actVsSchHours,
-        laborCostPerHour,
-        productivity,
-        optLaborPercent,
-        laborVariance
-      });
-    });
-    
-    // Sort each location's data by date (most recent first)
-    Object.keys(grouped).forEach(location => {
-      grouped[location].sort((a, b) => new Date(b.weekDate) - new Date(a.weekDate));
-    });
-    
-    return grouped;
-  };
+      previousEmployeeName = '';
+    }
+  }
+  
+  Logger.log('Scheduled data processed');
+}
 
-  const parseFlashData = (data) => {
-    if (!data || data.length < 2) return [];
+function formatScheduledTime(timeValue) {
+  if (!timeValue) return '';
+  
+  try {
+    var hours, minutes;
     
-    const rows = data.slice(1);
-    const grouped = {};
+    if (timeValue instanceof Date) {
+      var formattedTime = Utilities.formatDate(timeValue, Session.getScriptTimeZone(), 'HH:mm');
+      var timeComponents = formattedTime.split(':');
+      hours = parseInt(timeComponents[0]);
+      minutes = parseInt(timeComponents[1]);
+    } else {
+      var timeStr = timeValue.toString();
+      if (timeStr.includes(' ') && timeStr.includes(':')) {
+        var parts = timeStr.split(' ');
+        if (parts.length >= 2) {
+          var timePart = parts[1];
+          var timeComponents = timePart.split(':');
+          hours = parseInt(timeComponents[0]);
+          minutes = parseInt(timeComponents[1]);
+        }
+      } else {
+        return '';
+      }
+    }
     
-    rows.forEach(row => {
-      const location = row[0];
-      const reportDate = row[11];
+    var period = hours >= 12 ? 'PM' : 'AM';
+    var displayHours = hours > 12 ? hours - 12 : (hours === 0 ? 12 : hours);
+    var displayMinutes = minutes < 10 ? '0' + minutes : minutes;
+    
+    return displayHours + ':' + displayMinutes + ' ' + period;
+  } catch (e) {
+    Logger.log('Error formatting time: ' + e);
+    return '';
+  }
+}
+
+// ============================================================================
+// 4. LABOR REPORT (Auto-clockouts & Call-offs)
+// ============================================================================
+
+function processLaborReport() {
+  var threads = GmailApp.search(CONFIG.LABOR_SEARCH_QUERY, 0, 1);
+  
+  if (threads.length === 0) {
+    Logger.log('No labor report found');
+    return;
+  }
+  
+  var messages = threads[0].getMessages();
+  var latestMessage = messages[messages.length - 1];
+  var attachments = latestMessage.getAttachments();
+  
+  for (var i = 0; i < attachments.length; i++) {
+    var fileName = attachments[i].getName();
+    if (fileName.includes('Labor Actual vs Scheduled') && fileName.endsWith('.xlsx')) {
+      processLaborAttachment(attachments[i], latestMessage.getDate());
+    }
+  }
+  
+  Logger.log('Labor report processed');
+}
+
+function processLaborAttachment(attachment, emailDate) {
+  var blob = attachment.copyBlob();
+  var tempFile = DriveApp.createFile(blob);
+  var tempFileId = tempFile.getId();
+  
+  var resource = { mimeType: MimeType.GOOGLE_SHEETS };
+  var convertedFile = Drive.Files.copy(resource, tempFileId);
+  var tempSheet = SpreadsheetApp.openById(convertedFile.id);
+  var sheet = tempSheet.getSheets()[0];
+  var data = sheet.getDataRange().getValues();
+  
+  DriveApp.getFileById(tempFileId).setTrashed(true);
+  DriveApp.getFileById(convertedFile.id).setTrashed(true);
+  
+  processLaborData(data, emailDate);
+}
+
+function processLaborData(data, emailDate) {
+  var spreadsheet = SpreadsheetApp.openById(CONFIG.LABOR_SPREADSHEET_ID);
+  
+  var reportDateObj = new Date(emailDate);
+  reportDateObj.setDate(reportDateObj.getDate() - 1);
+  
+  var month = String(reportDateObj.getMonth() + 1).padStart(2, '0');
+  var day = String(reportDateObj.getDate()).padStart(2, '0');
+  var year = reportDateObj.getFullYear();
+  var reportDate = month + '/' + day + '/' + year;
+  
+  var currentLocation = '';
+  var autoClockouts = [];
+  var callOffs = [];
+  var employeeData = {};
+  
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    
+    if (row[0] && typeof row[0] === 'string' && row[0].trim() !== '' && 
+        !row[0].includes('Labor Actual') && 
+        !row[0].includes('Show All') &&
+        !row[0].includes('Date') &&
+        row[4] !== 'Date' &&
+        row[5] && !isNaN(parseFloat(row[5]))) {
       
-      if (!location || !reportDate) return;
+      currentLocation = row[0].trim();
+      continue;
+    }
+    
+    if (!row[0] && !row[1] && row[2] && typeof row[2] === 'string' && row[2].trim() !== '') {
+      var employeeName = row[2].trim();
       
-      if (!grouped[location]) {
-        grouped[location] = [];
+      if (employeeName.includes('Date') || employeeName === 'Employee') {
+        continue;
       }
       
-      grouped[location].push({
-        date: reportDate,
-        sales: parseFloat(row[1]) || 0,
-        lySales: parseFloat(row[2]) || 0,
-        salesChange: parseFloat(row[3]) || 0,
-        salesChangePercent: parseFloat(row[4]) || 0,
-        avgPerGuest: parseFloat(row[5]) || 0,
-        guestCount: parseFloat(row[6]) || 0,
-        lyGuestCount: parseFloat(row[7]) || 0
-      });
-    });
-    
-    // Sort each location's data by date (most recent first)
-    Object.keys(grouped).forEach(location => {
-      grouped[location].sort((a, b) => new Date(b.date) - new Date(a.date));
-    });
-    
-    return grouped;
-  };
-
-  const parseScheduledData = (data) => {
-    if (!data || data.length < 2) return [];
-    
-    const rows = data.slice(1);
-    const grouped = {};
-    
-    rows.forEach(row => {
-      const location = row[0];
-      const reportDate = row[5];
+      var empKey = currentLocation + '|' + employeeName;
       
-      if (!location || !reportDate) return;
-      
-      if (!grouped[location]) {
-        grouped[location] = [];
-      }
-      
-      grouped[location].push({
-        date: reportDate,
-        employeeName: row[1] || '',
-        jobTitle: row[2] || '',
-        startTime: row[3] || '',
-        endTime: row[4] || ''
-      });
-    });
-    
-    return grouped;
-  };
-
-  const parseLaborData = (data) => {
-    if (!data || data.length < 2) return [];
-    
-    const rows = data.slice(1);
-    const grouped = {};
-    
-    rows.forEach(row => {
-      const location = row[0];
-      const reportDate = row[6];
-      
-      if (!location || !reportDate) return;
-      
-      if (!grouped[location]) {
-        grouped[location] = {
-          autoClockouts: [],
-          callOffs: []
+      if (!employeeData[empKey]) {
+        employeeData[empKey] = {
+          location: currentLocation,
+          employee: employeeName,
+          actualHrs: 0,
+          schedHrs: 0,
+          hasPunchData: false,
+          schedStart: null,
+          schedEnd: null,
+          actStart: null,
+          actEnd: null,
+          allPunches: []
         };
       }
       
-      const type = row[5] || '';
-      const entry = {
-        date: reportDate,
-        employeeName: row[1] || '',
-        jobTitle: row[2] || '',
-        shiftTime: row[3] || '',
-        clockTime: row[4] || ''
-      };
-      
-      if (type.toLowerCase().includes('auto')) {
-        grouped[location].autoClockouts.push(entry);
-      } else if (type.toLowerCase().includes('call')) {
-        grouped[location].callOffs.push(entry);
-      }
-    });
-    
-    return grouped;
-  };
-
-  const getAvailableDates = () => {
-    if (!flashData || Object.keys(flashData).length === 0) return [];
-    
-    const allDates = new Set();
-    Object.values(flashData).forEach(locationData => {
-      locationData.forEach(entry => {
-        if (entry.date) allDates.add(entry.date);
-      });
-    });
-    
-    return Array.from(allDates).sort((a, b) => new Date(b) - new Date(a));
-  };
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
-  };
-
-  const formatPercent = (value) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
-  };
-
-  const formatNumber = (value) => {
-    return new Intl.NumberFormat('en-US').format(Math.round(value));
-  };
-
-  if (status === 'loading' || loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
-      </div>
-    );
-  }
-
-  if (status === 'unauthenticated') {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-white text-3xl font-bold mb-6">R365 Dashboard</h1>
-          <button
-            onClick={() => signIn('google')}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg"
-          >
-            Sign in with Google
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-red-500 text-2xl font-bold mb-4">Error Loading Data</h1>
-          <p className="text-white mb-6">{error}</p>
-          <button
-            onClick={fetchAllData}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-slate-950">
-      <Head>
-        <title>R365 Dashboard</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-      </Head>
-
-      {/* Header */}
-      <div className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-2 md:px-4 py-2 md:py-3">
-          <div className="flex justify-between items-center">
-            <h1 className="text-white text-lg md:text-2xl font-bold">Andy's Dashboard</h1>
-            <button
-              onClick={() => signOut()}
-              className="bg-red-600 hover:bg-red-700 text-white text-xs md:text-sm font-bold py-1.5 md:py-2 px-3 md:px-4 rounded"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="bg-slate-900 border-b border-slate-800 sticky top-[52px] md:top-[60px] z-40">
-        <div className="max-w-7xl mx-auto px-2 md:px-4">
-          <div className="flex overflow-x-auto scrollbar-hide gap-1 md:gap-2 py-2">
-            {[
-              { id: 'sales', label: 'Weekly Sales & Labor' },
-              { id: 'flash', label: 'Sales/Guest Counts' },
-              { id: 'scheduled', label: 'Scheduled Today' },
-              { id: 'labor', label: 'Auto-Clockouts & Call-Offs' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`whitespace-nowrap px-3 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-semibold transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-2 md:px-4 py-4 md:py-6">
+      for (var j = i + 1; j < Math.min(i + 5, data.length); j++) {
+        var detailRow = data[j];
         
-        {/* Weekly Sales & Labor Tab */}
-        {activeTab === 'sales' && (
-          <div className="space-y-3 md:space-y-4">
-            {/* Week Selector */}
-            <div className="bg-slate-900 rounded-lg p-3 md:p-4">
-              <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-                <label className="text-slate-400 text-sm font-semibold">Select Week:</label>
-                <select
-                  value={selectedWeek}
-                  onChange={(e) => setSelectedWeek(e.target.value)}
-                  className="bg-slate-800 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                >
-                  <option value="current">Current Week</option>
-                  {Object.keys(historicalData).length > 0 && 
-                    historicalData[Object.keys(historicalData)[0]]?.map((week, idx) => (
-                      <option key={idx} value={week.weekDate}>
-                        {week.weekDate}
-                      </option>
-                    ))
-                  }
-                </select>
-              </div>
-            </div>
+        if (detailRow[2] && typeof detailRow[2] === 'string' && detailRow[2].trim() !== '') {
+          break;
+        }
+        
+        if (detailRow[4] && detailRow[4] instanceof Date) {
+          var actualHrs = parseFloat(detailRow[5]) || 0;
+          var schedHrs = parseFloat(detailRow[6]) || 0;
+          var actStart = detailRow[15];
+          var actEnd = detailRow[16];
+          var schStart = detailRow[17];
+          var schEnd = detailRow[18];
+          
+          employeeData[empKey].actualHrs += actualHrs;
+          employeeData[empKey].schedHrs += schedHrs;
+          
+          if (schStart) {
+            employeeData[empKey].schedStart = schStart;
+            employeeData[empKey].schedEnd = schEnd;
+          }
+          
+          if (actStart || actualHrs > 0) {
+            employeeData[empKey].hasPunchData = true;
+            
+            if (actStart) employeeData[empKey].actStart = actStart;
+            if (actEnd) employeeData[empKey].actEnd = actEnd;
+            
+            if (actStart && actEnd) {
+              employeeData[empKey].allPunches.push({
+                clockIn: formatLaborTime(actStart),
+                clockOut: formatLaborTime(actEnd)
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  for (var empKey in employeeData) {
+    var emp = employeeData[empKey];
+    
+    if (emp.schedHrs > 0 && emp.actualHrs === 0 && !emp.hasPunchData) {
+      var schedTime = formatLaborScheduledTime(emp.schedStart, emp.schedEnd);
+      callOffs.push({
+        location: emp.location,
+        employee: emp.employee,
+        scheduledTime: schedTime
+      });
+    }
+    
+    for (var p = 0; p < emp.allPunches.length; p++) {
+      if (emp.allPunches[p].clockOut === CONFIG.AUTO_CLOCKOUT_TIME) {
+        autoClockouts.push({
+          location: emp.location,
+          employee: emp.employee,
+          clockIn: emp.allPunches[p].clockIn,
+          clockOut: emp.allPunches[p].clockOut
+        });
+      }
+    }
+  }
+  
+  if (autoClockouts.length > 0) {
+    saveLaborAutoClockouts(spreadsheet, autoClockouts, reportDate);
+  }
+  
+  if (callOffs.length > 0) {
+    saveLaborCallOffs(spreadsheet, callOffs, reportDate);
+  }
+  
+  Logger.log('Labor: ' + callOffs.length + ' call-offs, ' + autoClockouts.length + ' auto-clockouts');
+}
 
-            {/* Location Cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
-              {(selectedWeek === 'current' ? salesData : 
-                Object.entries(historicalData).map(([location, weeks]) => {
-                  const weekData = weeks.find(w => w.weekDate === selectedWeek);
-                  return weekData ? { location, ...weekData } : null;
-                }).filter(Boolean)
-              ).map((loc, idx) => (
-                <div key={idx} className="bg-slate-900 rounded-lg p-3 md:p-4 border border-slate-800">
-                  {/* Location Name */}
-                  <h2 className="text-white text-base md:text-lg font-bold mb-3 md:mb-4">{loc.location}</h2>
-                  
-                  {/* Sales Section */}
-                  <div className="bg-slate-800 rounded-lg p-2 md:p-3 mb-3 md:mb-4">
-                    <p className="text-slate-400 text-xs font-semibold mb-2 md:mb-3">SALES</p>
-                    <div className="grid grid-cols-2 gap-2 md:gap-3">
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">Actual</p>
-                        <p className="text-white text-sm md:text-base font-bold">{formatCurrency(loc.actualSales)}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">Forecast</p>
-                        <p className="text-white text-sm md:text-base font-bold">{formatCurrency(loc.forecastSales)}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">vs LY</p>
-                        <p className={`text-sm md:text-base font-bold ${loc.salesChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {formatCurrency(loc.salesChange)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">% Change</p>
-                        <p className={`text-sm md:text-base font-bold ${loc.salesChangePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {formatPercent(loc.salesChangePercent)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+function formatLaborTime(timeValue) {
+  if (!timeValue) return '';
+  
+  if (timeValue instanceof Date) {
+    return Utilities.formatDate(timeValue, 'America/Chicago', 'h:mm a');
+  }
+  
+  return String(timeValue);
+}
 
-                  {/* Labor Section */}
-                  <div className="bg-slate-800 rounded-lg p-2 md:p-3 mb-3 md:mb-4">
-                    <p className="text-slate-400 text-xs font-semibold mb-2 md:mb-3">LABOR</p>
-                    <div className="grid grid-cols-3 gap-2 md:gap-3 mb-3">
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">Labor %</p>
-                        <p className={`text-sm md:text-base font-bold ${loc.laborPercent > loc.optLaborPercent ? 'text-red-400' : 'text-green-400'}`}>
-                          {loc.laborPercent.toFixed(1)}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">Opt %</p>
-                        <p className="text-white text-sm md:text-base font-bold">{loc.optLaborPercent.toFixed(1)}%</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-500 text-xs mb-1">Variance</p>
-                        <p className={`text-sm md:text-base font-bold ${loc.laborVariance > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                          {loc.laborVariance >= 0 ? '+' : ''}{loc.laborVariance.toFixed(1)}%
-                        </p>
-                      </div>
-                    </div>
+function formatLaborScheduledTime(start, end) {
+  if (!start || !end) return 'Unknown';
+  
+  var startStr = formatLaborTime(start);
+  var endStr = formatLaborTime(end);
+  
+  return startStr + ' - ' + endStr;
+}
 
-                    {/* Hours Comparison */}
-                    <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
-                      <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">HOURS</p>
-                      <div className="space-y-0.5 md:space-y-1">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-500 text-xs">Sch/For</span>
-                          <span className={`font-semibold text-xs ${loc.schVsForLaborVar > 0 ? 'text-orange-400' : 'text-green-400'}`}>
-                            {loc.schVsForLaborVar > 0 ? '+' : ''}{loc.schVsForLaborVar.toFixed(1)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-500 text-xs">Act/Sch</span>
-                          <span className={`font-semibold text-xs ${loc.actVsSchHours > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                            {loc.actVsSchHours > 0 ? '+' : ''}{loc.actVsSchHours.toFixed(1)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-500 text-xs">Act/Opt</span>
-                          <span className={`font-semibold text-xs ${loc.actVsOptHours > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                            {loc.actVsOptHours > 0 ? '+' : ''}{loc.actVsOptHours.toFixed(1)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+function saveLaborAutoClockouts(spreadsheet, clockouts, reportDate) {
+  var sheet = spreadsheet.getSheetByName(CONFIG.AUTO_CLOCKOUT_SHEET);
+  
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(CONFIG.AUTO_CLOCKOUT_SHEET);
+    sheet.getRange(1, 1, 1, 6).setValues([['Report Date', 'Location', 'Employee', 'Clock In', 'Clock Out', 'Status']]);
+    sheet.getRange(1, 1, 1, 6).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  
+  for (var i = 0; i < clockouts.length; i++) {
+    sheet.appendRow([
+      reportDate,
+      clockouts[i].location,
+      clockouts[i].employee,
+      clockouts[i].clockIn,
+      clockouts[i].clockOut,
+      'Needs Fix'
+    ]);
+  }
+  
+  cleanLaborOldData(sheet);
+}
 
-                  {/* Hours Details */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-slate-800 rounded p-1.5 md:p-2">
-                      <p className="text-slate-500 text-xs mb-0.5">Optimal</p>
-                      <p className="text-white text-xs md:text-sm font-bold">{loc.optimalHours.toFixed(1)}</p>
-                    </div>
-                    <div className="bg-slate-800 rounded p-1.5 md:p-2">
-                      <p className="text-slate-500 text-xs mb-0.5">Scheduled</p>
-                      <p className="text-white text-xs md:text-sm font-bold">{loc.scheduledHours.toFixed(1)}</p>
-                    </div>
-                    <div className="bg-slate-800 rounded p-1.5 md:p-2">
-                      <p className="text-slate-500 text-xs mb-0.5">Actual</p>
-                      <p className="text-white text-xs md:text-sm font-bold">{loc.actualHours.toFixed(1)}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+function saveLaborCallOffs(spreadsheet, callOffs, reportDate) {
+  var sheet = spreadsheet.getSheetByName(CONFIG.CALL_OFFS_SHEET);
+  
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(CONFIG.CALL_OFFS_SHEET);
+    sheet.getRange(1, 1, 1, 4).setValues([['Report Date', 'Location', 'Employee', 'Scheduled Time']]);
+    sheet.getRange(1, 1, 1, 4).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  
+  for (var i = 0; i < callOffs.length; i++) {
+    sheet.appendRow([
+      reportDate,
+      callOffs[i].location,
+      callOffs[i].employee,
+      callOffs[i].scheduledTime
+    ]);
+  }
+  
+  cleanLaborOldData(sheet);
+}
 
-        {/* Flash Tab - Sales & Guest Counts */}
-        {activeTab === 'flash' && (
-          <div className="space-y-3 md:space-y-4">
-            {/* Date Selector */}
-            <div className="bg-slate-900 rounded-lg p-3 md:p-4">
-              <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-                <label className="text-slate-400 text-sm font-semibold">Select Date:</label>
-                <select
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-slate-800 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                >
-                  {getAvailableDates().map((date, idx) => (
-                    <option key={idx} value={date}>{date}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+function cleanLaborOldData(sheet) {
+  var data = sheet.getDataRange().getValues();
+  var cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - CONFIG.DAYS_TO_KEEP);
+  
+  for (var i = data.length - 1; i > 0; i--) {
+    var rowDate = new Date(data[i][0]);
+    if (rowDate < cutoffDate) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+}
 
-            {/* Location Cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
-              {Object.entries(flashData).map(([location, entries]) => {
-                const dayData = entries.find(e => e.date === selectedDate);
-                if (!dayData) return null;
+// ============================================================================
+// SHARED UTILITIES
+// ============================================================================
 
-                return (
-                  <div key={location} className="bg-slate-900 rounded-lg p-3 md:p-4 border border-slate-800">
-                    <h2 className="text-white text-base md:text-lg font-bold mb-3 md:mb-4">{location}</h2>
-                    
-                    {/* Sales */}
-                    <div className="bg-slate-800 rounded-lg p-2 md:p-3 mb-3">
-                      <p className="text-slate-400 text-xs font-semibold mb-2">SALES</p>
-                      <div className="grid grid-cols-2 gap-2 md:gap-3">
-                        <div>
-                          <p className="text-slate-500 text-xs mb-1">Today</p>
-                          <p className="text-white text-sm md:text-base font-bold">{formatCurrency(dayData.sales)}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-500 text-xs mb-1">LY</p>
-                          <p className="text-white text-sm md:text-base font-bold">{formatCurrency(dayData.lySales)}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-500 text-xs mb-1">$ Change</p>
-                          <p className={`text-sm md:text-base font-bold ${dayData.salesChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {formatCurrency(dayData.salesChange)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-slate-500 text-xs mb-1">% Change</p>
-                          <p className={`text-sm md:text-base font-bold ${dayData.salesChangePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {formatPercent(dayData.salesChangePercent)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+function getExcelAttachment(message) {
+  var attachments = message.getAttachments();
+  
+  for (var i = 0; i < attachments.length; i++) {
+    var name = attachments[i].getName().toLowerCase();
+    if (name.indexOf('.xlsx') > -1 || name.indexOf('.xls') > -1) {
+      return attachments[i];
+    }
+  }
+  
+  return null;
+}
 
-                    {/* Guest Counts */}
-                    <div className="bg-slate-800 rounded-lg p-2 md:p-3">
-                      <p className="text-slate-400 text-xs font-semibold mb-2">GUEST COUNTS</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div>
-                          <p className="text-slate-500 text-xs mb-1">Today</p>
-                          <p className="text-white text-sm md:text-base font-bold">{formatNumber(dayData.guestCount)}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-500 text-xs mb-1">LY</p>
-                          <p className="text-white text-sm md:text-base font-bold">{formatNumber(dayData.lyGuestCount)}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-500 text-xs mb-1">Avg $/Guest</p>
-                          <p className="text-white text-sm md:text-base font-bold">${dayData.avgPerGuest.toFixed(2)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+// ============================================================================
+// TRIGGER SETUP
+// ============================================================================
 
-        {/* Scheduled Today Tab */}
-        {activeTab === 'scheduled' && (
-          <div className="space-y-3 md:space-y-4">
-            {Object.entries(scheduledData).map(([location, employees]) => {
-              if (!employees || employees.length === 0) return null;
-              
-              // Get the most recent date
-              const mostRecentDate = employees[0]?.date;
-              const todayEmployees = employees.filter(e => e.date === mostRecentDate);
-              
-              return (
-                <div key={location} className="bg-slate-900 rounded-lg p-3 md:p-4 border border-slate-800">
-                  <h2 className="text-white text-base md:text-lg font-bold mb-3">{location}</h2>
-                  <p className="text-slate-400 text-xs mb-3">{mostRecentDate}</p>
-                  
-                  <div className="space-y-2">
-                    {todayEmployees.map((emp, idx) => (
-                      <div key={idx} className="bg-slate-800 rounded-lg p-2 md:p-3">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-2">
-                          <div className="flex-1">
-                            <p className="text-white text-sm md:text-base font-semibold">{emp.employeeName}</p>
-                            <p className="text-slate-400 text-xs">{emp.jobTitle}</p>
-                          </div>
-                          <div className="text-left sm:text-right">
-                            <p className="text-white text-sm font-semibold">{emp.startTime} - {emp.endTime}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+function setupDailyTrigger() {
+  // Delete ALL existing triggers in this project
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    ScriptApp.deleteTrigger(triggers[i]);
+  }
+  
+  // Create ONE trigger for the main orchestrator function
+  ScriptApp.newTrigger('processAllR365Reports')
+    .timeBased()
+    .atHour(6)
+    .nearMinute(30)
+    .everyDays(1)
+    .create();
+  
+  Logger.log('✓ Daily trigger created for 6:30 AM');
+  Logger.log('✓ Trigger calls: processAllR365Reports()');
+  Logger.log('✓ All 4 reports will be processed automatically');
+}
 
-        {/* Auto-Clockouts & Call-Offs Tab */}
-        {activeTab === 'labor' && (
-          <div className="space-y-3 md:space-y-4">
-            {Object.entries(laborData).map(([location, data]) => {
-              const hasAutoClockouts = data.autoClockouts && data.autoClockouts.length > 0;
-              const hasCallOffs = data.callOffs && data.callOffs.length > 0;
-              
-              if (!hasAutoClockouts && !hasCallOffs) return null;
-              
-              return (
-                <div key={location} className="bg-slate-900 rounded-lg p-3 md:p-4 border border-slate-800">
-                  <h2 className="text-white text-base md:text-lg font-bold mb-3 md:mb-4">{location}</h2>
-                  
-                  {/* Auto-Clockouts */}
-                  {hasAutoClockouts && (
-                    <div className="mb-4">
-                      <h3 className="text-red-400 text-sm font-semibold mb-2">Auto-Clockouts</h3>
-                      <div className="space-y-2">
-                        {data.autoClockouts.map((entry, idx) => (
-                          <div key={idx} className="bg-slate-800 rounded-lg p-2 md:p-3">
-                            <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                              <div className="flex-1">
-                                <p className="text-white text-sm font-semibold">{entry.employeeName}</p>
-                                <p className="text-slate-400 text-xs">{entry.jobTitle}</p>
-                              </div>
-                              <div className="text-left sm:text-right">
-                                <p className="text-slate-300 text-xs">{entry.date}</p>
-                                <p className="text-slate-400 text-xs">Shift: {entry.shiftTime}</p>
-                                <p className="text-red-400 text-xs">Clocked: {entry.clockTime}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Call-Offs */}
-                  {hasCallOffs && (
-                    <div>
-                      <h3 className="text-orange-400 text-sm font-semibold mb-2">Call-Offs</h3>
-                      <div className="space-y-2">
-                        {data.callOffs.map((entry, idx) => (
-                          <div key={idx} className="bg-slate-800 rounded-lg p-2 md:p-3">
-                            <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
-                              <div className="flex-1">
-                                <p className="text-white text-sm font-semibold">{entry.employeeName}</p>
-                                <p className="text-slate-400 text-xs">{entry.jobTitle}</p>
-                              </div>
-                              <div className="text-left sm:text-right">
-                                <p className="text-slate-300 text-xs">{entry.date}</p>
-                                <p className="text-orange-400 text-xs">Scheduled: {entry.shiftTime}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+// ============================================================================
+// MANUAL TEST FUNCTIONS
+// ============================================================================
+
+function testAll() {
+  Logger.log('=== MANUAL TEST - ALL REPORTS ===');
+  processAllR365Reports();
+}
+
+function testWeeklySales() {
+  Logger.log('=== Testing Weekly Sales ===');
+  var today = new Date().getDay();
+  if (today === 1) {
+    processWeeklySalesPreviousWeek();
+  } else {
+    processWeeklySalesCurrentWeek();
+  }
+}
+
+function testFlash() {
+  Logger.log('=== Testing Flash Report ===');
+  processFlashReport();
+}
+
+function testScheduled() {
+  Logger.log('=== Testing Scheduled Today ===');
+  processScheduledToday();
+}
+
+function testLabor() {
+  Logger.log('=== Testing Labor Report ===');
+  processLaborReport();
 }
