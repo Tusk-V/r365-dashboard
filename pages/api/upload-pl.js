@@ -55,7 +55,6 @@ export default async function handler(req, res) {
         const plData = parseSheet(sheet, sheetName);
         
         if (plData) {
-          // Upsert the data
           await db.collection('pl_data').updateOne(
             { location: plData.location, periodEnding: plData.periodEnding },
             { 
@@ -97,18 +96,16 @@ export default async function handler(req, res) {
 }
 
 function parseSheet(sheet, sheetName) {
-  // Get cell value helper
   const getCellValue = (cellRef) => {
     const cell = sheet[cellRef];
     if (!cell) return null;
     return cell.v;
   };
 
-  // Row 2: Location name (e.g., "201 - Carrollton")
+  // Row 2: Location name
   const locationCell = getCellValue('A2');
   if (!locationCell) return null;
   
-  // Extract just the name part after the number
   const locationMatch = locationCell.match(/^\d+\s*-\s*(.+)$/);
   const location = locationMatch ? locationMatch[1].trim() : locationCell;
   
@@ -117,7 +114,6 @@ function parseSheet(sheet, sheetName) {
   let periodEnding = '';
   if (periodCell) {
     if (typeof periodCell === 'number') {
-      // Excel date serial number
       const date = XLSX.SSF.parse_date_code(periodCell);
       periodEnding = `${date.m}/${date.d}/${date.y}`;
     } else {
@@ -125,36 +121,31 @@ function parseSheet(sheet, sheetName) {
     }
   }
 
-  // Parse all rows preserving structure
+  // Parse all rows
   const rows = [];
   let totalSales = { period: 0, ytd: 0 };
   
-  // Find Total Sales first for percentage calculations
+  // Find Total Sales first
   for (let rowNum = 6; rowNum <= 150; rowNum++) {
     const label = getCellValue(`A${rowNum}`);
     if (label === 'Total Sales') {
-      // Look for the row with actual values
-      const nextRow = rowNum + 1;
-      const nextLabel = getCellValue(`A${nextRow}`);
-      if (nextLabel === 'Total Sales' || (getCellValue(`B${rowNum}`) !== null && getCellValue(`B${rowNum}`) !== 0)) {
-        totalSales.period = parseFloat(getCellValue(`B${rowNum}`)) || 0;
-        totalSales.ytd = parseFloat(getCellValue(`D${rowNum}`)) || 0;
-        if (totalSales.period === 0) {
-          totalSales.period = parseFloat(getCellValue(`B${nextRow}`)) || 0;
-          totalSales.ytd = parseFloat(getCellValue(`D${nextRow}`)) || 0;
-        }
+      const periodVal = getCellValue(`B${rowNum}`);
+      const ytdVal = getCellValue(`D${rowNum}`);
+      if (periodVal && periodVal !== 0) {
+        totalSales.period = parseFloat(periodVal) || 0;
+        totalSales.ytd = parseFloat(ytdVal) || 0;
+        break;
       }
-      break;
     }
   }
 
-  // If we didn't find Total Sales inline, check the footer row 143
+  // Check footer row 143 as fallback
   if (totalSales.period === 0) {
     totalSales.period = parseFloat(getCellValue('B143')) || 0;
     totalSales.ytd = parseFloat(getCellValue('D143')) || 0;
   }
 
-  // Now parse all rows
+  // Parse all rows
   for (let rowNum = 6; rowNum <= 142; rowNum++) {
     const label = getCellValue(`A${rowNum}`);
     if (!label) continue;
@@ -162,12 +153,10 @@ function parseSheet(sheet, sheetName) {
     const periodValue = getCellValue(`B${rowNum}`);
     const ytdValue = getCellValue(`D${rowNum}`);
     
-    // Determine row type based on label
     const isSection = isSectionHeader(label);
     const isTotal = label.startsWith('Total ');
     const isSubHeader = isSubHeaderRow(label);
     
-    // Calculate percentages
     let periodPercent = null;
     let ytdPercent = null;
     
@@ -192,10 +181,6 @@ function parseSheet(sheet, sheetName) {
     });
   }
 
-  // Add Net Profit row
-  const netProfitPeriod = getCellValue('B142');
-  const netProfitYtd = getCellValue('D142');
-  
   return {
     location,
     periodEnding,
@@ -205,31 +190,17 @@ function parseSheet(sheet, sheetName) {
 }
 
 function isSectionHeader(label) {
-  const sections = [
-    'Sales',
-    'Prime Cost',
-    'Operating Expense',
-    'Non Controllable Expense'
-  ];
+  const sections = ['Sales', 'Prime Cost', 'Operating Expense', 'Non Controllable Expense'];
   return sections.includes(label);
 }
 
 function isSubHeaderRow(label) {
   const subHeaders = [
-    'Comps & Discounts',
-    'Food and Paper Cost',
-    'Salaries and Wages',
-    'Manager Wages',
-    'Payroll Taxes',
-    'Payroll Benefits',
-    'Direct Operating Expense',
-    'Utilities',
-    'Advertising',
-    'General and Administrative',
-    'Market Manager Benefits and Taxes',
-    'MM Payroll Taxes',
-    'Occupancy Costs',
-    'Depreciation and Amortization'
+    'Comps & Discounts', 'Food and Paper Cost', 'Salaries and Wages',
+    'Manager Wages', 'Payroll Taxes', 'Payroll Benefits',
+    'Direct Operating Expense', 'Utilities', 'Advertising',
+    'General and Administrative', 'Market Manager Benefits and Taxes',
+    'MM Payroll Taxes', 'Occupancy Costs', 'Depreciation and Amortization'
   ];
   return subHeaders.includes(label);
 }
