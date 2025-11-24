@@ -10,7 +10,8 @@ const SPREADSHEET_ID = '1WsHBn5qLczH8QZ1c-CyVGfCWzMuLg2vmx5R5MZdHY20';
 const SHEET_NAME = 'Sheet1';
 const AUTO_CLOCKOUTS_SHEET = 'Auto-Clockouts';
 const CALL_OFFS_SHEET = 'Call-Offs';
-const FLASH_DAILY_SHEET = 'Flash - Daily';
+const FLASH_DAILY_SALES_SHEET = 'Flash - Daily Sales';  // NEW: Sales & Guests  
+const FLASH_DAILY_LABOR_SHEET = 'Flash - Daily Labor';  // NEW: Labor hours
 const SCHEDULED_TODAY_SHEET = 'Scheduled Today';
 
 export default function Home() {
@@ -454,14 +455,14 @@ export default function Home() {
     setDailyFlashError(null);
     
     try {
-      const range = `${FLASH_DAILY_SHEET}!A2:I`;
+      const range = `${FLASH_DAILY_SALES_SHEET}!A2:I`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
       
       const response = await fetch(url);
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to load daily flash data');
+        throw new Error(errorData.error?.message || 'Failed to load daily sales data');
       }
       
       const data = await response.json();
@@ -499,7 +500,7 @@ export default function Home() {
       
       setDailyFlashData(groupedByLocation);
     } catch (err) {
-      console.error('Error loading daily flash data:', err);
+      console.error('Error loading daily sales data:', err);
       setDailyFlashError(err.message);
     } finally {
       setDailyFlashLoading(false);
@@ -511,7 +512,7 @@ export default function Home() {
     setDailyLaborError(null);
     
     try {
-      const range = `${FLASH_DAILY_SHEET}!A2:O`;
+      const range = `${FLASH_DAILY_LABOR_SHEET}!A2:J`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
       
       const response = await fetch(url);
@@ -538,14 +539,26 @@ export default function Home() {
           groupedByLocation[location] = [];
         }
         
+        // New column mapping for Flash - Daily Labor sheet:
+        // 0: Report Date
+        // 1: Location
+        // 2: Sales
+        // 3: Actual Hours
+        // 4: Optimal Hours
+        // 5: Hours Variance
+        // 6: Labor %
+        // 7: Optimal Labor %
+        // 8: Labor % Variance
+        // 9: Labor Cost Per Hour
+        
         groupedByLocation[location].push({
           date: row[0] || '',
-          actualHours: parseFloat(row[9]) || 0,
-          optimalHours: parseFloat(row[10]) || 0,
-          hoursVariance: parseFloat(row[11]) || 0,
-          actualLaborPercent: parseFloat(row[8]) || 0,
-          optimalLaborPercent: parseFloat(row[12]) || 0,
-          laborPercentVariance: parseFloat(row[13]) || 0
+          actualHours: parseFloat(row[3]) || 0,
+          optimalHours: parseFloat(row[4]) || 0,
+          hoursVariance: parseFloat(row[5]) || 0,
+          actualLaborPercent: parseFloat(row[6]) || 0,
+          optimalLaborPercent: parseFloat(row[7]) || 0,
+          laborPercentVariance: parseFloat(row[8]) || 0
         });
       });
       
