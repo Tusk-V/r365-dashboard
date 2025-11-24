@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../auth/[...nextauth]';
-import clientPromise from '../../../../lib/mongodb';
+import { authOptions } from '../auth/[...nextauth]';
+import clientPromise from '../../../lib/mongodb';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
