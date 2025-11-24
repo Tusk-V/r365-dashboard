@@ -1,9 +1,7 @@
-// pages/api/get-pl-summary.js
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "./auth/[...nextauth]";
-import { MongoClient } from 'mongodb';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from './auth/[...nextauth]';
+import clientPromise from '../../lib/mongodb';
 
-const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 export default async function handler(req, res) {
@@ -11,29 +9,26 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
-  // Only admin can see summary
-  if (session.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-    return res.status(403).json({ error: 'Not authorized' });
-  }
-
   try {
-    const client = new MongoClient(MONGODB_URI);
-    await client.connect();
-    const db = client.db('andysdashboard');
-    const collection = db.collection('pl_data');
+    const session = await getServerSession(req, res, authOptions);
+    if (!session) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
-    const summary = await collection.find({})
+    if (session.user.email !== ADMIN_EMAIL) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const client = await clientPromise;
+    const db = client.db('andysdashboard');
+
+    const plData = await db.collection('pl_data')
+      .find({})
       .project({ location: 1, periodEnding: 1, uploadedAt: 1, uploadedBy: 1 })
-      .sort({ location: 1, periodEnding: -1 })
+      .sort({ location: 1 })
       .toArray();
 
-    await client.close();
-    return res.status(200).json({ summary });
+    return res.status(200).json({ data: plData });
 
   } catch (error) {
     console.error('Get P&L summary error:', error);
