@@ -32,8 +32,7 @@ export default async function handler(req, res) {
       allowedLocations = user.plAccess.locations || [];
     }
 
-    // Get requested location
-    const { location } = req.query;
+    const { location, period, listPeriods } = req.query;
 
     // Get all available locations from database
     const allLocations = await db.collection('pl_data').distinct('location');
@@ -63,9 +62,29 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'No access to this location' });
     }
 
-    // Get P&L data for location
+    // If listPeriods=true, return list of available periods for this location
+    if (listPeriods === 'true') {
+      const periods = await db.collection('pl_data')
+        .find({ location })
+        .project({ periodEnding: 1 })
+        .sort({ periodEnding: -1 })
+        .toArray();
+      
+      const uniquePeriods = [...new Set(periods.map(p => p.periodEnding))];
+      
+      return res.status(200).json({
+        periods: uniquePeriods
+      });
+    }
+
+    // Get P&L data for location (and optionally specific period)
+    const query = { location };
+    if (period) {
+      query.periodEnding = period;
+    }
+
     const plData = await db.collection('pl_data').findOne(
-      { location },
+      query,
       { sort: { periodEnding: -1 } }
     );
 
