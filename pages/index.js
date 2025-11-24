@@ -699,49 +699,19 @@ export default function Home() {
     return `${formatDate(minDate)} - ${formatDate(maxDate)}`;
   };
 
+  // Get all auto-clockout employees for a location (data is already limited to 7 days by script)
   const getAutoClockoutEmployees = (locationName) => {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    
-    const monday = new Date(today);
-    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    monday.setDate(today.getDate() + diff);
-    monday.setHours(0, 0, 0, 0);
-    
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-    
     const employees = clockouts
-      .filter(c => {
-        if (c.location !== locationName) return false;
-        const reportDate = new Date(c.reportDate);
-        return reportDate >= monday && reportDate <= sunday;
-      })
+      .filter(c => c.location === locationName)
       .map(c => c.employee);
     
     return employees;
   };
 
+  // Get all call-off employees for a location (data is already limited to 7 days by script)
   const getCallOffEmployees = (locationName) => {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    
-    const monday = new Date(today);
-    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    monday.setDate(today.getDate() + diff);
-    monday.setHours(0, 0, 0, 0);
-    
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-    
     const employees = callOffs
-      .filter(c => {
-        if (c.location !== locationName) return false;
-        const reportDate = new Date(c.reportDate);
-        return reportDate >= monday && reportDate <= sunday;
-      })
+      .filter(c => c.location === locationName)
       .map(c => c.employee);
     
     return employees;
