@@ -1,129 +1,105 @@
-// pages/pl-upload.js
-import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/router";
-import Head from "next/head";
-import { useState, useEffect } from 'react';
-import { Upload, CheckCircle, XCircle, FileSpreadsheet, Trash2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSession, signIn } from 'next-auth/react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
+import { Upload, Trash2, ArrowLeft, CheckCircle, XCircle, FileSpreadsheet } from 'lucide-react';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 export default function PLUpload() {
   const { data: session, status } = useSession();
   const router = useRouter();
-
   const [uploading, setUploading] = useState(false);
-  const [uploadResults, setUploadResults] = useState([]);
-  const [dragActive, setDragActive] = useState(false);
+  const [uploadResults, setUploadResults] = useState(null);
   const [existingData, setExistingData] = useState([]);
-  const [loadingData, setLoadingData] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [dragActive, setDragActive] = useState(false);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth/signin");
-    } else if (status === "authenticated") {
-      // Check if user is admin
-      if (session.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-        router.push("/");
+    if (status === 'authenticated') {
+      if (session.user.email !== ADMIN_EMAIL) {
+        router.push('/pl');
       } else {
         loadExistingData();
       }
     }
-  }, [status, session, router]);
+  }, [status, session]);
 
   const loadExistingData = async () => {
     try {
-      const response = await fetch('/api/get-pl-summary');
-      if (response.ok) {
-        const data = await response.json();
-        setExistingData(data.summary || []);
+      const res = await fetch('/api/get-pl-summary');
+      const data = await res.json();
+      if (res.ok) {
+        setExistingData(data.data || []);
       }
-    } catch (error) {
-      console.error('Error loading existing data:', error);
+    } catch (err) {
+      console.error('Error loading existing data:', err);
     } finally {
-      setLoadingData(false);
+      setLoading(false);
     }
   };
 
-  const handleDrag = (e) => {
+  const handleDrag = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
+    if (e.type === 'dragenter' || e.type === 'dragover') {
       setDragActive(true);
-    } else if (e.type === "dragleave") {
+    } else if (e.type === 'dragleave') {
       setDragActive(false);
     }
-  };
+  }, []);
 
-  const handleDrop = (e) => {
+  const handleDrop = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFiles(Array.from(e.dataTransfer.files));
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleUpload(e.dataTransfer.files[0]);
+    }
+  }, []);
+
+  const handleFileSelect = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      handleUpload(e.target.files[0]);
     }
   };
 
-  const handleFileInput = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleFiles(Array.from(e.target.files));
-    }
-  };
-
-  const handleFiles = async (files) => {
-    const excelFiles = files.filter(f => 
-      f.name.endsWith('.xlsx') || f.name.endsWith('.xls')
-    );
-
-    if (excelFiles.length === 0) {
-      setUploadResults([{ fileName: 'No files', success: false, message: 'Please upload Excel files (.xlsx or .xls)' }]);
+  const handleUpload = async (file) => {
+    if (!file.name.match(/\.(xlsx|xls)$/i)) {
+      setUploadResults({ error: 'Please upload an Excel file (.xlsx or .xls)' });
       return;
     }
 
     setUploading(true);
-    setUploadResults([]);
+    setUploadResults(null);
 
-    const results = [];
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-    for (const file of excelFiles) {
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
+      const res = await fetch('/api/upload-pl', {
+        method: 'POST',
+        body: formData
+      });
 
-        const response = await fetch('/api/upload-pl', {
-          method: 'POST',
-          body: formData,
+      const data = await res.json();
+
+      if (res.ok) {
+        setUploadResults({
+          success: true,
+          results: data.results,
+          fileName: file.name
         });
-
-        const data = await response.json();
-
-        if (response.ok) {
-          results.push({
-            fileName: file.name,
-            success: true,
-            message: data.message,
-            location: data.location,
-            periodEnding: data.periodEnding
-          });
-        } else {
-          results.push({
-            fileName: file.name,
-            success: false,
-            message: data.error || 'Upload failed'
-          });
-        }
-      } catch (error) {
-        results.push({
-          fileName: file.name,
-          success: false,
-          message: error.message
-        });
+        loadExistingData();
+      } else {
+        setUploadResults({ error: data.error });
       }
+    } catch (err) {
+      setUploadResults({ error: err.message });
+    } finally {
+      setUploading(false);
     }
-
-    setUploadResults(results);
-    setUploading(false);
-    loadExistingData(); // Refresh the list
   };
 
   const handleDelete = async (location, periodEnding) => {
@@ -132,33 +108,45 @@ export default function PLUpload() {
     }
 
     try {
-      const response = await fetch('/api/delete-pl', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location, periodEnding })
+      const res = await fetch(`/api/delete-pl?location=${encodeURIComponent(location)}&periodEnding=${encodeURIComponent(periodEnding)}`, {
+        method: 'DELETE'
       });
 
-      if (response.ok) {
+      if (res.ok) {
         loadExistingData();
-      } else {
-        const data = await response.json();
-        alert(data.error || 'Delete failed');
       }
-    } catch (error) {
-      alert(error.message);
+    } catch (err) {
+      console.error('Delete error:', err);
     }
   };
 
-  if (status === "loading" || loadingData) {
+  if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-white text-lg">Loading...</div>
+        <div className="text-white">Loading...</div>
       </div>
     );
   }
 
-  if (!session || session.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-    return null;
+  if (status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <button
+          onClick={() => signIn('google')}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Sign in
+        </button>
+      </div>
+    );
+  }
+
+  if (session?.user?.email !== ADMIN_EMAIL) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white">Admin access required</div>
+      </div>
+    );
   }
 
   return (
@@ -166,143 +154,155 @@ export default function PLUpload() {
       <Head>
         <title>P&L Upload - Andy's Dashboard</title>
       </Head>
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <img 
-                  src="https://i.imgur.com/kkJMVz0.png" 
-                  alt="Andy's Frozen Custard" 
-                  className="h-12"
-                />
-                <div>
-                  <h1 className="text-xl font-bold text-white">P&L Upload</h1>
-                  <p className="text-sm text-slate-400">Upload P&L reports from R365</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => router.push('/')}
-                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-lg transition-colors"
-                >
-                  Back to Dashboard
-                </button>
-                <button
-                  onClick={() => signOut()}
-                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
-                >
-                  Sign Out
-                </button>
+      
+      <div className="min-h-screen bg-slate-900 text-white">
+        {/* Header */}
+        <div className="bg-slate-800 border-b border-slate-700 px-4 py-3">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.push('/')}
+                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div>
+                <h1 className="text-lg font-bold">P&L Upload</h1>
+                <p className="text-sm text-slate-400">Upload R365 P&L Reports</p>
               </div>
             </div>
-          </div>
-
-          {/* Upload Area */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-4 shadow-lg">
-            <h2 className="text-lg font-semibold text-white mb-4">Upload P&L Files</h2>
             
-            <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                dragActive 
-                  ? 'border-blue-500 bg-blue-500/10' 
-                  : 'border-slate-600 hover:border-slate-500'
-              }`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <Upload className="mx-auto mb-4 text-slate-400" size={48} />
-              <p className="text-white mb-2">Drag and drop P&L Excel files here</p>
-              <p className="text-slate-400 text-sm mb-4">or</p>
-              <label className="cursor-pointer">
-                <span className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                  Browse Files
-                </span>
-                <input
-                  type="file"
-                  multiple
-                  accept=".xlsx,.xls"
-                  onChange={handleFileInput}
-                  className="hidden"
-                />
-              </label>
-              <p className="text-slate-500 text-xs mt-4">Supports .xlsx and .xls files</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => router.push('/pl')}
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm"
+              >
+                View P&L
+              </button>
+              <button
+                onClick={() => router.push('/admin/users')}
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm"
+              >
+                Manage Users
+              </button>
             </div>
+          </div>
+        </div>
 
-            {uploading && (
-              <div className="mt-4 text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
-                <p className="text-white mt-2">Uploading...</p>
+        {/* Content */}
+        <div className="max-w-4xl mx-auto p-4">
+          {/* Upload Area */}
+          <div
+            className={`border-2 border-dashed rounded-xl p-8 text-center mb-6 transition-colors ${
+              dragActive
+                ? 'border-blue-500 bg-blue-500/10'
+                : 'border-slate-600 hover:border-slate-500'
+            }`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+          >
+            {uploading ? (
+              <div className="flex flex-col items-center gap-3">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+                <p className="text-slate-300">Uploading and processing...</p>
               </div>
-            )}
-
-            {uploadResults.length > 0 && (
-              <div className="mt-4 space-y-2">
-                {uploadResults.map((result, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex items-center gap-3 p-3 rounded-lg ${
-                      result.success ? 'bg-green-900/30 border border-green-700' : 'bg-red-900/30 border border-red-700'
-                    }`}
-                  >
-                    {result.success ? (
-                      <CheckCircle className="text-green-400 flex-shrink-0" size={20} />
-                    ) : (
-                      <XCircle className="text-red-400 flex-shrink-0" size={20} />
-                    )}
-                    <div className="flex-1">
-                      <p className="text-white font-medium">{result.fileName}</p>
-                      <p className={result.success ? 'text-green-400 text-sm' : 'text-red-400 text-sm'}>
-                        {result.message}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            ) : (
+              <>
+                <FileSpreadsheet size={48} className="mx-auto mb-4 text-slate-400" />
+                <p className="text-lg mb-2">Drag & drop P&L Excel file here</p>
+                <p className="text-slate-400 mb-4">or click to browse</p>
+                <label className="inline-block">
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <span className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer inline-flex items-center gap-2">
+                    <Upload size={18} />
+                    Select File
+                  </span>
+                </label>
+                <p className="text-sm text-slate-500 mt-4">
+                  Each sheet in the Excel file will be processed as a separate location
+                </p>
+              </>
             )}
           </div>
+
+          {/* Upload Results */}
+          {uploadResults && (
+            <div className={`rounded-lg p-4 mb-6 ${
+              uploadResults.error
+                ? 'bg-red-900/20 border border-red-800'
+                : 'bg-green-900/20 border border-green-800'
+            }`}>
+              {uploadResults.error ? (
+                <div className="flex items-center gap-2 text-red-400">
+                  <XCircle size={20} />
+                  <span>{uploadResults.error}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 text-green-400 mb-3">
+                    <CheckCircle size={20} />
+                    <span>Uploaded: {uploadResults.fileName}</span>
+                  </div>
+                  <div className="space-y-1">
+                    {uploadResults.results?.map((result, idx) => (
+                      <div key={idx} className={`text-sm flex items-center gap-2 ${
+                        result.status === 'success' ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        {result.status === 'success' ? (
+                          <CheckCircle size={14} />
+                        ) : (
+                          <XCircle size={14} />
+                        )}
+                        <span>
+                          {result.location}
+                          {result.periodEnding && ` (${result.periodEnding})`}
+                          {result.error && `: ${result.error}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Existing Data */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 shadow-lg">
-            <h2 className="text-lg font-semibold text-white mb-4">Uploaded P&L Data</h2>
+          <div className="bg-slate-800 rounded-lg overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-700">
+              <h2 className="font-semibold">Uploaded P&L Data</h2>
+            </div>
             
             {existingData.length === 0 ? (
-              <p className="text-slate-400 text-center py-8">No P&L data uploaded yet</p>
+              <div className="p-8 text-center text-slate-400">
+                No P&L data uploaded yet
+              </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-700">
-                      <th className="text-left py-3 px-4 text-slate-400 font-semibold">Location</th>
-                      <th className="text-left py-3 px-4 text-slate-400 font-semibold">Period Ending</th>
-                      <th className="text-left py-3 px-4 text-slate-400 font-semibold">Uploaded</th>
-                      <th className="text-right py-3 px-4 text-slate-400 font-semibold">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {existingData.map((item, idx) => (
-                      <tr key={idx} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                        <td className="py-3 px-4 text-white">{item.location}</td>
-                        <td className="py-3 px-4 text-slate-300">{item.periodEnding}</td>
-                        <td className="py-3 px-4 text-slate-400">
-                          {new Date(item.uploadedAt).toLocaleDateString()}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={() => handleDelete(item.location, item.periodEnding)}
-                            className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="divide-y divide-slate-700">
+                {existingData.map((item, idx) => (
+                  <div key={idx} className="px-4 py-3 flex items-center justify-between hover:bg-slate-700/50">
+                    <div>
+                      <div className="font-medium">{item.location}</div>
+                      <div className="text-sm text-slate-400">
+                        Period: {item.periodEnding}
+                        {item.uploadedAt && ` • Uploaded: ${new Date(item.uploadedAt).toLocaleDateString()}`}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDelete(item.location, item.periodEnding)}
+                      className="p-2 text-red-400 hover:bg-red-900/30 rounded-lg transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
