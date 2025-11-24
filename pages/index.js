@@ -1684,8 +1684,44 @@ export default function Home() {
                     const locationData = dailyLaborData[location];
                     return (
                       <div key={location} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
-                        <div className="mb-2 md:mb-3">
+                        <div className="mb-2 md:mb-3 flex items-center gap-2 flex-wrap">
                           <h3 className="text-sm md:text-base font-bold text-white">{location}</h3>
+                          {(() => {
+                            const clockoutEmployees = getAutoClockoutEmployees(location);
+                            if (clockoutEmployees.length > 0) {
+                              return (
+                                <button
+                                  onClick={() => {
+                                    setClockoutModalData({ location: location, employees: clockoutEmployees });
+                                    setShowClockoutModal(true);
+                                  }}
+                                  className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-red-700 transition-colors" 
+                                  title={clockoutEmployees.join(', ')}
+                                >
+                                  AUTO-CLOCKOUT ({clockoutEmployees.length})
+                                </button>
+                              );
+                            }
+                            return null;
+                          })()}
+                          {(() => {
+                            const callOffEmployees = getCallOffEmployees(location);
+                            if (callOffEmployees.length > 0) {
+                              return (
+                                <button
+                                  onClick={() => {
+                                    setCallOffModalData({ location: location, employees: callOffEmployees });
+                                    setShowCallOffModal(true);
+                                  }}
+                                  className="bg-orange-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-orange-700 transition-colors"
+                                  title={callOffEmployees.join(', ')}
+                                >
+                                  CALL-OFF ({callOffEmployees.length})
+                                </button>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
 
                         <div className="bg-slate-900 rounded-lg overflow-x-auto">
