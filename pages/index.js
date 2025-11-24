@@ -1159,13 +1159,11 @@ export default function Home() {
                   <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg">
                     <button 
                       onClick={() => setIsFiltersOpen(!isFiltersOpen)}
-                      className="flex items-center justify-between w-full mb-2"
+                      className="flex items-center gap-2 w-full"
                     >
-                      <div className="flex items-center gap-2">
-                        <Filter size={14} className="text-slate-400" />
-                        <h3 className="text-xs md:text-sm font-semibold text-white">Filters</h3>
-                      </div>
-                      <span className="text-slate-400 text-sm">{isFiltersOpen ? '▼' : '▶'}</span>
+                      <Filter size={14} className="text-slate-400" />
+                      <h3 className="text-xs md:text-sm font-semibold text-white">Filters</h3>
+                      <span className="text-slate-400 text-sm ml-auto">{isFiltersOpen ? '▼' : '▶'}</span>
                     </button>
                     
                     {isFiltersOpen && (
@@ -1386,13 +1384,11 @@ export default function Home() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
                 <button 
                   onClick={() => setIsDailyFlashFiltersOpen(!isDailyFlashFiltersOpen)}
-                  className="flex items-center justify-between w-full mb-2"
+                  className="flex items-center gap-2 w-full"
                 >
-                  <div className="flex items-center gap-2">
-                    <Filter className="w-4 h-4 text-blue-400" />
-                    <h3 className="text-sm font-semibold text-white">Filters</h3>
-                  </div>
-                  <span className="text-slate-400 text-sm">{isDailyFlashFiltersOpen ? '▼' : '▶'}</span>
+                  <Filter className="w-4 h-4 text-blue-400" />
+                  <h3 className="text-sm font-semibold text-white">Filters</h3>
+                  <span className="text-slate-400 text-sm ml-auto">{isDailyFlashFiltersOpen ? '▼' : '▶'}</span>
                 </button>
                 {isDailyFlashFiltersOpen && (
                   <div className="flex flex-col md:flex-row gap-2">
@@ -1588,13 +1584,11 @@ export default function Home() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
                 <button 
                   onClick={() => setIsDailyLaborFiltersOpen(!isDailyLaborFiltersOpen)}
-                  className="flex items-center justify-between w-full mb-2"
+                  className="flex items-center gap-2 w-full"
                 >
-                  <div className="flex items-center gap-2">
-                    <Filter className="w-4 h-4 text-blue-400" />
-                    <h3 className="text-sm font-semibold text-white">Filters</h3>
-                  </div>
-                  <span className="text-slate-400 text-sm">{isDailyLaborFiltersOpen ? '▼' : '▶'}</span>
+                  <Filter className="w-4 h-4 text-blue-400" />
+                  <h3 className="text-sm font-semibold text-white">Filters</h3>
+                  <span className="text-slate-400 text-sm ml-auto">{isDailyLaborFiltersOpen ? '▼' : '▶'}</span>
                 </button>
                 {isDailyLaborFiltersOpen && (
                   <div className="flex flex-col md:flex-row gap-2">
@@ -1907,13 +1901,11 @@ export default function Home() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
                 <button 
                   onClick={() => setIsScheduledFiltersOpen(!isScheduledFiltersOpen)}
-                  className="flex items-center justify-between w-full mb-2"
+                  className="flex items-center gap-2 w-full"
                 >
-                  <div className="flex items-center gap-2">
-                    <Filter className="w-4 h-4 text-blue-400" />
-                    <h3 className="text-sm font-semibold text-white">Filters</h3>
-                  </div>
-                  <span className="text-slate-400 text-sm">{isScheduledFiltersOpen ? '▼' : '▶'}</span>
+                  <Filter className="w-4 h-4 text-blue-400" />
+                  <h3 className="text-sm font-semibold text-white">Filters</h3>
+                  <span className="text-slate-400 text-sm ml-auto">{isScheduledFiltersOpen ? '▼' : '▶'}</span>
                 </button>
                 {isScheduledFiltersOpen && (
                   <div className="flex flex-col md:flex-row gap-2">
