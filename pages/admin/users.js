@@ -1,9 +1,8 @@
-// pages/admin/users.js
-import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/router";
-import Head from "next/head";
 import { useState, useEffect } from 'react';
-import { Users, Edit, Save, X, Plus, Trash2 } from 'lucide-react';
+import { useSession, signIn } from 'next-auth/react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
+import { ArrowLeft, Plus, Trash2, Save, X } from 'lucide-react';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -11,163 +10,144 @@ const ALL_LOCATIONS = [
   'Allen', 'Bixby', 'Broken Arrow', 'Carrollton', 'Edmond',
   'Frisco #1', 'Frisco #2', 'Frisco #3', 'Hillcrest Village',
   'Lake Highlands', 'Lakeland', 'Norman', 'Owasso', 'Penn',
-  'Prosper', 'Sanford', 'The Colony', 'Warr Acres', 'Yale'
+  'Prosper', 'Sanford', 'The Colony', 'Treat Truck', 'Warr Acres', 'Yale'
 ];
 
 export default function AdminUsers() {
   const { data: session, status } = useSession();
   const router = useRouter();
-
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [newEmail, setNewEmail] = useState('');
   const [editingUser, setEditingUser] = useState(null);
-  const [showAddUser, setShowAddUser] = useState(false);
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState({ accessType: 'none', locations: [] });
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth/signin");
-    } else if (status === "authenticated") {
-      if (session.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-        router.push("/");
+    if (status === 'authenticated') {
+      if (session.user.email !== ADMIN_EMAIL) {
+        router.push('/');
       } else {
         loadUsers();
       }
     }
-  }, [status, session, router]);
+  }, [status, session]);
 
   const loadUsers = async () => {
     try {
-      const response = await fetch('/api/admin/update-pl-access');
-      const data = await response.json();
-      if (response.ok) {
+      const res = await fetch('/api/admin/update-pl-access');
+      const data = await res.json();
+      if (res.ok) {
         setUsers(data.users || []);
-      } else {
-        setError(data.error);
       }
     } catch (err) {
-      setError(err.message);
+      console.error('Error loading users:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditUser = (user) => {
-    setEditingUser({
-      ...user,
-      plAccess: user.plAccess || { type: 'none', locations: [] }
-    });
-  };
-
-  const handleSaveUser = async () => {
-    setSaving(true);
-    try {
-      const response = await fetch('/api/admin/update-pl-access', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: editingUser.email,
-          plAccess: editingUser.plAccess
-        })
-      });
-
-      if (response.ok) {
-        setEditingUser(null);
-        loadUsers();
-      } else {
-        const data = await response.json();
-        alert(data.error || 'Failed to save');
-      }
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleAddUser = async () => {
-    if (!newUserEmail || !newUserEmail.includes('@')) {
+    if (!newEmail || !newEmail.includes('@')) {
       alert('Please enter a valid email');
       return;
     }
 
-    setSaving(true);
     try {
-      const response = await fetch('/api/admin/update-pl-access', {
+      const res = await fetch('/api/admin/update-pl-access', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: newUserEmail,
-          plAccess: { type: 'none', locations: [] }
+          email: newEmail,
+          accessType: 'none',
+          locations: []
         })
       });
 
-      if (response.ok) {
-        setShowAddUser(false);
-        setNewUserEmail('');
+      if (res.ok) {
+        setNewEmail('');
         loadUsers();
-      } else {
-        const data = await response.json();
-        alert(data.error || 'Failed to add user');
       }
     } catch (err) {
-      alert(err.message);
-    } finally {
-      setSaving(false);
+      console.error('Error adding user:', err);
     }
   };
 
-  const handleAccessTypeChange = (type) => {
-    setEditingUser({
-      ...editingUser,
-      plAccess: {
-        type,
-        locations: type === 'specific' ? editingUser.plAccess?.locations || [] : []
-      }
+  const handleEditUser = (user) => {
+    setEditingUser(user.email);
+    setEditForm({
+      accessType: user.plAccess?.type || 'none',
+      locations: user.plAccess?.locations || []
     });
   };
 
-  const handleLocationToggle = (location) => {
-    const currentLocations = editingUser.plAccess?.locations || [];
-    const newLocations = currentLocations.includes(location)
-      ? currentLocations.filter(l => l !== location)
-      : [...currentLocations, location];
-    
-    setEditingUser({
-      ...editingUser,
-      plAccess: {
-        ...editingUser.plAccess,
-        locations: newLocations
+  const handleSaveUser = async (email) => {
+    try {
+      const res = await fetch('/api/admin/update-pl-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          accessType: editForm.accessType,
+          locations: editForm.locations
+        })
+      });
+
+      if (res.ok) {
+        setEditingUser(null);
+        loadUsers();
       }
-    });
+    } catch (err) {
+      console.error('Error saving user:', err);
+    }
   };
 
-  const getAccessBadge = (user) => {
-    const access = user.plAccess;
-    if (!access || access.type === 'none') {
-      return <span className="px-2 py-1 bg-slate-700 text-slate-400 text-xs rounded">No Access</span>;
+  const handleDeleteUser = async (email) => {
+    if (!confirm(`Remove ${email} from P&L access?`)) return;
+
+    try {
+      const res = await fetch(`/api/admin/update-pl-access?email=${encodeURIComponent(email)}`, {
+        method: 'DELETE'
+      });
+
+      if (res.ok) {
+        loadUsers();
+      }
+    } catch (err) {
+      console.error('Error deleting user:', err);
     }
-    if (access.type === 'all') {
-      return <span className="px-2 py-1 bg-green-900 text-green-400 text-xs rounded">All Locations</span>;
-    }
-    if (access.type === 'specific') {
-      const count = access.locations?.length || 0;
-      return <span className="px-2 py-1 bg-blue-900 text-blue-400 text-xs rounded">{count} Location{count !== 1 ? 's' : ''}</span>;
-    }
-    return null;
   };
 
-  if (status === "loading" || loading) {
+  const toggleLocation = (location) => {
+    setEditForm(prev => ({
+      ...prev,
+      locations: prev.locations.includes(location)
+        ? prev.locations.filter(l => l !== location)
+        : [...prev.locations, location]
+    }));
+  };
+
+  if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-white text-lg">Loading...</div>
+        <div className="text-white">Loading...</div>
       </div>
     );
   }
 
-  if (!session || session.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+  if (status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <button
+          onClick={() => signIn('google')}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Sign in
+        </button>
+      </div>
+    );
+  }
+
+  if (session?.user?.email !== ADMIN_EMAIL) {
     return null;
   }
 
@@ -176,175 +156,140 @@ export default function AdminUsers() {
       <Head>
         <title>User Management - Andy's Dashboard</title>
       </Head>
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Users className="text-blue-400" size={24} />
-                <div>
-                  <h1 className="text-xl font-bold text-white">User Management</h1>
-                  <p className="text-sm text-slate-400">Manage P&L access for users</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => router.push('/pl-upload')}
-                  className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors"
-                >
-                  P&L Upload
-                </button>
-                <button
-                  onClick={() => router.push('/')}
-                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-lg transition-colors"
-                >
-                  Dashboard
-                </button>
-                <button
-                  onClick={() => signOut()}
-                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
-                >
-                  Sign Out
-                </button>
+      
+      <div className="min-h-screen bg-slate-900 text-white">
+        {/* Header */}
+        <div className="bg-slate-800 border-b border-slate-700 px-4 py-3">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.push('/')}
+                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div>
+                <h1 className="text-lg font-bold">User Management</h1>
+                <p className="text-sm text-slate-400">Manage P&L Access</p>
               </div>
             </div>
-          </div>
-
-          {/* Add User Button */}
-          <div className="mb-4">
-            <button
-              onClick={() => setShowAddUser(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              <Plus size={18} />
-              Add User
-            </button>
-          </div>
-
-          {/* Add User Form */}
-          {showAddUser && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-4">
-              <h3 className="text-white font-semibold mb-3">Add New User</h3>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  value={newUserEmail}
-                  onChange={(e) => setNewUserEmail(e.target.value)}
-                  placeholder="user@rancherscustard.com"
-                  className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
-                <button
-                  onClick={handleAddUser}
-                  disabled={saving}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {saving ? 'Adding...' : 'Add'}
-                </button>
-                <button
-                  onClick={() => { setShowAddUser(false); setNewUserEmail(''); }}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
+            
+            <div className="flex gap-2">
+              <button
+                onClick={() => router.push('/pl-upload')}
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm"
+              >
+                P&L Upload
+              </button>
+              <button
+                onClick={() => router.push('/pl')}
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm"
+              >
+                View P&L
+              </button>
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="max-w-4xl mx-auto p-4">
+          {/* Add User */}
+          <div className="bg-slate-800 rounded-lg p-4 mb-6">
+            <h2 className="font-semibold mb-3">Add User</h2>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="user@rancherscustard.com"
+                className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              />
+              <button
+                onClick={handleAddUser}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-2"
+              >
+                <Plus size={18} />
+                Add
+              </button>
+            </div>
+          </div>
 
           {/* Users List */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-            <div className="p-4 border-b border-slate-700">
-              <h2 className="text-lg font-semibold text-white">Users ({users.length})</h2>
+          <div className="bg-slate-800 rounded-lg overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-700">
+              <h2 className="font-semibold">Users with P&L Access</h2>
             </div>
             
             {users.length === 0 ? (
               <div className="p-8 text-center text-slate-400">
-                No users found. Add a user to get started.
+                No users configured yet
               </div>
             ) : (
               <div className="divide-y divide-slate-700">
-                {users.map((user, idx) => (
-                  <div key={idx} className="p-4 hover:bg-slate-750">
-                    {editingUser?.email === user.email ? (
-                      // Edit Mode
+                {users.map((user) => (
+                  <div key={user.email} className="p-4">
+                    {editingUser === user.email ? (
+                      /* Edit Mode */
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <span className="text-white font-medium">{user.email}</span>
+                          <span className="font-medium">{user.email}</span>
                           <div className="flex gap-2">
                             <button
-                              onClick={handleSaveUser}
-                              disabled={saving}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition-colors disabled:opacity-50"
+                              onClick={() => handleSaveUser(user.email)}
+                              className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm flex items-center gap-1"
                             >
                               <Save size={14} />
-                              {saving ? 'Saving...' : 'Save'}
+                              Save
                             </button>
                             <button
                               onClick={() => setEditingUser(null)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition-colors"
+                              className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm flex items-center gap-1"
                             >
                               <X size={14} />
                               Cancel
                             </button>
                           </div>
                         </div>
-
-                        {/* Access Type Selection */}
+                        
                         <div>
-                          <label className="block text-sm text-slate-400 mb-2">P&L Access Level</label>
+                          <label className="block text-sm text-slate-400 mb-2">Access Level</label>
                           <div className="flex gap-2">
-                            <button
-                              onClick={() => handleAccessTypeChange('none')}
-                              className={`px-3 py-2 rounded text-sm transition-colors ${
-                                editingUser.plAccess?.type === 'none'
-                                  ? 'bg-slate-600 text-white'
-                                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                              }`}
-                            >
-                              No Access
-                            </button>
-                            <button
-                              onClick={() => handleAccessTypeChange('specific')}
-                              className={`px-3 py-2 rounded text-sm transition-colors ${
-                                editingUser.plAccess?.type === 'specific'
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                              }`}
-                            >
-                              Specific Locations
-                            </button>
-                            <button
-                              onClick={() => handleAccessTypeChange('all')}
-                              className={`px-3 py-2 rounded text-sm transition-colors ${
-                                editingUser.plAccess?.type === 'all'
-                                  ? 'bg-green-600 text-white'
-                                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                              }`}
-                            >
-                              All Locations
-                            </button>
+                            {['none', 'specific', 'all'].map(type => (
+                              <button
+                                key={type}
+                                onClick={() => setEditForm(prev => ({ ...prev, accessType: type }))}
+                                className={`px-4 py-2 rounded-lg text-sm capitalize ${
+                                  editForm.accessType === type
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                }`}
+                              >
+                                {type === 'none' ? 'No Access' : type === 'specific' ? 'Specific Locations' : 'All Locations'}
+                              </button>
+                            ))}
                           </div>
                         </div>
-
-                        {/* Location Selection (only for specific) */}
-                        {editingUser.plAccess?.type === 'specific' && (
+                        
+                        {editForm.accessType === 'specific' && (
                           <div>
-                            <label className="block text-sm text-slate-400 mb-2">
-                              Select Locations ({editingUser.plAccess?.locations?.length || 0} selected)
-                            </label>
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 bg-slate-900 rounded-lg">
-                              {ALL_LOCATIONS.map(location => (
+                            <label className="block text-sm text-slate-400 mb-2">Select Locations</label>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                              {ALL_LOCATIONS.map(loc => (
                                 <label
-                                  key={location}
-                                  className="flex items-center gap-2 cursor-pointer hover:bg-slate-800 p-1 rounded"
+                                  key={loc}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer text-sm ${
+                                    editForm.locations.includes(loc)
+                                      ? 'bg-blue-600/20 border border-blue-500'
+                                      : 'bg-slate-700 border border-slate-600 hover:border-slate-500'
+                                  }`}
                                 >
                                   <input
                                     type="checkbox"
-                                    checked={editingUser.plAccess?.locations?.includes(location) || false}
-                                    onChange={() => handleLocationToggle(location)}
-                                    className="rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-600"
+                                    checked={editForm.locations.includes(loc)}
+                                    onChange={() => toggleLocation(loc)}
+                                    className="rounded border-slate-500"
                                   />
-                                  <span className="text-white text-sm">{location}</span>
+                                  {loc}
                                 </label>
                               ))}
                             </div>
@@ -352,24 +297,40 @@ export default function AdminUsers() {
                         )}
                       </div>
                     ) : (
-                      // View Mode
+                      /* View Mode */
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-white font-medium">{user.email}</p>
-                          {user.plAccess?.type === 'specific' && user.plAccess?.locations?.length > 0 && (
-                            <p className="text-slate-400 text-xs mt-1">
-                              {user.plAccess.locations.join(', ')}
-                            </p>
-                          )}
+                          <div className="font-medium">{user.email}</div>
+                          <div className="text-sm text-slate-400 mt-1">
+                            {user.plAccess?.type === 'all' && (
+                              <span className="inline-block px-2 py-0.5 bg-green-900/50 text-green-400 rounded text-xs">
+                                All Locations
+                              </span>
+                            )}
+                            {user.plAccess?.type === 'specific' && (
+                              <span className="inline-block px-2 py-0.5 bg-blue-900/50 text-blue-400 rounded text-xs">
+                                {user.plAccess.locations?.length || 0} Locations
+                              </span>
+                            )}
+                            {(!user.plAccess?.type || user.plAccess?.type === 'none') && (
+                              <span className="inline-block px-2 py-0.5 bg-slate-700 text-slate-400 rounded text-xs">
+                                No Access
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          {getAccessBadge(user)}
+                        <div className="flex gap-2">
                           <button
                             onClick={() => handleEditUser(user)}
-                            className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
-                            title="Edit"
+                            className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm"
                           >
-                            <Edit size={16} />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(user.email)}
+                            className="p-1 text-red-400 hover:bg-red-900/30 rounded"
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </div>
