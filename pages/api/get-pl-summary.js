@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     const plData = await db.collection('pl_data')
       .find({})
       .project({ location: 1, periodEnding: 1, uploadedAt: 1, uploadedBy: 1 })
-      .sort({ location: 1 })
+      .sort({ location: 1, periodEnding: -1 })
       .toArray();
 
     return res.status(200).json({ data: plData });
