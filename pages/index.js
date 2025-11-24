@@ -944,7 +944,13 @@ export default function Home() {
                 <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
                 <select
                   value={activeTab}
-                  onChange={(e) => setActiveTab(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value === 'pl') {
+                      router.push('/pl');
+                    } else {
+                      setActiveTab(e.target.value);
+                    }
+                  }}
                   className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                 >
                   <option value="sales">Weekly Sales & Labor</option>
@@ -953,6 +959,7 @@ export default function Home() {
                   <option value="clockouts">Auto-Clockouts</option>
                   <option value="call-offs">Call-Offs</option>
                   <option value="scheduled-today">Scheduled Today</option>
+                  <option value="pl">Profit & Loss</option>
                 </select>
                 
                 <button
@@ -1009,7 +1016,13 @@ export default function Home() {
             <div className="md:hidden flex items-center gap-2">
               <select
                 value={activeTab}
-                onChange={(e) => setActiveTab(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value === 'pl') {
+                    router.push('/pl');
+                  } else {
+                    setActiveTab(e.target.value);
+                  }
+                }}
                 className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
                 <option value="sales">Weekly Sales & Labor</option>
@@ -1018,6 +1031,7 @@ export default function Home() {
                 <option value="clockouts">Auto-Clockouts</option>
                 <option value="call-offs">Call-Offs</option>
                 <option value="scheduled-today">Scheduled Today</option>
+                <option value="pl">Profit & Loss</option>
               </select>
               
               <button
