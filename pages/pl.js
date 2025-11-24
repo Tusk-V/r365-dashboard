@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useSession, signIn } from 'next-auth/react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { ChevronDown, ChevronRight, ArrowLeft } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, Upload } from 'lucide-react';
+
+const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 export default function PLDashboard() {
   const { data: session, status } = useSession();
@@ -11,7 +13,9 @@ export default function PLDashboard() {
   const [error, setError] = useState(null);
   const [accessType, setAccessType] = useState('none');
   const [availableLocations, setAvailableLocations] = useState([]);
+  const [availablePeriods, setAvailablePeriods] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState('');
+  const [selectedPeriod, setSelectedPeriod] = useState('');
   const [plData, setPlData] = useState(null);
   const [expandedSections, setExpandedSections] = useState({
     'Sales': true,
@@ -19,6 +23,8 @@ export default function PLDashboard() {
     'Operating Expense': true,
     'Non Controllable Expense': true
   });
+
+  const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -28,9 +34,15 @@ export default function PLDashboard() {
 
   useEffect(() => {
     if (selectedLocation) {
-      loadPLData(selectedLocation);
+      loadPeriodsForLocation(selectedLocation);
     }
   }, [selectedLocation]);
+
+  useEffect(() => {
+    if (selectedLocation && selectedPeriod) {
+      loadPLData(selectedLocation, selectedPeriod);
+    }
+  }, [selectedLocation, selectedPeriod]);
 
   const loadInitialData = async () => {
     try {
@@ -54,10 +66,26 @@ export default function PLDashboard() {
     }
   };
 
-  const loadPLData = async (location) => {
+  const loadPeriodsForLocation = async (location) => {
+    try {
+      const res = await fetch(`/api/get-pl?location=${encodeURIComponent(location)}&listPeriods=true`);
+      const data = await res.json();
+      
+      if (res.ok && data.periods) {
+        setAvailablePeriods(data.periods);
+        if (data.periods.length > 0) {
+          setSelectedPeriod(data.periods[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading periods:', err);
+    }
+  };
+
+  const loadPLData = async (location, period) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/get-pl?location=${encodeURIComponent(location)}`);
+      const res = await fetch(`/api/get-pl?location=${encodeURIComponent(location)}&period=${encodeURIComponent(period)}`);
       const data = await res.json();
       
       if (res.ok) {
@@ -72,6 +100,12 @@ export default function PLDashboard() {
       setPlData(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    if (selectedLocation && selectedPeriod) {
+      loadPLData(selectedLocation, selectedPeriod);
     }
   };
 
@@ -121,23 +155,6 @@ export default function PLDashboard() {
     );
   }
 
-  if (accessType === 'none' && !loading) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-        <div className="text-white text-xl mb-4">No P&L Access</div>
-        <div className="text-slate-400 mb-6">Contact your administrator for access.</div>
-        <button
-          onClick={() => router.push('/')}
-          className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 flex items-center gap-2"
-        >
-          <ArrowLeft size={16} />
-          Back to Dashboard
-        </button>
-      </div>
-    );
-  }
-
-  // Group rows by section
   const groupRowsBySection = (rows) => {
     if (!rows) return {};
     
@@ -179,9 +196,7 @@ export default function PLDashboard() {
   const sections = plData ? groupRowsBySection(plData.rows) : {};
 
   const renderRow = (row, idx) => {
-    // Skip duplicate header rows (ones with null values that are just labels)
     if (row.period === null && row.ytd === null && row.isSubHeader && !row.isTotal) {
-      // Only show if it's a meaningful sub-header
       const meaningfulSubHeaders = [
         'Comps & Discounts', 'Food and Paper Cost', 'Salaries and Wages',
         'Payroll Taxes', 'Payroll Benefits', 'Direct Operating Expense',
@@ -193,7 +208,6 @@ export default function PLDashboard() {
       }
     }
 
-    // Skip rows that are just zeros
     if (row.period === 0 && row.ytd === 0 && !row.isTotal && !row.isSubHeader) {
       return null;
     }
@@ -214,7 +228,6 @@ export default function PLDashboard() {
       fontClass = 'font-medium';
     }
 
-    // Net Profit special styling
     if (row.label === 'Net Profit') {
       const periodProfit = row.period || 0;
       bgClass = periodProfit >= 0 ? 'bg-green-900/30' : 'bg-red-900/30';
@@ -250,19 +263,17 @@ export default function PLDashboard() {
     if (!rows || rows.length === 0) return null;
     
     const isExpanded = expandedSections[sectionName];
-    
-    // Get the section total
     const totalRow = rows.find(r => r.label === `Total ${sectionName}` || r.label === 'Net Profit');
     
     return (
       <div key={sectionName} className="mb-2">
         <button
           onClick={() => toggleSection(sectionName)}
-          className="w-full flex items-center justify-between bg-slate-800 px-3 py-2 rounded-t-lg hover:bg-slate-700 transition-colors"
+          className="w-full flex items-center justify-between bg-slate-800 border border-slate-700 px-3 py-2 rounded-t-lg hover:bg-slate-700 transition-colors"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-white">
             {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-            <span className="font-semibold text-white">{sectionName}</span>
+            <span className="font-semibold">{sectionName}</span>
           </div>
           {totalRow && (
             <div className="flex gap-6 text-sm">
@@ -277,7 +288,7 @@ export default function PLDashboard() {
         </button>
         
         {isExpanded && (
-          <div className="bg-slate-800/50 rounded-b-lg overflow-hidden">
+          <div className="bg-slate-800/50 border border-t-0 border-slate-700 rounded-b-lg overflow-hidden">
             <table className="w-full">
               <tbody>
                 {rows.map((row, idx) => renderRow(row, idx))}
@@ -295,70 +306,200 @@ export default function PLDashboard() {
         <title>P&L Dashboard - Andy's Frozen Custard</title>
       </Head>
       
-      <div className="min-h-screen bg-slate-900 text-white">
-        {/* Header */}
-        <div className="bg-slate-800 border-b border-slate-700 px-4 py-3">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push('/')}
-                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-                title="Back to Dashboard"
-              >
-                <ArrowLeft size={20} />
-              </button>
-              <div>
-                <h1 className="text-lg font-bold">Profit & Loss</h1>
-                <p className="text-sm text-slate-400">Ranchers Custard Company</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
+        <div className="max-w-[1400px] mx-auto">
+          
+          {/* Main Header - Same as Dashboard */}
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 shadow-2xl">
+            {/* Desktop Header */}
+            <div className="hidden md:flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <img 
+                  src="https://i.imgur.com/kkJMVz0.png" 
+                  alt="Andy's Frozen Custard" 
+                  className="h-16"
+                />
+                <h1 className="text-2xl font-bold text-white">R365 Dashboards</h1>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
+                <select
+                  value="pl"
+                  onChange={(e) => {
+                    if (e.target.value !== 'pl') {
+                      router.push('/');
+                      if (typeof window !== 'undefined') {
+                        sessionStorage.setItem('pendingTab', e.target.value);
+                      }
+                    }
+                  }}
+                  className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                >
+                  <option value="sales">Weekly Sales & Labor</option>
+                  <option value="daily-sales">Daily Sales</option>
+                  <option value="daily-labor">Daily Labor</option>
+                  <option value="clockouts">Auto-Clockouts</option>
+                  <option value="call-offs">Call-Offs</option>
+                  <option value="scheduled-today">Scheduled Today</option>
+                  <option value="pl">Profit & Loss</option>
+                </select>
+                
+                <button
+                  onClick={handleRefresh}
+                  className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  title="Refresh data"
+                >
+                  <RefreshCw size={16} className="text-white" />
+                </button>
+
+                {isAdmin && (
+                  <button
+                    onClick={() => router.push('/pl-upload')}
+                    className="p-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                    title="Upload P&L"
+                  >
+                    <Upload size={16} className="text-white" />
+                  </button>
+                )}
+
+                <button
+                  onClick={() => signOut()}
+                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                >
+                  Sign Out
+                </button>
               </div>
             </div>
-            
-            <div className="flex items-center gap-3">
+
+            {/* Mobile Header */}
+            <div className="md:hidden flex items-center justify-between mb-3">
+              <img 
+                src="https://i.imgur.com/kkJMVz0.png" 
+                alt="Andy's Frozen Custard" 
+                className="h-12"
+              />
+              <div className="flex items-center gap-2">
+                {isAdmin && (
+                  <button
+                    onClick={() => router.push('/pl-upload')}
+                    className="p-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                    title="Upload P&L"
+                  >
+                    <Upload size={16} className="text-white" />
+                  </button>
+                )}
+                <button
+                  onClick={() => signOut()}
+                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile Dropdown */}
+            <div className="md:hidden flex items-center gap-2">
               <select
-                value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
-                className="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                value="pl"
+                onChange={(e) => {
+                  if (e.target.value !== 'pl') {
+                    router.push('/');
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.setItem('pendingTab', e.target.value);
+                    }
+                  }
+                }}
+                className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
-                {availableLocations.map(loc => (
-                  <option key={loc} value={loc}>{loc}</option>
-                ))}
+                <option value="sales">Weekly Sales & Labor</option>
+                <option value="daily-sales">Daily Sales</option>
+                <option value="daily-labor">Daily Labor</option>
+                <option value="clockouts">Auto-Clockouts</option>
+                <option value="call-offs">Call-Offs</option>
+                <option value="scheduled-today">Scheduled Today</option>
+                <option value="pl">Profit & Loss</option>
               </select>
+              
+              <button
+                onClick={handleRefresh}
+                className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                title="Refresh data"
+              >
+                <RefreshCw size={16} className="text-white" />
+              </button>
             </div>
           </div>
-        </div>
 
-        {/* Content */}
-        <div className="max-w-7xl mx-auto p-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
+          {/* Sub-Header: Location & Period Selection */}
+          {accessType !== 'none' && (
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className="flex flex-col md:flex-row md:items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-slate-400">Location:</label>
+                  <select
+                    value={selectedLocation}
+                    onChange={(e) => setSelectedLocation(e.target.value)}
+                    className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    {availableLocations.map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-slate-400">Period Ending:</label>
+                  <select
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(e.target.value)}
+                    className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    {availablePeriods.map(period => (
+                      <option key={period} value={period}>{period}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {plData?.totalSales && (
+                  <div className="md:ml-auto text-right">
+                    <span className="text-sm text-slate-400">Total Sales: </span>
+                    <span className="text-lg font-bold text-green-400">
+                      ${plData.totalSales.period?.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* No Access State */}
+          {accessType === 'none' && !loading && (
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+              <div className="text-white text-xl mb-2">No P&L Access</div>
+              <div className="text-slate-400">Contact your administrator for access.</div>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {loading && (
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
               <div className="text-slate-400">Loading P&L data...</div>
             </div>
-          ) : error ? (
+          )}
+
+          {/* Error State */}
+          {error && !loading && (
             <div className="bg-red-900/20 border border-red-800 rounded-lg p-4 text-red-400">
               {error}
             </div>
-          ) : plData ? (
-            <>
-              {/* Location Header */}
-              <div className="bg-slate-800 rounded-lg p-4 mb-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                  <div>
-                    <h2 className="text-xl font-bold">{plData.location}</h2>
-                    <p className="text-slate-400">Period Ending: {plData.periodEnding}</p>
-                  </div>
-                  {plData.totalSales && (
-                    <div className="text-right">
-                      <div className="text-sm text-slate-400">Total Sales</div>
-                      <div className="text-2xl font-bold text-green-400">
-                        ${plData.totalSales.period?.toLocaleString()}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+          )}
 
+          {/* P&L Data */}
+          {plData && !loading && (
+            <>
               {/* Table Header */}
-              <div className="bg-slate-800 rounded-lg overflow-hidden mb-2">
+              <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden mb-2">
                 <table className="w-full">
                   <thead>
                     <tr className="bg-slate-700">
@@ -379,9 +520,12 @@ export default function PLDashboard() {
               {renderSection('Non Controllable Expense', sections['Non Controllable Expense'])}
               {renderSection('Net Profit', sections['Net Profit'])}
             </>
-          ) : (
-            <div className="text-center py-20 text-slate-400">
-              No P&L data available. Select a location or contact admin to upload data.
+          )}
+
+          {/* No Data State */}
+          {!plData && !loading && !error && accessType !== 'none' && (
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center text-slate-400">
+              No P&L data available. {isAdmin ? 'Click the upload button to add P&L data.' : 'Contact admin to upload data.'}
             </div>
           )}
         </div>
