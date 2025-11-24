@@ -1,10 +1,9 @@
-// pages/api/upload-pl.js
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "./auth/[...nextauth]";
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from './auth/[...nextauth]';
 import formidable from 'formidable';
-import * as XLSX from 'xlsx';
-import { MongoClient } from 'mongodb';
 import fs from 'fs';
+import * as XLSX from 'xlsx';
+import clientPromise from '../../lib/mongodb';
 
 export const config = {
   api: {
@@ -12,7 +11,6 @@ export const config = {
   },
 };
 
-const MONGODB_URI = process.env.MONGODB_URI;
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 export default async function handler(req, res) {
@@ -20,22 +18,18 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Check authentication
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-
-  // Only admin can upload
-  if (session.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-    return res.status(403).json({ error: 'Not authorized to upload P&L data' });
-  }
-
-  const form = formidable({
-    maxFileSize: 50 * 1024 * 1024, // 50MB
-  });
-
   try {
+    const session = await getServerSession(req, res, authOptions);
+    if (!session) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (session.user.email !== ADMIN_EMAIL) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const form = formidable({ multiples: true });
+    
     const [fields, files] = await new Promise((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) reject(err);
@@ -43,58 +37,57 @@ export default async function handler(req, res) {
       });
     });
 
-    // Get uploaded file
-    const file = Array.isArray(files.file) ? files.file[0] : files.file;
-    if (!file) {
+    const uploadedFile = files.file?.[0] || files.file;
+    if (!uploadedFile) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Read the Excel file
-    const fileBuffer = fs.readFileSync(file.filepath);
-    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    const fileBuffer = fs.readFileSync(uploadedFile.filepath);
+    const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellFormula: false });
 
-    // Parse the P&L data
-    const plData = parsePLData(data);
+    const results = [];
+    const client = await clientPromise;
+    const db = client.db('andysdashboard');
 
-    if (!plData.location) {
-      return res.status(400).json({ error: 'Could not determine location from file' });
+    for (const sheetName of workbook.SheetNames) {
+      try {
+        const sheet = workbook.Sheets[sheetName];
+        const plData = parseSheet(sheet, sheetName);
+        
+        if (plData) {
+          // Upsert the data
+          await db.collection('pl_data').updateOne(
+            { location: plData.location, periodEnding: plData.periodEnding },
+            { 
+              $set: {
+                ...plData,
+                uploadedAt: new Date(),
+                uploadedBy: session.user.email
+              }
+            },
+            { upsert: true }
+          );
+          
+          results.push({
+            location: plData.location,
+            periodEnding: plData.periodEnding,
+            status: 'success'
+          });
+        }
+      } catch (sheetError) {
+        results.push({
+          location: sheetName,
+          status: 'error',
+          error: sheetError.message
+        });
+      }
     }
 
-    // Connect to MongoDB and save
-    const client = new MongoClient(MONGODB_URI);
-    await client.connect();
-    const db = client.db('andysdashboard');
-    const collection = db.collection('pl_data');
+    fs.unlinkSync(uploadedFile.filepath);
 
-    // Upsert the P&L data (update if exists, insert if not)
-    await collection.updateOne(
-      { 
-        location: plData.location,
-        periodEnding: plData.periodEnding 
-      },
-      { 
-        $set: {
-          ...plData,
-          uploadedAt: new Date(),
-          uploadedBy: session.user.email
-        }
-      },
-      { upsert: true }
-    );
-
-    await client.close();
-
-    // Clean up temp file
-    fs.unlinkSync(file.filepath);
-
-    return res.status(200).json({ 
-      success: true, 
-      message: `P&L uploaded for ${plData.location}`,
-      location: plData.location,
-      periodEnding: plData.periodEnding
+    return res.status(200).json({
+      success: true,
+      results
     });
 
   } catch (error) {
@@ -103,170 +96,147 @@ export default async function handler(req, res) {
   }
 }
 
-function parsePLData(data) {
-  const result = {
-    location: null,
-    periodEnding: null,
-    period: {},
-    ytd: {}
+function parseSheet(sheet, sheetName) {
+  // Get cell value helper
+  const getCellValue = (cellRef) => {
+    const cell = sheet[cellRef];
+    if (!cell) return null;
+    return cell.v;
   };
 
-  // Row 1: Location (e.g., "201 - Carrollton")
-  if (data[1] && data[1][0]) {
-    const locationStr = data[1][0].toString();
-    const match = locationStr.match(/\d+\s*-\s*(.+)/);
-    if (match) {
-      result.location = match[1].trim();
-    } else {
-      result.location = locationStr.trim();
-    }
-  }
-
-  // Row 2: Period ending date
-  if (data[2] && data[2][0]) {
-    result.periodEnding = data[2][0].toString();
-  }
-
-  // Parse line items - Column 0 is label, Column 1 is Period value, Column 3 is YTD value
-  const lineItems = [
-    { row: 6, key: 'foodSales', label: 'Food Sales' },
-    { row: 9, key: 'comps', label: 'Comps' },
-    { row: 10, key: 'discounts', label: 'Discounts' },
-    { row: 12, key: 'refunds', label: 'Refunds' },
-    { row: 17, key: 'custardCost', label: 'Custard Cost' },
-    { row: 18, key: 'nutsCost', label: 'Nuts Cost' },
-    { row: 19, key: 'toppingsCost', label: 'Toppings Cost' },
-    { row: 20, key: 'beverageCost', label: 'Beverage Cost' },
-    { row: 21, key: 'takeHomeCost', label: 'Take Home Cost' },
-    { row: 22, key: 'otherFoodCost', label: 'Other Food Cost' },
-    { row: 23, key: 'paperProductsCost', label: 'Paper Products Cost' },
-    { row: 24, key: 'mistakes', label: 'Mistakes' },
-    { row: 28, key: 'marketManagerWages', label: 'Market Manager Wages' },
-    { row: 29, key: 'generalManagerWages', label: 'General Manager Wages' },
-    { row: 30, key: 'assistantManagerWages', label: 'Assistant Manager Wages' },
-    { row: 31, key: 'hourlyWages', label: 'Hourly Wages' },
-    { row: 32, key: 'trainingWages', label: 'Training Wages' },
-    { row: 33, key: 'employeeBonuses', label: 'Employee Bonuses' },
-    { row: 38, key: 'ficaTaxes', label: 'FICA Taxes' },
-    { row: 39, key: 'futaTaxes', label: 'FUTA Taxes' },
-    { row: 40, key: 'stateUnemploymentTax', label: 'State Unemployment Tax' },
-    { row: 46, key: 'healthInsurance', label: 'Health Insurance' },
-    { row: 47, key: 'lifeInsurance', label: 'Life Insurance' },
-    { row: 55, key: 'cleaningSupplies', label: 'Cleaning Supplies' },
-    { row: 56, key: 'contractCleaning', label: 'Contract Cleaning' },
-    { row: 57, key: 'kitchenEquipment', label: 'Kitchen Equipment' },
-    { row: 59, key: 'kitchenSuppliesSmallwares', label: 'Kitchen Supplies and Smallwares' },
-    { row: 61, key: 'uniformsLinenRental', label: 'Uniforms and Linen Rental' },
-    { row: 62, key: 'miscellaneousExpense', label: 'Miscellaneous Expense' },
-    { row: 64, key: 'pestControl', label: 'Pest Control' },
-    { row: 66, key: 'employeeMeals', label: 'Employee Meals' },
-    { row: 68, key: 'cashOverShort', label: 'Cash Over/Short' },
-    { row: 69, key: 'productWaste', label: 'Product Waste' },
-    { row: 70, key: 'repairsAndMaintenance', label: 'Repairs and Maintenance' },
-    { row: 71, key: 'custardMachineRepairs', label: 'Custard Machine Repairs' },
-    { row: 72, key: 'groundsMaintenance', label: 'Grounds Maintenance' },
-    { row: 76, key: 'electricity', label: 'Electricity' },
-    { row: 77, key: 'gas', label: 'Gas' },
-    { row: 78, key: 'trashRemoval', label: 'Trash Removal' },
-    { row: 79, key: 'waterAndSewage', label: 'Water and Sewage' },
-    { row: 83, key: 'advertisingFund', label: 'Advertising Fund' },
-    { row: 86, key: 'marketingManager', label: 'Marketing Manager' },
-    { row: 87, key: 'radioAndTelevision', label: 'Radio and Television' },
-    { row: 89, key: 'directMailers', label: 'Direct Mailers' },
-    { row: 90, key: 'costOfGiveawaysAndComps', label: 'Cost of Giveaways and Comps' },
-    { row: 91, key: 'otherSponsorships', label: 'Other Sponsorships' },
-    { row: 105, key: 'creditCardFees', label: 'Credit Card Fees' },
-    { row: 106, key: 'duesAndSubscriptions', label: 'Dues and Subscriptions' },
-    { row: 107, key: 'storeMenusAndDisplays', label: 'Store Menus and Displays' },
-    { row: 109, key: 'computerCosts', label: 'Computer Costs' },
-    { row: 110, key: 'royalties', label: 'Royalties' },
-    { row: 111, key: 'licensesAndPermitsExpense', label: 'Licenses and Permits Expense' },
-    { row: 112, key: 'insuranceExpense', label: 'Insurance Expense' },
-    { row: 114, key: 'stateBusinessTaxes', label: 'State Business Taxes' },
-    { row: 115, key: 'securitySystemExpense', label: 'Security System Expense' },
-    { row: 116, key: 'internetTelephone', label: 'Internet/Telephone' },
-    { row: 118, key: 'giftCardsExpense', label: 'Gift Cards Expense' },
-    { row: 120, key: 'officeSupplies', label: 'Office Supplies' },
-    { row: 128, key: 'rent', label: 'Rent' },
-    { row: 129, key: 'personalPropertyTaxes', label: 'Personal Property Taxes' },
-    { row: 130, key: 'realEstateTaxes', label: 'Real Estate Taxes' },
-    { row: 134, key: 'equipmentDepreciation', label: 'Equipment Depreciation' },
-    { row: 137, key: 'leaseholdImprovementDepreciation', label: 'Leasehold Improvement Depreciation' },
-    { row: 138, key: 'amortizationExpense', label: 'Amortization Expense' },
-    { row: 142, key: 'totalSales', label: 'Total Sales' }
-  ];
-
-  for (const item of lineItems) {
-    if (data[item.row]) {
-      const periodValue = parseFloat(data[item.row][1]) || 0;
-      const ytdValue = parseFloat(data[item.row][3]) || 0;
-      result.period[item.key] = periodValue;
-      result.ytd[item.key] = ytdValue;
-    }
-  }
-
-  // Calculate totals
-  const totalSales = result.period.totalSales || result.period.foodSales || 0;
-  const ytdTotalSales = result.ytd.totalSales || result.ytd.foodSales || 0;
-
-  // Food Cost
-  result.period.totalFoodCost = (result.period.custardCost || 0) + (result.period.nutsCost || 0) + 
-    (result.period.toppingsCost || 0) + (result.period.beverageCost || 0) + 
-    (result.period.takeHomeCost || 0) + (result.period.otherFoodCost || 0) + 
-    (result.period.paperProductsCost || 0) + (result.period.mistakes || 0);
+  // Row 2: Location name (e.g., "201 - Carrollton")
+  const locationCell = getCellValue('A2');
+  if (!locationCell) return null;
   
-  result.ytd.totalFoodCost = (result.ytd.custardCost || 0) + (result.ytd.nutsCost || 0) + 
-    (result.ytd.toppingsCost || 0) + (result.ytd.beverageCost || 0) + 
-    (result.ytd.takeHomeCost || 0) + (result.ytd.otherFoodCost || 0) + 
-    (result.ytd.paperProductsCost || 0) + (result.ytd.mistakes || 0);
-
-  // Labor Cost
-  result.period.totalLaborCost = (result.period.marketManagerWages || 0) + (result.period.generalManagerWages || 0) +
-    (result.period.assistantManagerWages || 0) + (result.period.hourlyWages || 0) +
-    (result.period.trainingWages || 0) + (result.period.employeeBonuses || 0) +
-    (result.period.ficaTaxes || 0) + (result.period.futaTaxes || 0) +
-    (result.period.stateUnemploymentTax || 0) + (result.period.healthInsurance || 0) +
-    (result.period.lifeInsurance || 0);
-
-  result.ytd.totalLaborCost = (result.ytd.marketManagerWages || 0) + (result.ytd.generalManagerWages || 0) +
-    (result.ytd.assistantManagerWages || 0) + (result.ytd.hourlyWages || 0) +
-    (result.ytd.trainingWages || 0) + (result.ytd.employeeBonuses || 0) +
-    (result.ytd.ficaTaxes || 0) + (result.ytd.futaTaxes || 0) +
-    (result.ytd.stateUnemploymentTax || 0) + (result.ytd.healthInsurance || 0) +
-    (result.ytd.lifeInsurance || 0);
-
-  // Prime Cost
-  result.period.primeCost = result.period.totalFoodCost + result.period.totalLaborCost;
-  result.ytd.primeCost = result.ytd.totalFoodCost + result.ytd.totalLaborCost;
-
-  // Utilities
-  result.period.totalUtilities = (result.period.electricity || 0) + (result.period.gas || 0) +
-    (result.period.trashRemoval || 0) + (result.period.waterAndSewage || 0);
-  result.ytd.totalUtilities = (result.ytd.electricity || 0) + (result.ytd.gas || 0) +
-    (result.ytd.trashRemoval || 0) + (result.ytd.waterAndSewage || 0);
-
-  // Occupancy
-  result.period.totalOccupancy = (result.period.rent || 0) + (result.period.personalPropertyTaxes || 0) +
-    (result.period.realEstateTaxes || 0);
-  result.ytd.totalOccupancy = (result.ytd.rent || 0) + (result.ytd.personalPropertyTaxes || 0) +
-    (result.ytd.realEstateTaxes || 0);
-
-  // Calculate percentages
-  if (totalSales > 0) {
-    result.period.foodCostPercent = (result.period.totalFoodCost / totalSales) * 100;
-    result.period.laborCostPercent = (result.period.totalLaborCost / totalSales) * 100;
-    result.period.primeCostPercent = (result.period.primeCost / totalSales) * 100;
-    result.period.utilitiesPercent = (result.period.totalUtilities / totalSales) * 100;
-    result.period.occupancyPercent = (result.period.totalOccupancy / totalSales) * 100;
+  // Extract just the name part after the number
+  const locationMatch = locationCell.match(/^\d+\s*-\s*(.+)$/);
+  const location = locationMatch ? locationMatch[1].trim() : locationCell;
+  
+  // Row 3: Period ending date
+  const periodCell = getCellValue('A3');
+  let periodEnding = '';
+  if (periodCell) {
+    if (typeof periodCell === 'number') {
+      // Excel date serial number
+      const date = XLSX.SSF.parse_date_code(periodCell);
+      periodEnding = `${date.m}/${date.d}/${date.y}`;
+    } else {
+      periodEnding = String(periodCell);
+    }
   }
 
-  if (ytdTotalSales > 0) {
-    result.ytd.foodCostPercent = (result.ytd.totalFoodCost / ytdTotalSales) * 100;
-    result.ytd.laborCostPercent = (result.ytd.totalLaborCost / ytdTotalSales) * 100;
-    result.ytd.primeCostPercent = (result.ytd.primeCost / ytdTotalSales) * 100;
-    result.ytd.utilitiesPercent = (result.ytd.totalUtilities / ytdTotalSales) * 100;
-    result.ytd.occupancyPercent = (result.ytd.totalOccupancy / ytdTotalSales) * 100;
+  // Parse all rows preserving structure
+  const rows = [];
+  let totalSales = { period: 0, ytd: 0 };
+  
+  // Find Total Sales first for percentage calculations
+  for (let rowNum = 6; rowNum <= 150; rowNum++) {
+    const label = getCellValue(`A${rowNum}`);
+    if (label === 'Total Sales') {
+      // Look for the row with actual values
+      const nextRow = rowNum + 1;
+      const nextLabel = getCellValue(`A${nextRow}`);
+      if (nextLabel === 'Total Sales' || (getCellValue(`B${rowNum}`) !== null && getCellValue(`B${rowNum}`) !== 0)) {
+        totalSales.period = parseFloat(getCellValue(`B${rowNum}`)) || 0;
+        totalSales.ytd = parseFloat(getCellValue(`D${rowNum}`)) || 0;
+        if (totalSales.period === 0) {
+          totalSales.period = parseFloat(getCellValue(`B${nextRow}`)) || 0;
+          totalSales.ytd = parseFloat(getCellValue(`D${nextRow}`)) || 0;
+        }
+      }
+      break;
+    }
   }
 
-  return result;
+  // If we didn't find Total Sales inline, check the footer row 143
+  if (totalSales.period === 0) {
+    totalSales.period = parseFloat(getCellValue('B143')) || 0;
+    totalSales.ytd = parseFloat(getCellValue('D143')) || 0;
+  }
+
+  // Now parse all rows
+  for (let rowNum = 6; rowNum <= 142; rowNum++) {
+    const label = getCellValue(`A${rowNum}`);
+    if (!label) continue;
+
+    const periodValue = getCellValue(`B${rowNum}`);
+    const ytdValue = getCellValue(`D${rowNum}`);
+    
+    // Determine row type based on label
+    const isSection = isSectionHeader(label);
+    const isTotal = label.startsWith('Total ');
+    const isSubHeader = isSubHeaderRow(label);
+    
+    // Calculate percentages
+    let periodPercent = null;
+    let ytdPercent = null;
+    
+    if (periodValue !== null && periodValue !== 0 && totalSales.period !== 0) {
+      periodPercent = (parseFloat(periodValue) / totalSales.period) * 100;
+    }
+    if (ytdValue !== null && ytdValue !== 0 && totalSales.ytd !== 0) {
+      ytdPercent = (parseFloat(ytdValue) / totalSales.ytd) * 100;
+    }
+
+    rows.push({
+      rowNum,
+      label: label.trim(),
+      period: periodValue !== null ? parseFloat(periodValue) : null,
+      periodPercent,
+      ytd: ytdValue !== null ? parseFloat(ytdValue) : null,
+      ytdPercent,
+      isSection,
+      isTotal,
+      isSubHeader,
+      indent: getIndentLevel(label, isSection, isTotal, isSubHeader)
+    });
+  }
+
+  // Add Net Profit row
+  const netProfitPeriod = getCellValue('B142');
+  const netProfitYtd = getCellValue('D142');
+  
+  return {
+    location,
+    periodEnding,
+    totalSales,
+    rows
+  };
+}
+
+function isSectionHeader(label) {
+  const sections = [
+    'Sales',
+    'Prime Cost',
+    'Operating Expense',
+    'Non Controllable Expense'
+  ];
+  return sections.includes(label);
+}
+
+function isSubHeaderRow(label) {
+  const subHeaders = [
+    'Comps & Discounts',
+    'Food and Paper Cost',
+    'Salaries and Wages',
+    'Manager Wages',
+    'Payroll Taxes',
+    'Payroll Benefits',
+    'Direct Operating Expense',
+    'Utilities',
+    'Advertising',
+    'General and Administrative',
+    'Market Manager Benefits and Taxes',
+    'MM Payroll Taxes',
+    'Occupancy Costs',
+    'Depreciation and Amortization'
+  ];
+  return subHeaders.includes(label);
+}
+
+function getIndentLevel(label, isSection, isTotal, isSubHeader) {
+  if (isSection) return 0;
+  if (isSubHeader) return 1;
+  if (isTotal) return 1;
+  return 2;
 }
