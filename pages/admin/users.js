@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useSession, signIn } from 'next-auth/react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { ArrowLeft, Plus, Trash2, Save, X } from 'lucide-react';
+import { Plus, Trash2, Save, X, RefreshCw, Upload } from 'lucide-react';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -102,7 +102,7 @@ export default function AdminUsers() {
   };
 
   const handleDeleteUser = async (email) => {
-    if (!confirm(`Remove ${email} from P&L access?`)) return;
+    if (!confirm(`Remove ${email}?`)) return;
 
     try {
       const res = await fetch(`/api/admin/update-pl-access?email=${encodeURIComponent(email)}`, {
@@ -157,45 +157,132 @@ export default function AdminUsers() {
         <title>User Management - Andy's Dashboard</title>
       </Head>
       
-      <div className="min-h-screen bg-slate-900 text-white">
-        {/* Header */}
-        <div className="bg-slate-800 border-b border-slate-700 px-4 py-3">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push('/')}
-                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <ArrowLeft size={20} />
-              </button>
-              <div>
-                <h1 className="text-lg font-bold">User Management</h1>
-                <p className="text-sm text-slate-400">Manage P&L Access</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
+        <div className="max-w-[1400px] mx-auto">
+          
+          {/* Main Header */}
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 shadow-2xl">
+            <div className="hidden md:flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <img 
+                  src="https://i.imgur.com/kkJMVz0.png" 
+                  alt="Andy's Frozen Custard" 
+                  className="h-16"
+                />
+                <h1 className="text-2xl font-bold text-white">R365 Dashboards</h1>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
+                <select
+                  value="pl"
+                  onChange={(e) => {
+                    if (e.target.value === 'pl') {
+                      router.push('/pl');
+                    } else {
+                      router.push('/');
+                      if (typeof window !== 'undefined') {
+                        sessionStorage.setItem('pendingTab', e.target.value);
+                      }
+                    }
+                  }}
+                  className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                >
+                  <option value="sales">Weekly Sales & Labor</option>
+                  <option value="daily-sales">Daily Sales</option>
+                  <option value="daily-labor">Daily Labor</option>
+                  <option value="clockouts">Auto-Clockouts</option>
+                  <option value="call-offs">Call-Offs</option>
+                  <option value="scheduled-today">Scheduled Today</option>
+                  <option value="pl">Profit & Loss</option>
+                </select>
+                
+                <button
+                  onClick={loadUsers}
+                  className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  title="Refresh"
+                >
+                  <RefreshCw size={16} className="text-white" />
+                </button>
+
+                <button
+                  onClick={() => router.push('/pl-upload')}
+                  className="p-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                  title="Upload P&L"
+                >
+                  <Upload size={16} className="text-white" />
+                </button>
+
+                <button
+                  onClick={() => signOut()}
+                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                >
+                  Sign Out
+                </button>
               </div>
             </div>
-            
-            <div className="flex gap-2">
+
+            {/* Mobile Header */}
+            <div className="md:hidden flex items-center justify-between mb-3">
+              <img 
+                src="https://i.imgur.com/kkJMVz0.png" 
+                alt="Andy's Frozen Custard" 
+                className="h-12"
+              />
               <button
-                onClick={() => router.push('/pl-upload')}
-                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm"
+                onClick={() => signOut()}
+                className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
               >
-                P&L Upload
+                Sign Out
               </button>
-              <button
-                onClick={() => router.push('/pl')}
-                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm"
+            </div>
+
+            <div className="md:hidden flex items-center gap-2">
+              <select
+                value="pl"
+                onChange={(e) => {
+                  if (e.target.value === 'pl') {
+                    router.push('/pl');
+                  } else {
+                    router.push('/');
+                  }
+                }}
+                className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white"
               >
-                View P&L
+                <option value="sales">Weekly Sales & Labor</option>
+                <option value="daily-sales">Daily Sales</option>
+                <option value="daily-labor">Daily Labor</option>
+                <option value="clockouts">Auto-Clockouts</option>
+                <option value="call-offs">Call-Offs</option>
+                <option value="scheduled-today">Scheduled Today</option>
+                <option value="pl">Profit & Loss</option>
+              </select>
+              
+              <button
+                onClick={loadUsers}
+                className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              >
+                <RefreshCw size={16} className="text-white" />
               </button>
             </div>
           </div>
-        </div>
 
-        {/* Content */}
-        <div className="max-w-4xl mx-auto p-4">
+          {/* Sub Header */}
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">User Management - P&L Access</h2>
+              <button
+                onClick={() => router.push('/pl')}
+                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-lg transition-colors"
+              >
+                View P&L Dashboard
+              </button>
+            </div>
+          </div>
+
           {/* Add User */}
-          <div className="bg-slate-800 rounded-lg p-4 mb-6">
-            <h2 className="font-semibold mb-3">Add User</h2>
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-4">
+            <h3 className="font-semibold text-white mb-3">Add User</h3>
             <div className="flex gap-2">
               <input
                 type="email"
@@ -206,7 +293,7 @@ export default function AdminUsers() {
               />
               <button
                 onClick={handleAddUser}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-2"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-2 text-white"
               >
                 <Plus size={18} />
                 Add
@@ -215,9 +302,9 @@ export default function AdminUsers() {
           </div>
 
           {/* Users List */}
-          <div className="bg-slate-800 rounded-lg overflow-hidden">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-700">
-              <h2 className="font-semibold">Users with P&L Access</h2>
+              <h3 className="font-semibold text-white">Users ({users.length})</h3>
             </div>
             
             {users.length === 0 ? (
@@ -229,21 +316,20 @@ export default function AdminUsers() {
                 {users.map((user) => (
                   <div key={user.email} className="p-4">
                     {editingUser === user.email ? (
-                      /* Edit Mode */
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium">{user.email}</span>
+                          <span className="font-medium text-white">{user.email}</span>
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleSaveUser(user.email)}
-                              className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm flex items-center gap-1"
+                              className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm flex items-center gap-1 text-white"
                             >
                               <Save size={14} />
                               Save
                             </button>
                             <button
                               onClick={() => setEditingUser(null)}
-                              className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm flex items-center gap-1"
+                              className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded text-sm flex items-center gap-1 text-white"
                             >
                               <X size={14} />
                               Cancel
@@ -253,12 +339,12 @@ export default function AdminUsers() {
                         
                         <div>
                           <label className="block text-sm text-slate-400 mb-2">Access Level</label>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
                             {['none', 'specific', 'all'].map(type => (
                               <button
                                 key={type}
                                 onClick={() => setEditForm(prev => ({ ...prev, accessType: type }))}
-                                className={`px-4 py-2 rounded-lg text-sm capitalize ${
+                                className={`px-4 py-2 rounded-lg text-sm ${
                                   editForm.accessType === type
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
@@ -279,8 +365,8 @@ export default function AdminUsers() {
                                   key={loc}
                                   className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer text-sm ${
                                     editForm.locations.includes(loc)
-                                      ? 'bg-blue-600/20 border border-blue-500'
-                                      : 'bg-slate-700 border border-slate-600 hover:border-slate-500'
+                                      ? 'bg-blue-600/20 border border-blue-500 text-white'
+                                      : 'bg-slate-700 border border-slate-600 text-slate-300 hover:border-slate-500'
                                   }`}
                                 >
                                   <input
@@ -297,10 +383,9 @@ export default function AdminUsers() {
                         )}
                       </div>
                     ) : (
-                      /* View Mode */
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-medium">{user.email}</div>
+                          <div className="font-medium text-white">{user.email}</div>
                           <div className="text-sm text-slate-400 mt-1">
                             {user.plAccess?.type === 'all' && (
                               <span className="inline-block px-2 py-0.5 bg-green-900/50 text-green-400 rounded text-xs">
@@ -322,7 +407,7 @@ export default function AdminUsers() {
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleEditUser(user)}
-                            className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm"
+                            className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm text-white"
                           >
                             Edit
                           </button>
