@@ -2,7 +2,7 @@ import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/router"
 import Head from "next/head"
 import { useState, useEffect } from 'react';
-import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle } from 'lucide-react';
+import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown } from 'lucide-react';
 
 // Google Sheets API Configuration
 const API_KEY = 'AIzaSyAbUI3oP_0ofBG9tiAudYLUjZ4MSSaFNDA';
@@ -672,6 +672,31 @@ export default function Home() {
 
   const getUniqueLocations = () => {
     return [...new Set(clockouts.map(c => c.location))].sort();
+  };
+
+  // Helper function to get the date range from actual data
+  const getDataDateRange = (dataArray) => {
+    if (!dataArray || dataArray.length === 0) return null;
+    
+    const dates = dataArray
+      .map(item => new Date(item.reportDate))
+      .filter(date => !isNaN(date.getTime()))
+      .sort((a, b) => a - b);
+    
+    if (dates.length === 0) return null;
+    
+    const minDate = dates[0];
+    const maxDate = dates[dates.length - 1];
+    
+    const formatDate = (date) => {
+      return `${date.getMonth() + 1}/${date.getDate()}`;
+    };
+    
+    if (minDate.getTime() === maxDate.getTime()) {
+      return formatDate(minDate);
+    }
+    
+    return `${formatDate(minDate)} - ${formatDate(maxDate)}`;
   };
 
   const getAutoClockoutEmployees = (locationName) => {
@@ -1830,6 +1855,24 @@ export default function Home() {
 
           {activeTab === 'clockouts' && (
             <>
+              {/* Header with date range */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Auto-Clockouts</h2>
+                    {filteredClockouts.length > 0 && (
+                      <p className="text-sm text-slate-400">
+                        Showing data for: {getDataDateRange(filteredClockouts)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold text-red-400">{filteredClockouts.length}</span>
+                    <p className="text-xs text-slate-400">Total</p>
+                  </div>
+                </div>
+              </div>
+
               {clockoutsError && (
                 <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
                   <strong>Error:</strong> {clockoutsError}
@@ -1870,6 +1913,24 @@ export default function Home() {
 
           {activeTab === 'call-offs' && (
             <>
+              {/* Header with date range */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Call-Offs</h2>
+                    {filteredCallOffs.length > 0 && (
+                      <p className="text-sm text-slate-400">
+                        Showing data for: {getDataDateRange(filteredCallOffs)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold text-orange-400">{filteredCallOffs.length}</span>
+                    <p className="text-xs text-slate-400">Total</p>
+                  </div>
+                </div>
+              </div>
+
               {callOffsError && (
                 <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
                   <strong>Error:</strong> {callOffsError}
@@ -2067,7 +2128,7 @@ export default function Home() {
               
               <div className="mb-3">
                 <p className="text-sm text-slate-400 mb-2">Location: <span className="text-white font-semibold">{clockoutModalData.location}</span></p>
-                <p className="text-xs text-slate-500">The following employees have auto-clockouts this week:</p>
+                <p className="text-xs text-slate-500">Employees with auto-clockouts ({getDataDateRange(clockouts) || 'this week'}):</p>
               </div>
 
               <div className="bg-slate-900 rounded-lg p-3 max-h-64 overflow-y-auto">
@@ -2111,7 +2172,7 @@ export default function Home() {
               
               <div className="mb-3">
                 <p className="text-sm text-slate-400 mb-2">Location: <span className="text-white font-semibold">{callOffModalData.location}</span></p>
-                <p className="text-xs text-slate-500">The following employees called off this week:</p>
+                <p className="text-xs text-slate-500">Employees who called off ({getDataDateRange(callOffs) || 'this week'}):</p>
               </div>
 
               <div className="bg-slate-900 rounded-lg p-3 max-h-64 overflow-y-auto">
