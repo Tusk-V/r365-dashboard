@@ -1,57 +1,30 @@
-// pages/pl.js
-import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/router";
-import Head from "next/head";
 import { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, ChevronDown, ChevronRight } from 'lucide-react';
+import { useSession, signIn } from 'next-auth/react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
+import { ChevronDown, ChevronRight, ArrowLeft } from 'lucide-react';
 
 export default function PLDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
-
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [accessType, setAccessType] = useState('none');
   const [availableLocations, setAvailableLocations] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState('');
   const [plData, setPlData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [hasAccess, setHasAccess] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
-    sales: true,
-    foodCost: true,
-    labor: true,
-    operating: false,
-    occupancy: false
+    'Sales': true,
+    'Prime Cost': true,
+    'Operating Expense': true,
+    'Non Controllable Expense': true
   });
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth/signin");
-    } else if (status === "authenticated") {
-      loadAvailableLocations();
+    if (status === 'authenticated') {
+      loadInitialData();
     }
-  }, [status, router]);
-
-  const loadAvailableLocations = async () => {
-    try {
-      const response = await fetch('/api/get-pl');
-      const data = await response.json();
-
-      if (response.ok) {
-        setAvailableLocations(data.availableLocations || []);
-        setHasAccess(true);
-        if (data.availableLocations && data.availableLocations.length > 0) {
-          setSelectedLocation(data.availableLocations[0]);
-        }
-      } else {
-        setHasAccess(false);
-        setError(data.error || 'No P&L access');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [status]);
 
   useEffect(() => {
     if (selectedLocation) {
@@ -59,14 +32,18 @@ export default function PLDashboard() {
     }
   }, [selectedLocation]);
 
-  const loadPLData = async (location) => {
-    setLoading(true);
+  const loadInitialData = async () => {
     try {
-      const response = await fetch(`/api/get-pl?location=${encodeURIComponent(location)}`);
-      const data = await response.json();
-
-      if (response.ok) {
-        setPlData(data.data);
+      setLoading(true);
+      const res = await fetch('/api/get-pl');
+      const data = await res.json();
+      
+      if (res.ok) {
+        setAccessType(data.accessType);
+        setAvailableLocations(data.availableLocations || []);
+        if (data.availableLocations?.length > 0) {
+          setSelectedLocation(data.availableLocations[0]);
+        }
       } else {
         setError(data.error);
       }
@@ -77,348 +54,334 @@ export default function PLDashboard() {
     }
   };
 
+  const loadPLData = async (location) => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/get-pl?location=${encodeURIComponent(location)}`);
+      const data = await res.json();
+      
+      if (res.ok) {
+        setPlData(data.data);
+        setError(null);
+      } else {
+        setError(data.error);
+        setPlData(null);
+      }
+    } catch (err) {
+      setError(err.message);
+      setPlData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleSection = (section) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
   };
 
   const formatCurrency = (value) => {
-    if (value === undefined || value === null) return '$0.00';
-    return '$' + Math.abs(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (value === null || value === undefined) return '';
+    const num = parseFloat(value);
+    if (isNaN(num)) return '';
+    const formatted = Math.abs(num).toLocaleString('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    });
+    return num < 0 ? `(${formatted})` : formatted;
   };
 
   const formatPercent = (value) => {
-    if (value === undefined || value === null) return '0.0%';
-    return value.toFixed(1) + '%';
+    if (value === null || value === undefined) return '';
+    const num = parseFloat(value);
+    if (isNaN(num)) return '';
+    return num.toFixed(1) + '%';
   };
 
-  if (status === "loading") {
+  if (status === 'loading') {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-white text-lg">Loading...</div>
+        <div className="text-white">Loading...</div>
       </div>
     );
   }
 
-  if (!session) {
-    return null;
+  if (status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <button
+          onClick={() => signIn('google')}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Sign in to view P&L
+        </button>
+      </div>
+    );
   }
+
+  if (accessType === 'none' && !loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+        <div className="text-white text-xl mb-4">No P&L Access</div>
+        <div className="text-slate-400 mb-6">Contact your administrator for access.</div>
+        <button
+          onClick={() => router.push('/')}
+          className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 flex items-center gap-2"
+        >
+          <ArrowLeft size={16} />
+          Back to Dashboard
+        </button>
+      </div>
+    );
+  }
+
+  // Group rows by section
+  const groupRowsBySection = (rows) => {
+    if (!rows) return {};
+    
+    const sections = {
+      'Sales': [],
+      'Prime Cost': [],
+      'Operating Expense': [],
+      'Non Controllable Expense': [],
+      'Net Profit': []
+    };
+    
+    let currentSection = '';
+    
+    for (const row of rows) {
+      if (row.label === 'Sales') {
+        currentSection = 'Sales';
+        continue;
+      } else if (row.label === 'Prime Cost') {
+        currentSection = 'Prime Cost';
+        continue;
+      } else if (row.label === 'Operating Expense') {
+        currentSection = 'Operating Expense';
+        continue;
+      } else if (row.label === 'Non Controllable Expense') {
+        currentSection = 'Non Controllable Expense';
+        continue;
+      } else if (row.label === 'Net Profit') {
+        currentSection = 'Net Profit';
+      }
+      
+      if (currentSection && sections[currentSection]) {
+        sections[currentSection].push(row);
+      }
+    }
+    
+    return sections;
+  };
+
+  const sections = plData ? groupRowsBySection(plData.rows) : {};
+
+  const renderRow = (row, idx) => {
+    // Skip duplicate header rows (ones with null values that are just labels)
+    if (row.period === null && row.ytd === null && row.isSubHeader && !row.isTotal) {
+      // Only show if it's a meaningful sub-header
+      const meaningfulSubHeaders = [
+        'Comps & Discounts', 'Food and Paper Cost', 'Salaries and Wages',
+        'Payroll Taxes', 'Payroll Benefits', 'Direct Operating Expense',
+        'Utilities', 'Advertising', 'General and Administrative',
+        'Occupancy Costs', 'Depreciation and Amortization'
+      ];
+      if (!meaningfulSubHeaders.includes(row.label)) {
+        return null;
+      }
+    }
+
+    // Skip rows that are just zeros
+    if (row.period === 0 && row.ytd === 0 && !row.isTotal && !row.isSubHeader) {
+      return null;
+    }
+
+    const isTotal = row.isTotal || row.label === 'Net Profit';
+    const isSubHeader = row.isSubHeader;
+    
+    let bgClass = '';
+    let textClass = 'text-slate-300';
+    let fontClass = '';
+    
+    if (isTotal) {
+      bgClass = 'bg-slate-700/50';
+      textClass = 'text-white';
+      fontClass = 'font-semibold';
+    } else if (isSubHeader) {
+      textClass = 'text-slate-200';
+      fontClass = 'font-medium';
+    }
+
+    // Net Profit special styling
+    if (row.label === 'Net Profit') {
+      const periodProfit = row.period || 0;
+      bgClass = periodProfit >= 0 ? 'bg-green-900/30' : 'bg-red-900/30';
+      textClass = periodProfit >= 0 ? 'text-green-400' : 'text-red-400';
+      fontClass = 'font-bold';
+    }
+
+    const indent = row.indent || 0;
+    const paddingLeft = indent === 0 ? 'pl-2' : indent === 1 ? 'pl-4' : 'pl-8';
+
+    return (
+      <tr key={idx} className={`${bgClass} border-b border-slate-700/50 hover:bg-slate-700/30`}>
+        <td className={`py-1.5 ${paddingLeft} ${textClass} ${fontClass} text-sm`}>
+          {row.label}
+        </td>
+        <td className={`py-1.5 px-2 text-right ${textClass} ${fontClass} text-sm tabular-nums`}>
+          {formatCurrency(row.period)}
+        </td>
+        <td className={`py-1.5 px-2 text-right ${textClass} text-sm tabular-nums`}>
+          {formatPercent(row.periodPercent)}
+        </td>
+        <td className={`py-1.5 px-2 text-right ${textClass} ${fontClass} text-sm tabular-nums`}>
+          {formatCurrency(row.ytd)}
+        </td>
+        <td className={`py-1.5 px-2 text-right ${textClass} text-sm tabular-nums`}>
+          {formatPercent(row.ytdPercent)}
+        </td>
+      </tr>
+    );
+  };
+
+  const renderSection = (sectionName, rows) => {
+    if (!rows || rows.length === 0) return null;
+    
+    const isExpanded = expandedSections[sectionName];
+    
+    // Get the section total
+    const totalRow = rows.find(r => r.label === `Total ${sectionName}` || r.label === 'Net Profit');
+    
+    return (
+      <div key={sectionName} className="mb-2">
+        <button
+          onClick={() => toggleSection(sectionName)}
+          className="w-full flex items-center justify-between bg-slate-800 px-3 py-2 rounded-t-lg hover:bg-slate-700 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+            <span className="font-semibold text-white">{sectionName}</span>
+          </div>
+          {totalRow && (
+            <div className="flex gap-6 text-sm">
+              <span className="text-slate-400">
+                Period: <span className="text-white font-medium">{formatCurrency(totalRow.period)}</span>
+              </span>
+              <span className="text-slate-400">
+                YTD: <span className="text-white font-medium">{formatCurrency(totalRow.ytd)}</span>
+              </span>
+            </div>
+          )}
+        </button>
+        
+        {isExpanded && (
+          <div className="bg-slate-800/50 rounded-b-lg overflow-hidden">
+            <table className="w-full">
+              <tbody>
+                {rows.map((row, idx) => renderRow(row, idx))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
       <Head>
-        <title>P&L Dashboard - Andy's</title>
+        <title>P&L Dashboard - Andy's Frozen Custard</title>
       </Head>
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
-        <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-4 shadow-2xl">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <img 
-                  src="https://i.imgur.com/kkJMVz0.png" 
-                  alt="Andy's Frozen Custard" 
-                  className="h-12"
-                />
-                <div>
-                  <h1 className="text-xl font-bold text-white">Profit & Loss</h1>
-                  {plData && (
-                    <p className="text-sm text-slate-400">Period Ending: {plData.periodEnding}</p>
-                  )}
-                </div>
+      
+      <div className="min-h-screen bg-slate-900 text-white">
+        {/* Header */}
+        <div className="bg-slate-800 border-b border-slate-700 px-4 py-3">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.push('/')}
+                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                title="Back to Dashboard"
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <div>
+                <h1 className="text-lg font-bold">Profit & Loss</h1>
+                <p className="text-sm text-slate-400">Ranchers Custard Company</p>
               </div>
-              
-              <div className="flex items-center gap-2">
-                {hasAccess && availableLocations.length > 0 && (
-                  <select
-                    value={selectedLocation}
-                    onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    {availableLocations.map(loc => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                  </select>
-                )}
-                <button
-                  onClick={() => router.push('/')}
-                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-lg transition-colors"
-                >
-                  Dashboard
-                </button>
-                <button
-                  onClick={() => signOut()}
-                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
-                >
-                  Sign Out
-                </button>
-              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <select
+                value={selectedLocation}
+                onChange={(e) => setSelectedLocation(e.target.value)}
+                className="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                {availableLocations.map(loc => (
+                  <option key={loc} value={loc}>{loc}</option>
+                ))}
+              </select>
             </div>
           </div>
+        </div>
 
-          {/* No Access Message */}
-          {!hasAccess && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
-              <DollarSign className="mx-auto mb-4 text-slate-500" size={48} />
-              <h2 className="text-xl font-bold text-white mb-2">No P&L Access</h2>
-              <p className="text-slate-400">You don't have access to P&L data. Contact your administrator.</p>
+        {/* Content */}
+        <div className="max-w-7xl mx-auto p-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="text-slate-400">Loading P&L data...</div>
             </div>
-          )}
-
-          {/* Loading */}
-          {loading && hasAccess && (
-            <div className="flex justify-center items-center py-20">
-              <div className="text-white text-lg">Loading P&L data...</div>
+          ) : error ? (
+            <div className="bg-red-900/20 border border-red-800 rounded-lg p-4 text-red-400">
+              {error}
             </div>
-          )}
-
-          {/* P&L Data */}
-          {!loading && hasAccess && plData && (
+          ) : plData ? (
             <>
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                  <p className="text-slate-400 text-xs mb-1">Total Sales</p>
-                  <p className="text-white text-lg font-bold">{formatCurrency(plData.period.totalSales)}</p>
-                  <p className="text-slate-500 text-xs">YTD: {formatCurrency(plData.ytd.totalSales)}</p>
-                </div>
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                  <p className="text-slate-400 text-xs mb-1">Food Cost %</p>
-                  <p className={`text-lg font-bold ${plData.period.foodCostPercent > 30 ? 'text-red-400' : 'text-green-400'}`}>
-                    {formatPercent(plData.period.foodCostPercent)}
-                  </p>
-                  <p className="text-slate-500 text-xs">YTD: {formatPercent(plData.ytd.foodCostPercent)}</p>
-                </div>
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                  <p className="text-slate-400 text-xs mb-1">Labor Cost %</p>
-                  <p className={`text-lg font-bold ${plData.period.laborCostPercent > 30 ? 'text-red-400' : 'text-green-400'}`}>
-                    {formatPercent(plData.period.laborCostPercent)}
-                  </p>
-                  <p className="text-slate-500 text-xs">YTD: {formatPercent(plData.ytd.laborCostPercent)}</p>
-                </div>
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                  <p className="text-slate-400 text-xs mb-1">Prime Cost %</p>
-                  <p className={`text-lg font-bold ${plData.period.primeCostPercent > 60 ? 'text-red-400' : 'text-green-400'}`}>
-                    {formatPercent(plData.period.primeCostPercent)}
-                  </p>
-                  <p className="text-slate-500 text-xs">YTD: {formatPercent(plData.ytd.primeCostPercent)}</p>
-                </div>
-              </div>
-
-              {/* Detail Sections */}
-              <div className="space-y-3">
-                {/* Sales Section */}
-                <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => toggleSection('sales')}
-                    className="w-full flex items-center justify-between p-3 hover:bg-slate-750 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      {expandedSections.sales ? <ChevronDown size={20} className="text-slate-400" /> : <ChevronRight size={20} className="text-slate-400" />}
-                      <span className="text-white font-semibold">Sales</span>
-                    </div>
-                    <span className="text-white font-bold">{formatCurrency(plData.period.totalSales)}</span>
-                  </button>
-                  {expandedSections.sales && (
-                    <div className="border-t border-slate-700 p-3">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-slate-400">
-                            <th className="text-left py-1">Item</th>
-                            <th className="text-right py-1">Period</th>
-                            <th className="text-right py-1">YTD</th>
-                          </tr>
-                        </thead>
-                        <tbody className="text-slate-300">
-                          <tr><td className="py-1">Food Sales</td><td className="text-right">{formatCurrency(plData.period.foodSales)}</td><td className="text-right">{formatCurrency(plData.ytd.foodSales)}</td></tr>
-                          <tr><td className="py-1">Comps</td><td className="text-right text-red-400">({formatCurrency(plData.period.comps)})</td><td className="text-right text-red-400">({formatCurrency(plData.ytd.comps)})</td></tr>
-                          <tr><td className="py-1">Discounts</td><td className="text-right text-red-400">({formatCurrency(plData.period.discounts)})</td><td className="text-right text-red-400">({formatCurrency(plData.ytd.discounts)})</td></tr>
-                          <tr><td className="py-1">Refunds</td><td className="text-right">{formatCurrency(plData.period.refunds)}</td><td className="text-right">{formatCurrency(plData.ytd.refunds)}</td></tr>
-                          <tr className="border-t border-slate-700 font-semibold text-white"><td className="py-2">Total Sales</td><td className="text-right">{formatCurrency(plData.period.totalSales)}</td><td className="text-right">{formatCurrency(plData.ytd.totalSales)}</td></tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* Food Cost Section */}
-                <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => toggleSection('foodCost')}
-                    className="w-full flex items-center justify-between p-3 hover:bg-slate-750 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      {expandedSections.foodCost ? <ChevronDown size={20} className="text-slate-400" /> : <ChevronRight size={20} className="text-slate-400" />}
-                      <span className="text-white font-semibold">Food & Paper Cost</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-white font-bold">{formatCurrency(plData.period.totalFoodCost)}</span>
-                      <span className={`ml-2 text-sm ${plData.period.foodCostPercent > 30 ? 'text-red-400' : 'text-green-400'}`}>
-                        ({formatPercent(plData.period.foodCostPercent)})
-                      </span>
-                    </div>
-                  </button>
-                  {expandedSections.foodCost && (
-                    <div className="border-t border-slate-700 p-3">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-slate-400">
-                            <th className="text-left py-1">Item</th>
-                            <th className="text-right py-1">Period</th>
-                            <th className="text-right py-1">YTD</th>
-                          </tr>
-                        </thead>
-                        <tbody className="text-slate-300">
-                          <tr><td className="py-1">Custard Cost</td><td className="text-right">{formatCurrency(plData.period.custardCost)}</td><td className="text-right">{formatCurrency(plData.ytd.custardCost)}</td></tr>
-                          <tr><td className="py-1">Nuts Cost</td><td className="text-right">{formatCurrency(plData.period.nutsCost)}</td><td className="text-right">{formatCurrency(plData.ytd.nutsCost)}</td></tr>
-                          <tr><td className="py-1">Toppings Cost</td><td className="text-right">{formatCurrency(plData.period.toppingsCost)}</td><td className="text-right">{formatCurrency(plData.ytd.toppingsCost)}</td></tr>
-                          <tr><td className="py-1">Beverage Cost</td><td className="text-right">{formatCurrency(plData.period.beverageCost)}</td><td className="text-right">{formatCurrency(plData.ytd.beverageCost)}</td></tr>
-                          <tr><td className="py-1">Take Home Cost</td><td className="text-right">{formatCurrency(plData.period.takeHomeCost)}</td><td className="text-right">{formatCurrency(plData.ytd.takeHomeCost)}</td></tr>
-                          <tr><td className="py-1">Other Food Cost</td><td className="text-right">{formatCurrency(plData.period.otherFoodCost)}</td><td className="text-right">{formatCurrency(plData.ytd.otherFoodCost)}</td></tr>
-                          <tr><td className="py-1">Paper Products</td><td className="text-right">{formatCurrency(plData.period.paperProductsCost)}</td><td className="text-right">{formatCurrency(plData.ytd.paperProductsCost)}</td></tr>
-                          <tr><td className="py-1">Mistakes</td><td className="text-right">{formatCurrency(plData.period.mistakes)}</td><td className="text-right">{formatCurrency(plData.ytd.mistakes)}</td></tr>
-                          <tr className="border-t border-slate-700 font-semibold text-white"><td className="py-2">Total Food Cost</td><td className="text-right">{formatCurrency(plData.period.totalFoodCost)}</td><td className="text-right">{formatCurrency(plData.ytd.totalFoodCost)}</td></tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* Labor Section */}
-                <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => toggleSection('labor')}
-                    className="w-full flex items-center justify-between p-3 hover:bg-slate-750 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      {expandedSections.labor ? <ChevronDown size={20} className="text-slate-400" /> : <ChevronRight size={20} className="text-slate-400" />}
-                      <span className="text-white font-semibold">Labor Cost</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-white font-bold">{formatCurrency(plData.period.totalLaborCost)}</span>
-                      <span className={`ml-2 text-sm ${plData.period.laborCostPercent > 30 ? 'text-red-400' : 'text-green-400'}`}>
-                        ({formatPercent(plData.period.laborCostPercent)})
-                      </span>
-                    </div>
-                  </button>
-                  {expandedSections.labor && (
-                    <div className="border-t border-slate-700 p-3">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-slate-400">
-                            <th className="text-left py-1">Item</th>
-                            <th className="text-right py-1">Period</th>
-                            <th className="text-right py-1">YTD</th>
-                          </tr>
-                        </thead>
-                        <tbody className="text-slate-300">
-                          <tr><td className="py-1">Market Manager Wages</td><td className="text-right">{formatCurrency(plData.period.marketManagerWages)}</td><td className="text-right">{formatCurrency(plData.ytd.marketManagerWages)}</td></tr>
-                          <tr><td className="py-1">General Manager Wages</td><td className="text-right">{formatCurrency(plData.period.generalManagerWages)}</td><td className="text-right">{formatCurrency(plData.ytd.generalManagerWages)}</td></tr>
-                          <tr><td className="py-1">Assistant Manager Wages</td><td className="text-right">{formatCurrency(plData.period.assistantManagerWages)}</td><td className="text-right">{formatCurrency(plData.ytd.assistantManagerWages)}</td></tr>
-                          <tr><td className="py-1">Hourly Wages</td><td className="text-right">{formatCurrency(plData.period.hourlyWages)}</td><td className="text-right">{formatCurrency(plData.ytd.hourlyWages)}</td></tr>
-                          <tr><td className="py-1">Training Wages</td><td className="text-right">{formatCurrency(plData.period.trainingWages)}</td><td className="text-right">{formatCurrency(plData.ytd.trainingWages)}</td></tr>
-                          <tr><td className="py-1">Employee Bonuses</td><td className="text-right">{formatCurrency(plData.period.employeeBonuses)}</td><td className="text-right">{formatCurrency(plData.ytd.employeeBonuses)}</td></tr>
-                          <tr className="text-slate-500"><td className="py-1 pl-4">FICA Taxes</td><td className="text-right">{formatCurrency(plData.period.ficaTaxes)}</td><td className="text-right">{formatCurrency(plData.ytd.ficaTaxes)}</td></tr>
-                          <tr className="text-slate-500"><td className="py-1 pl-4">FUTA Taxes</td><td className="text-right">{formatCurrency(plData.period.futaTaxes)}</td><td className="text-right">{formatCurrency(plData.ytd.futaTaxes)}</td></tr>
-                          <tr className="text-slate-500"><td className="py-1 pl-4">State Unemployment</td><td className="text-right">{formatCurrency(plData.period.stateUnemploymentTax)}</td><td className="text-right">{formatCurrency(plData.ytd.stateUnemploymentTax)}</td></tr>
-                          <tr className="text-slate-500"><td className="py-1 pl-4">Health Insurance</td><td className="text-right">{formatCurrency(plData.period.healthInsurance)}</td><td className="text-right">{formatCurrency(plData.ytd.healthInsurance)}</td></tr>
-                          <tr className="border-t border-slate-700 font-semibold text-white"><td className="py-2">Total Labor Cost</td><td className="text-right">{formatCurrency(plData.period.totalLaborCost)}</td><td className="text-right">{formatCurrency(plData.ytd.totalLaborCost)}</td></tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* Operating Expenses Section */}
-                <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => toggleSection('operating')}
-                    className="w-full flex items-center justify-between p-3 hover:bg-slate-750 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      {expandedSections.operating ? <ChevronDown size={20} className="text-slate-400" /> : <ChevronRight size={20} className="text-slate-400" />}
-                      <span className="text-white font-semibold">Operating Expenses</span>
-                    </div>
-                    <span className="text-white font-bold">{formatCurrency(plData.period.totalUtilities)}</span>
-                  </button>
-                  {expandedSections.operating && (
-                    <div className="border-t border-slate-700 p-3">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-slate-400">
-                            <th className="text-left py-1">Item</th>
-                            <th className="text-right py-1">Period</th>
-                            <th className="text-right py-1">YTD</th>
-                          </tr>
-                        </thead>
-                        <tbody className="text-slate-300">
-                          <tr><td className="py-1">Electricity</td><td className="text-right">{formatCurrency(plData.period.electricity)}</td><td className="text-right">{formatCurrency(plData.ytd.electricity)}</td></tr>
-                          <tr><td className="py-1">Gas</td><td className="text-right">{formatCurrency(plData.period.gas)}</td><td className="text-right">{formatCurrency(plData.ytd.gas)}</td></tr>
-                          <tr><td className="py-1">Trash Removal</td><td className="text-right">{formatCurrency(plData.period.trashRemoval)}</td><td className="text-right">{formatCurrency(plData.ytd.trashRemoval)}</td></tr>
-                          <tr><td className="py-1">Water & Sewage</td><td className="text-right">{formatCurrency(plData.period.waterAndSewage)}</td><td className="text-right">{formatCurrency(plData.ytd.waterAndSewage)}</td></tr>
-                          <tr><td className="py-1">Repairs & Maintenance</td><td className="text-right">{formatCurrency(plData.period.repairsAndMaintenance)}</td><td className="text-right">{formatCurrency(plData.ytd.repairsAndMaintenance)}</td></tr>
-                          <tr><td className="py-1">Credit Card Fees</td><td className="text-right">{formatCurrency(plData.period.creditCardFees)}</td><td className="text-right">{formatCurrency(plData.ytd.creditCardFees)}</td></tr>
-                          <tr><td className="py-1">Royalties</td><td className="text-right">{formatCurrency(plData.period.royalties)}</td><td className="text-right">{formatCurrency(plData.ytd.royalties)}</td></tr>
-                          <tr className="border-t border-slate-700 font-semibold text-white"><td className="py-2">Total Utilities</td><td className="text-right">{formatCurrency(plData.period.totalUtilities)}</td><td className="text-right">{formatCurrency(plData.ytd.totalUtilities)}</td></tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* Occupancy Section */}
-                <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => toggleSection('occupancy')}
-                    className="w-full flex items-center justify-between p-3 hover:bg-slate-750 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      {expandedSections.occupancy ? <ChevronDown size={20} className="text-slate-400" /> : <ChevronRight size={20} className="text-slate-400" />}
-                      <span className="text-white font-semibold">Occupancy Costs</span>
-                    </div>
-                    <span className="text-white font-bold">{formatCurrency(plData.period.totalOccupancy)}</span>
-                  </button>
-                  {expandedSections.occupancy && (
-                    <div className="border-t border-slate-700 p-3">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-slate-400">
-                            <th className="text-left py-1">Item</th>
-                            <th className="text-right py-1">Period</th>
-                            <th className="text-right py-1">YTD</th>
-                          </tr>
-                        </thead>
-                        <tbody className="text-slate-300">
-                          <tr><td className="py-1">Rent</td><td className="text-right">{formatCurrency(plData.period.rent)}</td><td className="text-right">{formatCurrency(plData.ytd.rent)}</td></tr>
-                          <tr><td className="py-1">Personal Property Taxes</td><td className="text-right">{formatCurrency(plData.period.personalPropertyTaxes)}</td><td className="text-right">{formatCurrency(plData.ytd.personalPropertyTaxes)}</td></tr>
-                          <tr><td className="py-1">Real Estate Taxes</td><td className="text-right">{formatCurrency(plData.period.realEstateTaxes)}</td><td className="text-right">{formatCurrency(plData.ytd.realEstateTaxes)}</td></tr>
-                          <tr className="border-t border-slate-700 font-semibold text-white"><td className="py-2">Total Occupancy</td><td className="text-right">{formatCurrency(plData.period.totalOccupancy)}</td><td className="text-right">{formatCurrency(plData.ytd.totalOccupancy)}</td></tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* Prime Cost Summary */}
-                <div className="bg-green-900/30 border border-green-700 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-green-400 font-semibold text-lg">Prime Cost</span>
-                    <div className="text-right">
-                      <span className="text-white font-bold text-xl">{formatCurrency(plData.period.primeCost)}</span>
-                      <span className={`ml-2 ${plData.period.primeCostPercent > 60 ? 'text-red-400' : 'text-green-400'}`}>
-                        ({formatPercent(plData.period.primeCostPercent)})
-                      </span>
-                    </div>
+              {/* Location Header */}
+              <div className="bg-slate-800 rounded-lg p-4 mb-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                  <div>
+                    <h2 className="text-xl font-bold">{plData.location}</h2>
+                    <p className="text-slate-400">Period Ending: {plData.periodEnding}</p>
                   </div>
-                  <p className="text-slate-400 text-sm mt-1">YTD: {formatCurrency(plData.ytd.primeCost)} ({formatPercent(plData.ytd.primeCostPercent)})</p>
+                  {plData.totalSales && (
+                    <div className="text-right">
+                      <div className="text-sm text-slate-400">Total Sales</div>
+                      <div className="text-2xl font-bold text-green-400">
+                        ${plData.totalSales.period?.toLocaleString()}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            </>
-          )}
 
-          {/* No Data */}
-          {!loading && hasAccess && !plData && selectedLocation && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
-              <p className="text-slate-400">No P&L data available for {selectedLocation}</p>
+              {/* Table Header */}
+              <div className="bg-slate-800 rounded-lg overflow-hidden mb-2">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-slate-700">
+                      <th className="py-2 px-2 text-left text-sm font-semibold text-slate-300 w-1/3"></th>
+                      <th className="py-2 px-2 text-right text-sm font-semibold text-slate-300">Period</th>
+                      <th className="py-2 px-2 text-right text-sm font-semibold text-slate-300 w-16">%</th>
+                      <th className="py-2 px-2 text-right text-sm font-semibold text-slate-300">YTD</th>
+                      <th className="py-2 px-2 text-right text-sm font-semibold text-slate-300 w-16">%</th>
+                    </tr>
+                  </thead>
+                </table>
+              </div>
+
+              {/* Sections */}
+              {renderSection('Sales', sections['Sales'])}
+              {renderSection('Prime Cost', sections['Prime Cost'])}
+              {renderSection('Operating Expense', sections['Operating Expense'])}
+              {renderSection('Non Controllable Expense', sections['Non Controllable Expense'])}
+              {renderSection('Net Profit', sections['Net Profit'])}
+            </>
+          ) : (
+            <div className="text-center py-20 text-slate-400">
+              No P&L data available. Select a location or contact admin to upload data.
             </div>
           )}
         </div>
