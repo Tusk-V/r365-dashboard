@@ -1,4 +1,4 @@
-// pages/api/auth/[...nextauth].js - DEBUG VERSION
+// pages/api/auth/[...nextauth].js
 
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
@@ -15,8 +15,6 @@ export const authOptions = {
       clientSecret: process.env.GOOGLE_SECRET,
       authorization: {
         params: {
-          // TEMPORARILY REMOVE hd restriction to test
-          // hd: "rancherscustard.com",
           prompt: "select_account",
         }
       }
@@ -39,18 +37,55 @@ export const authOptions = {
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      console.log('=== SIGN IN ATTEMPT ===');
-      console.log('User email:', user.email);
-      console.log('Account provider:', account.provider);
-      console.log('Profile:', profile);
-      
       // Verify email domain for all providers
       if (user.email && !user.email.endsWith('@rancherscustard.com')) {
-        console.log(`❌ BLOCKED login attempt from: ${user.email}`);
+        console.log(`Blocked login attempt from: ${user.email}`);
         return '/auth/error?error=AccessDenied';
       }
       
-      console.log(`✅ ALLOWED login from: ${user.email}`);
+      // Auto-create/update user record in our users collection
+      try {
+        const client = await clientPromise;
+        const db = client.db('andysdashboard');
+        
+        const existingUser = await db.collection('users').findOne({ email: user.email });
+        
+        if (!existingUser) {
+          // First time login - create user with no access
+          await db.collection('users').insertOne({
+            email: user.email,
+            name: user.name || profile?.name || user.email.split('@')[0],
+            image: user.image || profile?.picture || null,
+            dashboardAccess: {
+              type: 'none',
+              locations: []
+            },
+            plAccess: {
+              type: 'none',
+              locations: []
+            },
+            createdAt: new Date(),
+            lastLogin: new Date()
+          });
+          console.log(`Created new user record for: ${user.email}`);
+        } else {
+          // Update last login and sync name/image if changed
+          await db.collection('users').updateOne(
+            { email: user.email },
+            {
+              $set: {
+                lastLogin: new Date(),
+                name: user.name || profile?.name || existingUser.name,
+                image: user.image || profile?.picture || existingUser.image
+              }
+            }
+          );
+        }
+      } catch (err) {
+        console.error('Error managing user record:', err);
+        // Don't block login if user record management fails
+      }
+      
       return true;
     },
     async session({ session, user }) {
@@ -67,7 +102,6 @@ export const authOptions = {
   session: {
     strategy: "database",
   },
-  debug: true, // Enable debug mode
 };
 
 export default NextAuth(authOptions);
