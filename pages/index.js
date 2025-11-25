@@ -45,7 +45,7 @@ export default function Home() {
   const [locationFilter, setLocationFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showClockoutModal, setShowClockoutModal] = useState(false);
-  const [clockoutModalData, setClockoutModalData] = useState({ location: '', employees: [] });
+  const [clockoutModalData, setClockoutModalData] = useState({ location: '', data: [] });
   const [showCallOffModal, setShowCallOffModal] = useState(false);
   const [callOffModalData, setCallOffModalData] = useState({ location: '', employees: [] });
 
@@ -342,7 +342,7 @@ export default function Home() {
     setClockoutsError(null);
     
     try {
-      const range = `${AUTO_CLOCKOUTS_SHEET}!A2:F`;
+      const range = `${AUTO_CLOCKOUTS_SHEET}!A2:G`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
       
       const response = await fetch(url);
@@ -365,7 +365,8 @@ export default function Home() {
         employee: row[2] || '',
         clockIn: row[3] || '',
         clockOut: row[4] || '',
-        status: row[5] || 'Needs Fix'
+        schEnd: row[5] || '',
+        extraHours: row[6] || ''
       }));
       
       setClockouts(parsedClockouts);
@@ -728,13 +729,27 @@ export default function Home() {
     return `${formatDate(minDate)} - ${formatDate(maxDate)}`;
   };
 
-  // Get all auto-clockout employees for a location (data is already limited to 7 days by script)
+  // Get all auto-clockout data for a location (data is already limited to 7 days by script)
+  const getAutoClockoutData = (locationName) => {
+    return clockouts.filter(c => c.location === locationName);
+  };
+
+  // Get auto-clockout employees for a location (just names for backwards compatibility)
   const getAutoClockoutEmployees = (locationName) => {
-    const employees = clockouts
+    return clockouts
       .filter(c => c.location === locationName)
       .map(c => c.employee);
-    
-    return employees;
+  };
+
+  // Get total extra hours for auto-clockouts at a location
+  const getAutoClockoutExtraHours = (locationName) => {
+    const total = clockouts
+      .filter(c => c.location === locationName)
+      .reduce((sum, c) => {
+        const hrs = parseFloat(c.extraHours);
+        return sum + (isNaN(hrs) ? 0 : hrs);
+      }, 0);
+    return total > 0 ? total.toFixed(1) : '';
   };
 
   // Get all call-off employees for a location (data is already limited to 7 days by script)
@@ -1408,18 +1423,18 @@ export default function Home() {
                           <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
                           <div className="flex gap-1">
                             {(() => {
-                              const clockoutEmployees = getAutoClockoutEmployees(loc.location);
-                              if (clockoutEmployees.length > 0) {
+                              const clockoutData = getAutoClockoutData(loc.location);
+                              const extraHrs = getAutoClockoutExtraHours(loc.location);
+                              if (clockoutData.length > 0) {
                                 return (
                                   <button
                                     onClick={() => {
-                                      setClockoutModalData({ location: loc.location, employees: clockoutEmployees });
+                                      setClockoutModalData({ location: loc.location, data: clockoutData });
                                       setShowClockoutModal(true);
                                     }}
-                                    className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-red-700 transition-colors" 
-                                    title={clockoutEmployees.join(', ')}
+                                    className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-red-700 transition-colors"
                                   >
-                                    AUTO-CLOCKOUT ({clockoutEmployees.length})
+                                    AC ({clockoutData.length}){extraHrs && ` ${extraHrs}h`}
                                   </button>
                                 );
                               }
@@ -1434,10 +1449,9 @@ export default function Home() {
                                       setCallOffModalData({ location: loc.location, employees: callOffEmployees });
                                       setShowCallOffModal(true);
                                     }}
-                                    className="bg-orange-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-orange-700 transition-colors" 
-                                    title={callOffEmployees.join(', ')}
+                                    className="bg-orange-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-orange-700 transition-colors"
                                   >
-                                    CALL-OFF ({callOffEmployees.length})
+                                    CO ({callOffEmployees.length})
                                   </button>
                                 );
                               }
@@ -1818,18 +1832,18 @@ export default function Home() {
                         <div className="mb-2 md:mb-3 flex items-center gap-2 flex-wrap">
                           <h3 className="text-sm md:text-base font-bold text-white">{location}</h3>
                           {(() => {
-                            const clockoutEmployees = getAutoClockoutEmployees(location);
-                            if (clockoutEmployees.length > 0) {
+                            const clockoutData = getAutoClockoutData(location);
+                            const extraHrs = getAutoClockoutExtraHours(location);
+                            if (clockoutData.length > 0) {
                               return (
                                 <button
                                   onClick={() => {
-                                    setClockoutModalData({ location: location, employees: clockoutEmployees });
+                                    setClockoutModalData({ location: location, data: clockoutData });
                                     setShowClockoutModal(true);
                                   }}
-                                  className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-red-700 transition-colors" 
-                                  title={clockoutEmployees.join(', ')}
+                                  className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-red-700 transition-colors"
                                 >
-                                  AUTO-CLOCKOUT ({clockoutEmployees.length})
+                                  AC ({clockoutData.length}){extraHrs && ` ${extraHrs}h`}
                                 </button>
                               );
                             }
@@ -1845,9 +1859,8 @@ export default function Home() {
                                     setShowCallOffModal(true);
                                   }}
                                   className="bg-orange-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-orange-700 transition-colors"
-                                  title={callOffEmployees.join(', ')}
                                 >
-                                  CALL-OFF ({callOffEmployees.length})
+                                  CO ({callOffEmployees.length})
                                 </button>
                               );
                             }
@@ -1972,9 +1985,20 @@ export default function Home() {
                       </p>
                     )}
                   </div>
-                  <div className="text-right">
-                    <span className="text-2xl font-bold text-red-400">{filteredClockouts.length}</span>
-                    <p className="text-xs text-slate-400">Total</p>
+                  <div className="flex gap-4 text-right">
+                    <div>
+                      <span className="text-2xl font-bold text-red-400">{filteredClockouts.length}</span>
+                      <p className="text-xs text-slate-400">Total</p>
+                    </div>
+                    <div>
+                      <span className="text-2xl font-bold text-orange-400">
+                        {filteredClockouts.reduce((sum, c) => {
+                          const hrs = parseFloat(c.extraHours);
+                          return sum + (isNaN(hrs) ? 0 : hrs);
+                        }, 0).toFixed(1)}h
+                      </span>
+                      <p className="text-xs text-slate-400">Extra Hours</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1997,18 +2021,22 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
-                  <div className="grid gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900" style={{gridTemplateColumns: '80px 1fr 120px'}}>
+                  <div className="grid gap-2 md:gap-4 p-2 md:p-4 border-b border-slate-700 bg-slate-900" style={{gridTemplateColumns: '70px 1fr 100px 55px 70px'}}>
                     <div className="text-slate-400 text-xs md:text-sm font-semibold">Date</div>
                     <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
                     <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold text-right">Extra</div>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold text-right">Sch End</div>
                   </div>
                   
                   <div className="divide-y divide-slate-700">
                     {filteredClockouts.map((clockout, idx) => (
-                      <div key={idx} className="grid gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '80px 1fr 120px'}}>
+                      <div key={idx} className="grid gap-2 md:gap-4 p-2 md:p-4 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '70px 1fr 100px 55px 70px'}}>
                         <div className="text-slate-300 text-xs md:text-sm">{clockout.reportDate}</div>
                         <div className="text-white font-medium text-xs md:text-sm">{clockout.employee}</div>
                         <div className="text-slate-300 text-xs md:text-sm">{clockout.location}</div>
+                        <div className="text-red-400 font-semibold text-xs md:text-sm text-right">{clockout.extraHours === 'N/A' ? 'N/A' : clockout.extraHours ? `${clockout.extraHours}h` : ''}</div>
+                        <div className="text-slate-300 text-xs md:text-sm text-right">{clockout.schEnd}</div>
                       </div>
                     ))}
                   </div>
@@ -2219,40 +2247,27 @@ export default function Home() {
             onClick={() => setShowClockoutModal(false)}
           >
             <div 
-              className="bg-slate-800 border border-slate-700 rounded-lg p-4 max-w-md w-full shadow-xl"
+              className="bg-slate-800 border border-slate-700 rounded-lg p-4 max-w-sm w-full shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-white">Auto-Clockouts</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-bold text-white">{clockoutModalData.location} - Auto-Clockouts</h3>
                 <button
                   onClick={() => setShowClockoutModal(false)}
-                  className="text-slate-400 hover:text-white transition-colors"
+                  className="text-slate-400 hover:text-white transition-colors text-xl leading-none"
                 >
-                  <span className="text-2xl">×</span>
+                  ×
                 </button>
               </div>
               
-              <div className="mb-3">
-                <p className="text-sm text-slate-400 mb-2">Location: <span className="text-white font-semibold">{clockoutModalData.location}</span></p>
-                <p className="text-xs text-slate-500">Employees with auto-clockouts ({getDataDateRange(clockouts) || 'this week'}):</p>
+              <div className="space-y-1">
+                {clockoutModalData.data.map((c, idx) => (
+                  <div key={idx} className="flex justify-between text-sm py-1 border-b border-slate-700 last:border-b-0">
+                    <span className="text-white">{c.employee}</span>
+                    <span className="text-red-400 font-medium">{c.extraHours === 'N/A' ? 'N/A' : c.extraHours ? `${c.extraHours}h` : ''}</span>
+                  </div>
+                ))}
               </div>
-
-              <div className="bg-slate-900 rounded-lg p-3 max-h-64 overflow-y-auto">
-                <ul className="space-y-2">
-                  {clockoutModalData.employees.map((emp, idx) => (
-                    <li key={idx} className="text-white text-sm py-1 border-b border-slate-700 last:border-b-0">
-                      {emp}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <button
-                onClick={() => setShowClockoutModal(false)}
-                className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition-colors"
-              >
-                Close
-              </button>
             </div>
           </div>
         )}
@@ -2263,40 +2278,26 @@ export default function Home() {
             onClick={() => setShowCallOffModal(false)}
           >
             <div 
-              className="bg-slate-800 border border-slate-700 rounded-lg p-4 max-w-md w-full shadow-xl"
+              className="bg-slate-800 border border-slate-700 rounded-lg p-4 max-w-sm w-full shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-white">Call-Offs</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-bold text-white">{callOffModalData.location} - Call-Offs</h3>
                 <button
                   onClick={() => setShowCallOffModal(false)}
-                  className="text-slate-400 hover:text-white transition-colors"
+                  className="text-slate-400 hover:text-white transition-colors text-xl leading-none"
                 >
-                  <span className="text-2xl">×</span>
+                  ×
                 </button>
               </div>
               
-              <div className="mb-3">
-                <p className="text-sm text-slate-400 mb-2">Location: <span className="text-white font-semibold">{callOffModalData.location}</span></p>
-                <p className="text-xs text-slate-500">Employees who called off ({getDataDateRange(callOffs) || 'this week'}):</p>
+              <div className="space-y-1">
+                {callOffModalData.employees.map((emp, idx) => (
+                  <div key={idx} className="text-white text-sm py-1 border-b border-slate-700 last:border-b-0">
+                    {emp}
+                  </div>
+                ))}
               </div>
-
-              <div className="bg-slate-900 rounded-lg p-3 max-h-64 overflow-y-auto">
-                <ul className="space-y-2">
-                  {callOffModalData.employees.map((emp, idx) => (
-                    <li key={idx} className="text-white text-sm py-1 border-b border-slate-700 last:border-b-0">
-                      {emp}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <button
-                onClick={() => setShowCallOffModal(false)}
-                className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition-colors"
-              >
-                Close
-              </button>
             </div>
           </div>
         )}
