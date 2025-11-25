@@ -578,9 +578,16 @@ export default function PLDashboard() {
   return (
     <>
       <Head>
-        <title>P&L Dashboard - Andy's Frozen Custard</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-      </Head>
+  <title>P&L Dashboard - Andy's Frozen Custard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <style>{`
+    @media print {
+      .text-slate-300, .text-slate-400, .text-slate-500, .text-white {
+        color: black !important;
+      }
+    }
+  `}</style>
+</Head>
       
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
         <div className="max-w-[1400px] mx-auto">
