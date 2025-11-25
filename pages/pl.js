@@ -708,13 +708,14 @@ export default function PLDashboard() {
           {/* Location & Period Selection */}
           {accessType !== 'none' && (
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg">
-              <div className="flex flex-wrap items-center gap-2 md:gap-4">
-                <div className="flex items-center gap-1 md:gap-2">
-                  <label className="text-xs md:text-sm font-medium text-slate-400">Location:</label>
+              {/* Desktop: Location left, Period right */}
+              <div className="hidden md:flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-slate-400">Location:</label>
                   <select
                     value={selectedLocation}
                     onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                   >
                     {availableLocations.map(loc => (
                       <option key={loc} value={loc}>{loc}</option>
@@ -722,12 +723,41 @@ export default function PLDashboard() {
                   </select>
                 </div>
                 
-                <div className="flex items-center gap-1 md:gap-2">
-                  <label className="text-xs md:text-sm font-medium text-slate-400">Period:</label>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-slate-400">Period:</label>
                   <select
                     value={selectedPeriod}
                     onChange={(e) => setSelectedPeriod(e.target.value)}
-                    className="px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    {availablePeriods.map(period => (
+                      <option key={period} value={period}>{period}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              {/* Mobile: Fill the row */}
+              <div className="md:hidden flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-1">
+                  <label className="text-xs font-medium text-slate-400">Location:</label>
+                  <select
+                    value={selectedLocation}
+                    onChange={(e) => setSelectedLocation(e.target.value)}
+                    className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    {availableLocations.map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="flex-1 flex items-center gap-1">
+                  <label className="text-xs font-medium text-slate-400">Period:</label>
+                  <select
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(e.target.value)}
+                    className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                   >
                     {availablePeriods.map(period => (
                       <option key={period} value={period}>{period}</option>
