@@ -18,37 +18,73 @@ export default async function handler(req, res) {
     const client = await clientPromise;
     const db = client.db('andysdashboard');
 
+    // GET - Fetch all users
     if (req.method === 'GET') {
-      const users = await db.collection('users').find({}).toArray();
-      return res.status(200).json({ users });
+      const users = await db.collection('users')
+        .find({})
+        .sort({ lastLogin: -1, createdAt: -1 })
+        .toArray();
+      
+      return res.status(200).json({ 
+        users: users.map(u => ({
+          email: u.email,
+          name: u.name,
+          image: u.image,
+          dashboardAccess: u.dashboardAccess || { type: 'none', locations: [] },
+          plAccess: u.plAccess || { type: 'none', locations: [] },
+          lastLogin: u.lastLogin,
+          createdAt: u.createdAt
+        }))
+      });
     }
 
+    // POST - Update user access
     if (req.method === 'POST') {
-      const { email, accessType, locations } = req.body;
+      const { email, dashboardAccess, plAccess, accessType, locations } = req.body;
 
       if (!email) {
         return res.status(400).json({ error: 'Email required' });
       }
 
+      // Build update object
+      const updateFields = {
+        updatedAt: new Date(),
+        updatedBy: session.user.email
+      };
+
+      // Support new two-column format
+      if (dashboardAccess !== undefined) {
+        updateFields.dashboardAccess = {
+          type: dashboardAccess.type || 'none',
+          locations: dashboardAccess.locations || []
+        };
+      }
+
+      if (plAccess !== undefined) {
+        updateFields.plAccess = {
+          type: plAccess.type || 'none',
+          locations: plAccess.locations || []
+        };
+      }
+
+      // Backward compatibility: if only accessType/locations sent, treat as plAccess
+      if (accessType !== undefined && plAccess === undefined) {
+        updateFields.plAccess = {
+          type: accessType || 'none',
+          locations: locations || []
+        };
+      }
+
       await db.collection('users').updateOne(
         { email },
-        {
-          $set: {
-            email,
-            plAccess: {
-              type: accessType || 'none',
-              locations: locations || []
-            },
-            updatedAt: new Date(),
-            updatedBy: session.user.email
-          }
-        },
+        { $set: updateFields },
         { upsert: true }
       );
 
       return res.status(200).json({ success: true });
     }
 
+    // DELETE - Remove user
     if (req.method === 'DELETE') {
       const { email } = req.query;
       
@@ -63,7 +99,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
 
   } catch (error) {
-    console.error('Update P&L access error:', error);
+    console.error('Update access error:', error);
     return res.status(500).json({ error: error.message });
   }
 }
