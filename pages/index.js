@@ -889,17 +889,13 @@ export default function Home() {
   // Load dashboard access permissions
   const loadDashboardAccess = async () => {
     try {
-      const res = await fetch('/api/admin/update-pl-access');
+      const res = await fetch('/api/check-access');
       const data = await res.json();
       
-      if (res.ok && data.users) {
-        const currentUser = data.users.find(u => u.email === session?.user?.email);
-        if (currentUser) {
-          setDashboardAccess(currentUser.dashboardAccess || { type: 'none', locations: [] });
-        } else {
-          // User not in system yet, default to no access (unless admin)
-          setDashboardAccess({ type: 'none', locations: [] });
-        }
+      if (res.ok) {
+        setDashboardAccess(data.dashboardAccess || { type: 'none', locations: [] });
+      } else {
+        setDashboardAccess({ type: 'none', locations: [] });
       }
     } catch (err) {
       console.error('Error loading dashboard access:', err);
