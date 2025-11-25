@@ -6,6 +6,57 @@ import AppleProvider from "next-auth/providers/apple";
 import EmailProvider from "next-auth/providers/email";
 import { MongoDBAdapter } from "@next-auth/mongodb-adapter";
 import clientPromise from "../../../lib/mongodb";
+import nodemailer from "nodemailer";
+
+const ADMIN_EMAIL = 'dalton@rancherscustard.com';
+
+// Send notification email to admin
+async function sendNewUserNotification(newUser) {
+  try {
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_SERVER_HOST,
+      port: process.env.EMAIL_SERVER_PORT,
+      secure: process.env.EMAIL_SERVER_PORT === '465',
+      auth: {
+        user: process.env.EMAIL_SERVER_USER,
+        pass: process.env.EMAIL_SERVER_PASSWORD,
+      },
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: ADMIN_EMAIL,
+      subject: `New Dashboard User: ${newUser.name || newUser.email}`,
+      text: `A new user has logged into Andy's Dashboard for the first time.\n\nName: ${newUser.name || 'Not provided'}\nEmail: ${newUser.email}\nTime: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })}\n\nThey currently have no access. Visit the Users page to grant access:\nhttps://andysdashboard.com/admin/users`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #1e293b;">New Dashboard User</h2>
+          <p>A new user has logged into Andy's Dashboard for the first time.</p>
+          <table style="border-collapse: collapse; margin: 20px 0;">
+            <tr>
+              <td style="padding: 8px 12px; background: #f1f5f9; font-weight: bold;">Name</td>
+              <td style="padding: 8px 12px; background: #f8fafc;">${newUser.name || 'Not provided'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 12px; background: #f1f5f9; font-weight: bold;">Email</td>
+              <td style="padding: 8px 12px; background: #f8fafc;">${newUser.email}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 12px; background: #f1f5f9; font-weight: bold;">Time</td>
+              <td style="padding: 8px 12px; background: #f8fafc;">${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })}</td>
+            </tr>
+          </table>
+          <p style="color: #64748b;">They currently have no access to any dashboards.</p>
+          <a href="https://andysdashboard.com/admin/users" style="display: inline-block; padding: 12px 24px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin-top: 10px;">Grant Access</a>
+        </div>
+      `,
+    });
+    
+    console.log(`New user notification sent for: ${newUser.email}`);
+  } catch (err) {
+    console.error('Failed to send new user notification:', err);
+  }
+}
 
 export const authOptions = {
   adapter: MongoDBAdapter(clientPromise),
@@ -68,6 +119,12 @@ export const authOptions = {
             lastLogin: new Date()
           });
           console.log(`Created new user record for: ${user.email}`);
+          
+          // Send notification email to admin (don't await - fire and forget)
+          sendNewUserNotification({
+            email: user.email,
+            name: user.name || profile?.name || user.email.split('@')[0]
+          });
         } else {
           // Update last login and sync name/image if changed
           await db.collection('users').updateOne(
