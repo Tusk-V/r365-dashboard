@@ -116,16 +116,20 @@ export const authOptions = {
               locations: []
             },
             createdAt: new Date(),
-            lastLogin: new Date()
+            lastLogin: new Date(),
+            notificationSent: true
           });
           console.log(`Created new user record for: ${user.email}`);
           
-          // Send notification email to admin (don't await - fire and forget)
+          // Send notification email to admin
           sendNewUserNotification({
             email: user.email,
             name: user.name || profile?.name || user.email.split('@')[0]
           });
         } else {
+          // Check if we need to send notification (user exists but notification never sent)
+          const shouldNotify = !existingUser.notificationSent;
+          
           // Update last login and sync name/image if changed
           await db.collection('users').updateOne(
             { email: user.email },
@@ -133,10 +137,20 @@ export const authOptions = {
               $set: {
                 lastLogin: new Date(),
                 name: user.name || profile?.name || existingUser.name,
-                image: user.image || profile?.picture || existingUser.image
+                image: user.image || profile?.picture || existingUser.image,
+                notificationSent: true
               }
             }
           );
+          
+          // Send notification if this user was never notified about
+          if (shouldNotify) {
+            console.log(`Sending delayed notification for: ${user.email}`);
+            sendNewUserNotification({
+              email: user.email,
+              name: user.name || profile?.name || existingUser.name || user.email.split('@')[0]
+            });
+          }
         }
       } catch (err) {
         console.error('Error managing user record:', err);
