@@ -465,7 +465,7 @@ export default function PLDashboard() {
       <div key={sectionName} className="mb-2">
         <button
           onClick={() => toggleSection(sectionName)}
-          className="w-full flex items-center px-2 md:px-3 py-1.5 rounded-t-lg transition-colors bg-slate-800 hover:bg-slate-750 border border-slate-700 print:hover:bg-slate-800"
+          className="w-full flex items-center px-2 md:px-3 py-1.5 rounded-t-lg transition-colors bg-slate-800 hover:bg-slate-750 border-2 border-slate-600 print:hover:bg-slate-800"
         >
           <div className="flex items-center gap-2 text-white">
             <span className="print:hidden">{isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</span>
@@ -474,7 +474,7 @@ export default function PLDashboard() {
         </button>
         
         {isExpanded && (
-          <div className="bg-slate-800/50 border border-t-0 border-slate-700 rounded-b-lg overflow-x-auto">
+          <div className="bg-slate-800/50 border-2 border-t-0 border-slate-600 rounded-b-lg overflow-x-auto">
             <table className="w-full table-fixed" style={{ minWidth: '100%' }}>
               <colgroup>
                 <col style={{ width: '32%' }} />
@@ -498,7 +498,7 @@ export default function PLDashboard() {
     
     return (
       <div className="mb-2">
-        <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-x-auto">
+        <div className="bg-slate-800 border-2 border-slate-600 rounded-lg overflow-x-auto">
           <table className="w-full table-fixed" style={{ minWidth: '100%' }}>
             <colgroup>
               <col style={{ width: '32%' }} />
@@ -534,11 +534,11 @@ export default function PLDashboard() {
 
   const KPICard = ({ label, periodValue, ytdValue, isPercent = false, color = 'blue' }) => {
     const colorClasses = {
-      blue: 'border-blue-500/30 bg-blue-900/20',
-      green: 'border-green-500/30 bg-green-900/20',
-      orange: 'border-orange-500/30 bg-orange-900/20',
-      purple: 'border-purple-500/30 bg-purple-900/20',
-      red: 'border-red-500/30 bg-red-900/20'
+      blue: 'border-2 border-blue-500/50 bg-blue-900/20',
+      green: 'border-2 border-green-500/50 bg-green-900/20',
+      orange: 'border-2 border-orange-500/50 bg-orange-900/20',
+      purple: 'border-2 border-purple-500/50 bg-purple-900/20',
+      red: 'border-2 border-red-500/50 bg-red-900/20'
     };
     
     const textColors = {
@@ -553,7 +553,7 @@ export default function PLDashboard() {
     const displayColor = isNegative ? 'red' : color;
     
     return (
-      <div className={`rounded-lg border ${colorClasses[displayColor]} p-2 md:p-3`}>
+      <div className={`rounded-lg ${colorClasses[displayColor]} p-2 md:p-3`}>
         <div className="text-xs md:text-sm text-slate-300 uppercase tracking-wide mb-2 text-center font-semibold">
           {label}
         </div>
@@ -599,8 +599,8 @@ export default function PLDashboard() {
               display: block !important;
             }
             /* Remove borders that look bad on print */
-            .border-slate-700, .border-slate-600 {
-              border-color: #ccc !important;
+            .border-slate-600, .border-slate-700 {
+              border-color: #999 !important;
             }
           }
         `}</style>
@@ -853,7 +853,7 @@ export default function PLDashboard() {
 
           {/* Column Headers */}
           {plData && !loading && (
-            <div className="bg-slate-700/50 border border-slate-600 rounded-lg mb-2 overflow-hidden">
+            <div className="bg-slate-700/50 border-2 border-slate-600 rounded-lg mb-2 overflow-hidden">
               <table className="w-full table-fixed">
                 <colgroup>
                   <col style={{ width: '32%' }} />
