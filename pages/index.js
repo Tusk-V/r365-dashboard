@@ -4,6 +4,8 @@ import Head from "next/head"
 import { useState, useEffect } from 'react';
 import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown } from 'lucide-react';
 
+const ADMIN_EMAIL = 'dalton@rancherscustard.com';
+
 // Google Sheets API Configuration
 const API_KEY = 'AIzaSyAbUI3oP_0ofBG9tiAudYLUjZ4MSSaFNDA';
 const SPREADSHEET_ID = '1WsHBn5qLczH8QZ1c-CyVGfCWzMuLg2vmx5R5MZdHY20';
@@ -84,6 +86,12 @@ export default function Home() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isDailyFlashFiltersOpen, setIsDailyFlashFiltersOpen] = useState(false);
   const [isScheduledFiltersOpen, setIsScheduledFiltersOpen] = useState(false);
+
+  // Access control
+  const [dashboardAccess, setDashboardAccess] = useState(null);
+  const [accessLoading, setAccessLoading] = useState(true);
+
+  const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
   const getMarket = (locationName) => {
     const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
@@ -443,6 +451,13 @@ export default function Home() {
   const applyCallOffFilters = () => {
     let filtered = [...callOffs];
     
+    // Apply access control first
+    if (!isAdmin && dashboardAccess?.type === 'specific') {
+      filtered = filtered.filter(c => dashboardAccess.locations?.includes(c.location));
+    } else if (!isAdmin && dashboardAccess?.type === 'none') {
+      filtered = [];
+    }
+    
     if (callOffLocationFilter !== 'all') {
       filtered = filtered.filter(c => c.location === callOffLocationFilter);
     }
@@ -645,6 +660,13 @@ export default function Home() {
   const applyScheduledFilters = () => {
     let filtered = [...scheduledToday];
     
+    // Apply access control first
+    if (!isAdmin && dashboardAccess?.type === 'specific') {
+      filtered = filtered.filter(emp => dashboardAccess.locations?.includes(emp.location));
+    } else if (!isAdmin && dashboardAccess?.type === 'none') {
+      filtered = [];
+    }
+    
     if (scheduledLocationFilter !== 'all') {
       filtered = filtered.filter(emp => emp.location === scheduledLocationFilter);
     }
@@ -658,6 +680,13 @@ export default function Home() {
 
   const applyClockoutFilters = () => {
     let filtered = [...clockouts];
+    
+    // Apply access control first
+    if (!isAdmin && dashboardAccess?.type === 'specific') {
+      filtered = filtered.filter(c => dashboardAccess.locations?.includes(c.location));
+    } else if (!isAdmin && dashboardAccess?.type === 'none') {
+      filtered = [];
+    }
     
     if (locationFilter !== 'all') {
       filtered = filtered.filter(c => c.location === locationFilter);
@@ -720,6 +749,13 @@ export default function Home() {
   const applyFilters = () => {
     let filtered = [...locations];
     
+    // Apply access control first
+    if (!isAdmin && dashboardAccess?.type === 'specific') {
+      filtered = filtered.filter(loc => dashboardAccess.locations?.includes(loc.location));
+    } else if (!isAdmin && dashboardAccess?.type === 'none') {
+      filtered = [];
+    }
+    
     if (filters.locations.length > 0) {
       filtered = filtered.filter(loc => filters.locations.includes(loc.location));
     }
@@ -744,7 +780,15 @@ export default function Home() {
   };
 
   const applyDailyFlashFilters = () => {
-    const allLocations = Object.keys(dailyFlashData);
+    let allLocations = Object.keys(dailyFlashData);
+    
+    // Apply access control first
+    if (!isAdmin && dashboardAccess?.type === 'specific') {
+      allLocations = allLocations.filter(loc => dashboardAccess.locations?.includes(loc));
+    } else if (!isAdmin && dashboardAccess?.type === 'none') {
+      allLocations = [];
+    }
+    
     let filtered = allLocations;
     
     if (dailyFlashFilters.locations.length > 0) {
@@ -773,7 +817,15 @@ export default function Home() {
   };
 
   const applyDailyLaborFilters = () => {
-    const allLocations = Object.keys(dailyLaborData);
+    let allLocations = Object.keys(dailyLaborData);
+    
+    // Apply access control first
+    if (!isAdmin && dashboardAccess?.type === 'specific') {
+      allLocations = allLocations.filter(loc => dashboardAccess.locations?.includes(loc));
+    } else if (!isAdmin && dashboardAccess?.type === 'none') {
+      allLocations = [];
+    }
+    
     let filtered = allLocations;
     
     if (dailyLaborFilters.locations.length > 0) {
@@ -834,6 +886,47 @@ export default function Home() {
     }
   }, [status, router])
 
+  // Load dashboard access permissions
+  const loadDashboardAccess = async () => {
+    try {
+      const res = await fetch('/api/admin/update-pl-access');
+      const data = await res.json();
+      
+      if (res.ok && data.users) {
+        const currentUser = data.users.find(u => u.email === session?.user?.email);
+        if (currentUser) {
+          setDashboardAccess(currentUser.dashboardAccess || { type: 'none', locations: [] });
+        } else {
+          // User not in system yet, default to no access (unless admin)
+          setDashboardAccess({ type: 'none', locations: [] });
+        }
+      }
+    } catch (err) {
+      console.error('Error loading dashboard access:', err);
+      setDashboardAccess({ type: 'none', locations: [] });
+    } finally {
+      setAccessLoading(false);
+    }
+  };
+
+  // Check if user has access to a location
+  const hasLocationAccess = (locationName) => {
+    if (isAdmin) return true;
+    if (!dashboardAccess) return false;
+    if (dashboardAccess.type === 'all') return true;
+    if (dashboardAccess.type === 'specific') {
+      return dashboardAccess.locations?.includes(locationName);
+    }
+    return false;
+  };
+
+  // Filter data based on access
+  const filterByAccess = (data, locationKey = 'location') => {
+    if (isAdmin || dashboardAccess?.type === 'all') return data;
+    if (!dashboardAccess || dashboardAccess.type === 'none') return [];
+    return data.filter(item => dashboardAccess.locations?.includes(item[locationKey]));
+  };
+
   useEffect(() => {
     const handleClickOutside = () => {
       if (isLocationDropdownOpen) {
@@ -861,6 +954,7 @@ export default function Home() {
 
   useEffect(() => {
     if (status === "authenticated") {
+      loadDashboardAccess();
       loadDataFromGoogleSheets();
       loadAvailableWeeks();
       loadAutoClockouts();
@@ -881,29 +975,29 @@ export default function Home() {
 
   useEffect(() => {
     applyFilters();
-  }, [locations, filters]);
+  }, [locations, filters, dashboardAccess]);
 
   useEffect(() => {
     applyDailyFlashFilters();
-  }, [dailyFlashData, dailyFlashFilters]);
+  }, [dailyFlashData, dailyFlashFilters, dashboardAccess]);
 
   useEffect(() => {
     applyDailyLaborFilters();
-  }, [dailyLaborData, dailyLaborFilters]);
+  }, [dailyLaborData, dailyLaborFilters, dashboardAccess]);
 
   useEffect(() => {
     applyClockoutFilters();
-  }, [clockouts, locationFilter, statusFilter]);
+  }, [clockouts, locationFilter, statusFilter, dashboardAccess]);
 
   useEffect(() => {
     applyCallOffFilters();
-  }, [callOffs, callOffLocationFilter]);
+  }, [callOffs, callOffLocationFilter, dashboardAccess]);
 
   useEffect(() => {
     applyScheduledFilters();
-  }, [scheduledToday, scheduledLocationFilter, scheduledMarketFilter]);
+  }, [scheduledToday, scheduledLocationFilter, scheduledMarketFilter, dashboardAccess]);
 
-  if (status === "loading") {
+  if (status === "loading" || accessLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-white text-lg">Loading...</div>
@@ -913,6 +1007,38 @@ export default function Home() {
 
   if (!session) {
     return null
+  }
+
+  // Check if user has any dashboard access
+  if (!isAdmin && (!dashboardAccess || dashboardAccess.type === 'none')) {
+    return (
+      <>
+        <Head>
+          <title>Andy's Dashboards</title>
+        </Head>
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 flex items-center justify-center">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 max-w-md text-center">
+            <div className="mb-4">
+              <img 
+                src="https://i.imgur.com/kkJMVz0.png" 
+                alt="Andy's Frozen Custard" 
+                className="h-16 mx-auto"
+              />
+            </div>
+            <h1 className="text-xl font-bold text-white mb-2">No Dashboard Access</h1>
+            <p className="text-slate-400 mb-6">
+              You don't have access to any dashboards yet. Please contact your administrator to request access.
+            </p>
+            <button
+              onClick={() => signOut()}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </>
+    )
   }
 
   const totals = calculateTotals();
