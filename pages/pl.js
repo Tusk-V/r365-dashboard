@@ -183,7 +183,6 @@ export default function PLDashboard() {
     'Occupancy Costs', 'Depreciation and Amortization'
   ];
 
-  // Manager wage labels to combine
   const managerWageLabels = ['Manager Wages', 'Market Manager Wages', 'General Manager Wages', 'Assistant Manager Wages'];
 
   const processData = (rows) => {
@@ -205,7 +204,6 @@ export default function PLDashboard() {
     let totalSalariesWages = { period: 0, ytd: 0 };
     let netIncome = { period: 0, ytd: 0, periodPercent: 0, ytdPercent: 0 };
     
-    // Accumulator for manager wages
     let managerWagesAccum = { period: 0, ytd: 0, periodPercent: 0, ytdPercent: 0 };
     let managerWagesAdded = false;
     
@@ -237,13 +235,11 @@ export default function PLDashboard() {
       const isSubCategoryTotal = isTotalRow && subCategoryLabels.includes(label.replace('Total ', ''));
       const isSectionTotal = isTotalRow && sectionHeaders.includes(label.replace('Total ', ''));
       
-      // Check if this is a manager wage row to combine
       const isManagerWage = managerWageLabels.includes(label);
       
       if (isSubCategoryHeader) {
         currentSubCategory = label;
         subCategoryTotals[label] = { period: 0, ytd: 0 };
-        // Reset manager wages accumulator for new sub-category
         if (label === 'Salaries and Wages') {
           managerWagesAccum = { period: 0, ytd: 0, periodPercent: 0, ytdPercent: 0 };
           managerWagesAdded = false;
@@ -299,13 +295,10 @@ export default function PLDashboard() {
         });
         currentSubCategory = '';
       } else if (isManagerWage) {
-        // Accumulate manager wages
         managerWagesAccum.period += parseFloat(row.period) || 0;
         managerWagesAccum.ytd += parseFloat(row.ytd) || 0;
         
-        // Add combined row only once (after first manager wage encountered)
         if (!managerWagesAdded && (managerWagesAccum.period !== 0 || managerWagesAccum.ytd !== 0)) {
-          // We'll update this row later, mark position
           const rowIndex = sections[currentSection].rows.length;
           sections[currentSection].rows.push({
             label: 'Manager Wages',
@@ -319,7 +312,6 @@ export default function PLDashboard() {
           });
           managerWagesAdded = true;
         } else if (managerWagesAdded) {
-          // Update the existing combined row
           const existingRow = sections[currentSection].rows.find(r => r._managerWagesIndex !== undefined);
           if (existingRow) {
             existingRow.period = managerWagesAccum.period;
@@ -327,7 +319,6 @@ export default function PLDashboard() {
           }
         }
         
-        // Still add to running totals
         const periodVal = parseFloat(row.period) || 0;
         const ytdVal = parseFloat(row.ytd) || 0;
         sections[currentSection].total.period += periodVal;
@@ -337,7 +328,6 @@ export default function PLDashboard() {
           subCategoryTotals[currentSubCategory].ytd += ytdVal;
         }
       } else {
-        // Regular line item - skip if both period and ytd are 0 or blank
         const periodVal = parseFloat(row.period) || 0;
         const ytdVal = parseFloat(row.ytd) || 0;
         
@@ -421,13 +411,16 @@ export default function PLDashboard() {
       case 'subCategoryHeader':
         return (
           <tr key={idx} className="border-b border-slate-700/30">
-            <td colSpan={5} className="py-1 pl-3 text-slate-400 text-xs font-medium uppercase tracking-wide">
+            <td colSpan={3} className="py-1 pl-3 text-slate-400 text-xs font-medium uppercase tracking-wide md:hidden">
+              {row.label}
+            </td>
+            <td colSpan={5} className="py-1 pl-3 text-slate-400 text-xs font-medium uppercase tracking-wide hidden md:table-cell">
               {row.label}
             </td>
           </tr>
         );
       case 'lineItem':
-        paddingClass = row.indent ? 'pl-6' : 'pl-3';
+        paddingClass = row.indent ? 'pl-5' : 'pl-3';
         break;
       case 'subCategoryTotal':
         bgClass = 'bg-slate-700/30';
@@ -444,19 +437,19 @@ export default function PLDashboard() {
 
     return (
       <tr key={idx} className={`${bgClass} border-b border-slate-700/30`}>
-        <td className={`py-1 ${paddingClass} ${textClass} ${fontClass}`} style={{ width: '40%' }}>
+        <td className={`py-1 ${paddingClass} ${textClass} ${fontClass}`}>
           {row.label}
         </td>
-        <td className={`py-1 px-2 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '15%' }}>
+        <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`}>
           {formatCurrency(row.period)}
         </td>
-        <td className="py-1 px-2 text-right text-slate-400 text-sm tabular-nums" style={{ width: '10%' }}>
+        <td className="py-1 px-1 text-right text-slate-400 text-sm tabular-nums">
           {formatPercent(periodPercent)}
         </td>
-        <td className={`py-1 px-2 text-right ${textClass} ${fontClass} tabular-nums hidden md:table-cell`} style={{ width: '15%' }}>
+        <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums hidden md:table-cell`}>
           {formatCurrency(row.ytd)}
         </td>
-        <td className="py-1 px-2 text-right text-slate-400 text-sm tabular-nums hidden md:table-cell" style={{ width: '10%' }}>
+        <td className="py-1 px-1 text-right text-slate-400 text-sm tabular-nums hidden md:table-cell">
           {formatPercent(ytdPercent)}
         </td>
       </tr>
@@ -481,15 +474,8 @@ export default function PLDashboard() {
         </button>
         
         {isExpanded && (
-          <div className="bg-slate-800/50 border border-t-0 border-slate-700 rounded-b-lg overflow-hidden">
-            <table className="w-full table-fixed">
-              <colgroup>
-                <col style={{ width: '40%' }} />
-                <col style={{ width: '15%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '15%' }} className="hidden md:table-column" />
-                <col style={{ width: '10%' }} className="hidden md:table-column" />
-              </colgroup>
+          <div className="bg-slate-800/50 border border-t-0 border-slate-700 rounded-b-lg overflow-x-auto">
+            <table className="w-full min-w-[320px]">
               <tbody>
                 {sectionData.rows.map((row, idx) => renderRow(row, idx))}
               </tbody>
@@ -505,30 +491,23 @@ export default function PLDashboard() {
     
     return (
       <div className="mb-2">
-        <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-          <table className="w-full table-fixed">
-            <colgroup>
-              <col style={{ width: '40%' }} />
-              <col style={{ width: '15%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '15%' }} className="hidden md:table-column" />
-              <col style={{ width: '10%' }} className="hidden md:table-column" />
-            </colgroup>
+        <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-x-auto">
+          <table className="w-full min-w-[320px]">
             <tbody>
               <tr>
                 <td className="py-2 pl-3 text-white text-sm font-bold">
                   Net Income/Loss
                 </td>
-                <td className="py-2 px-2 text-right text-white text-sm font-bold tabular-nums">
+                <td className="py-2 px-1 text-right text-white text-sm font-bold tabular-nums">
                   {formatCurrency(netIncome.period)}
                 </td>
-                <td className="py-2 px-2 text-right text-slate-400 text-sm font-bold tabular-nums">
+                <td className="py-2 px-1 text-right text-slate-400 text-sm font-bold tabular-nums">
                   {formatPercent(netIncome.periodPercent)}
                 </td>
-                <td className="py-2 px-2 text-right text-white text-sm font-bold tabular-nums hidden md:table-cell">
+                <td className="py-2 px-1 text-right text-white text-sm font-bold tabular-nums hidden md:table-cell">
                   {formatCurrency(netIncome.ytd)}
                 </td>
-                <td className="py-2 px-2 text-right text-slate-400 text-sm font-bold tabular-nums hidden md:table-cell">
+                <td className="py-2 px-1 text-right text-slate-400 text-sm font-bold tabular-nums hidden md:table-cell">
                   {formatPercent(netIncome.ytdPercent)}
                 </td>
               </tr>
@@ -560,18 +539,20 @@ export default function PLDashboard() {
     const displayColor = isNegative ? 'red' : color;
     
     return (
-      <div className={`rounded-lg border ${colorClasses[displayColor]} p-2`}>
-        <div className="text-xs text-slate-400 uppercase tracking-wide mb-1">{label}</div>
-        <div className="flex justify-between items-end gap-2">
+      <div className={`rounded-lg border ${colorClasses[displayColor]} p-2 md:p-3`}>
+        <div className="text-[10px] md:text-xs text-slate-400 uppercase tracking-wide mb-2 text-center font-medium">
+          {label}
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-center">
           <div>
-            <div className="text-[10px] text-slate-500 uppercase">Period</div>
-            <div className={`text-lg font-bold ${textColors[displayColor]}`}>
+            <div className="text-[9px] md:text-[10px] text-slate-500 uppercase mb-0.5">Period</div>
+            <div className={`text-sm md:text-lg font-bold ${textColors[displayColor]}`}>
               {isPercent ? formatKPIPercent(periodValue) : formatKPICurrency(periodValue)}
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-[10px] text-slate-500 uppercase">YTD</div>
-            <div className={`text-lg font-bold ${textColors[displayColor]}`}>
+          <div>
+            <div className="text-[9px] md:text-[10px] text-slate-500 uppercase mb-0.5">YTD</div>
+            <div className={`text-sm md:text-lg font-bold ${textColors[displayColor]}`}>
               {isPercent ? formatKPIPercent(ytdValue) : formatKPICurrency(ytdValue)}
             </div>
           </div>
@@ -584,6 +565,7 @@ export default function PLDashboard() {
     <>
       <Head>
         <title>P&L Dashboard - Andy's Frozen Custard</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </Head>
       
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
@@ -653,33 +635,39 @@ export default function PLDashboard() {
             </div>
 
             {/* Mobile Header */}
-            <div className="md:hidden flex items-center justify-between mb-3">
-              <img 
-                src="https://i.imgur.com/kkJMVz0.png" 
-                alt="Andy's Frozen Custard" 
-                className="h-12"
-              />
-              <div className="flex items-center gap-2">
-                {isAdmin && (
+            <div className="md:hidden">
+              <div className="flex items-center justify-between mb-3">
+                <img 
+                  src="https://i.imgur.com/kkJMVz0.png" 
+                  alt="Andy's Frozen Custard" 
+                  className="h-10"
+                />
+                <div className="flex items-center gap-1">
                   <button
-                    onClick={() => router.push('/pl-upload')}
-                    className="p-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                    title="Upload P&L"
+                    onClick={handleRefresh}
+                    className="p-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                    title="Refresh data"
                   >
-                    <Upload size={16} className="text-white" />
+                    <RefreshCw size={14} className="text-white" />
                   </button>
-                )}
-                <button
-                  onClick={() => signOut()}
-                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
-                >
-                  Sign Out
-                </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => router.push('/pl-upload')}
+                      className="p-1.5 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                      title="Upload P&L"
+                    >
+                      <Upload size={14} className="text-white" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => signOut()}
+                    className="px-2 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    Sign Out
+                  </button>
+                </div>
               </div>
-            </div>
-
-            {/* Mobile Dropdown */}
-            <div className="md:hidden flex items-center gap-2">
+              
               <select
                 value="pl"
                 onChange={(e) => {
@@ -690,7 +678,7 @@ export default function PLDashboard() {
                     }
                   }
                 }}
-                className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
                 <option value="sales">Weekly Sales & Labor</option>
                 <option value="daily-sales">Daily Sales</option>
@@ -700,27 +688,19 @@ export default function PLDashboard() {
                 <option value="scheduled-today">Scheduled Today</option>
                 <option value="pl">Profit & Loss</option>
               </select>
-              
-              <button
-                onClick={handleRefresh}
-                className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                title="Refresh data"
-              >
-                <RefreshCw size={16} className="text-white" />
-              </button>
             </div>
           </div>
 
           {/* Location & Period Selection */}
           {accessType !== 'none' && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-slate-400">Location:</label>
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 shadow-lg">
+              <div className="flex flex-wrap items-center gap-2 md:gap-4">
+                <div className="flex items-center gap-1 md:gap-2">
+                  <label className="text-xs md:text-sm font-medium text-slate-400">Location:</label>
                   <select
                     value={selectedLocation}
                     onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    className="px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                   >
                     {availableLocations.map(loc => (
                       <option key={loc} value={loc}>{loc}</option>
@@ -728,12 +708,12 @@ export default function PLDashboard() {
                   </select>
                 </div>
                 
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-slate-400">Period:</label>
+                <div className="flex items-center gap-1 md:gap-2">
+                  <label className="text-xs md:text-sm font-medium text-slate-400">Period:</label>
                   <select
                     value={selectedPeriod}
                     onChange={(e) => setSelectedPeriod(e.target.value)}
-                    className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    className="px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                   >
                     {availablePeriods.map(period => (
                       <option key={period} value={period}>{period}</option>
@@ -779,21 +759,14 @@ export default function PLDashboard() {
           {/* Column Headers */}
           {plData && !loading && (
             <div className="bg-slate-700/50 border border-slate-600 rounded-lg mb-2 overflow-hidden">
-              <table className="w-full table-fixed">
-                <colgroup>
-                  <col style={{ width: '40%' }} />
-                  <col style={{ width: '15%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '15%' }} className="hidden md:table-column" />
-                  <col style={{ width: '10%' }} className="hidden md:table-column" />
-                </colgroup>
+              <table className="w-full">
                 <thead>
                   <tr>
-                    <th className="py-1.5 px-3 text-left text-sm font-semibold text-slate-300"></th>
-                    <th className="py-1.5 px-2 text-right text-sm font-semibold text-slate-300">Period</th>
-                    <th className="py-1.5 px-2 text-right text-sm font-semibold text-slate-300">%</th>
-                    <th className="py-1.5 px-2 text-right text-sm font-semibold text-slate-300 hidden md:table-cell">YTD</th>
-                    <th className="py-1.5 px-2 text-right text-sm font-semibold text-slate-300 hidden md:table-cell">%</th>
+                    <th className="py-1.5 px-3 text-left text-xs md:text-sm font-semibold text-slate-300"></th>
+                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">Period</th>
+                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">%</th>
+                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300 hidden md:table-cell">YTD</th>
+                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300 hidden md:table-cell">%</th>
                   </tr>
                 </thead>
               </table>
