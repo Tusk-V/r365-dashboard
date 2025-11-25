@@ -117,9 +117,10 @@ export default function PLDashboard() {
   };
 
   const formatCurrency = (value) => {
-    if (value === null || value === undefined) return '';
+    if (value === null || value === undefined) return '—';
     const num = parseFloat(value);
-    if (isNaN(num)) return '';
+    if (isNaN(num)) return '—';
+    if (num === 0) return '0';
     const formatted = Math.abs(num).toLocaleString('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
@@ -155,6 +156,19 @@ export default function PLDashboard() {
     );
   }
 
+  // Categories that are ONLY headers (never have their own values)
+  const pureHeaderLabels = [
+    'Sales', 'Prime Cost', 'Operating Expense', 'Non Controllable Expense', 'Net Profit'
+  ];
+
+  // Sub-categories that group line items (shown as headers within sections)
+  const subCategoryLabels = [
+    'Comps & Discounts', 'Food and Paper Cost', 'Salaries and Wages',
+    'Payroll Taxes', 'Payroll Benefits', 'Direct Operating Expense',
+    'Utilities', 'Advertising', 'General and Administrative',
+    'Occupancy Costs', 'Depreciation and Amortization'
+  ];
+
   const groupRowsBySection = (rows) => {
     if (!rows) return {};
     
@@ -167,26 +181,64 @@ export default function PLDashboard() {
     };
     
     let currentSection = '';
+    let currentSubCategory = '';
     
     for (const row of rows) {
-      if (row.label === 'Sales') {
-        currentSection = 'Sales';
-        continue;
-      } else if (row.label === 'Prime Cost') {
-        currentSection = 'Prime Cost';
-        continue;
-      } else if (row.label === 'Operating Expense') {
-        currentSection = 'Operating Expense';
-        continue;
-      } else if (row.label === 'Non Controllable Expense') {
-        currentSection = 'Non Controllable Expense';
-        continue;
-      } else if (row.label === 'Net Profit') {
-        currentSection = 'Net Profit';
+      // Skip pure section headers
+      if (pureHeaderLabels.includes(row.label) && !row.label.startsWith('Total')) {
+        if (row.label !== 'Net Profit') {
+          currentSection = row.label;
+          currentSubCategory = '';
+          continue;
+        } else {
+          currentSection = 'Net Profit';
+        }
       }
       
+      // Process the row
       if (currentSection && sections[currentSection]) {
-        sections[currentSection].push(row);
+        // Check if this is a sub-category header (label matches AND has no meaningful values)
+        const isSubCategoryHeader = subCategoryLabels.includes(row.label) && 
+          (row.period === null || row.period === undefined) && 
+          (row.ytd === null || row.ytd === undefined);
+        
+        // Check if this is a "Total [SubCategory]" row
+        const isTotalSubCategory = row.label.startsWith('Total ') && 
+          subCategoryLabels.includes(row.label.replace('Total ', ''));
+        
+        if (isSubCategoryHeader) {
+          currentSubCategory = row.label;
+          sections[currentSection].push({
+            ...row,
+            rowType: 'subCategoryHeader',
+            subCategory: currentSubCategory
+          });
+        } else if (isTotalSubCategory) {
+          sections[currentSection].push({
+            ...row,
+            rowType: 'subCategoryTotal',
+            subCategory: row.label.replace('Total ', '')
+          });
+          currentSubCategory = '';
+        } else if (row.label.startsWith('Total ')) {
+          // Section total
+          sections[currentSection].push({
+            ...row,
+            rowType: 'sectionTotal'
+          });
+        } else if (row.label === 'Net Profit') {
+          sections[currentSection].push({
+            ...row,
+            rowType: 'netProfit'
+          });
+        } else {
+          // Regular line item
+          sections[currentSection].push({
+            ...row,
+            rowType: 'lineItem',
+            subCategory: currentSubCategory
+          });
+        }
       }
     }
     
@@ -196,63 +248,73 @@ export default function PLDashboard() {
   const sections = plData ? groupRowsBySection(plData.rows) : {};
 
   const renderRow = (row, idx) => {
-    if (row.period === null && row.ytd === null && row.isSubHeader && !row.isTotal) {
-      const meaningfulSubHeaders = [
-        'Comps & Discounts', 'Food and Paper Cost', 'Salaries and Wages',
-        'Payroll Taxes', 'Payroll Benefits', 'Direct Operating Expense',
-        'Utilities', 'Advertising', 'General and Administrative',
-        'Occupancy Costs', 'Depreciation and Amortization'
-      ];
-      if (!meaningfulSubHeaders.includes(row.label)) {
-        return null;
-      }
-    }
-
-    if (row.period === 0 && row.ytd === 0 && !row.isTotal && !row.isSubHeader) {
+    // Skip rows with zero values that aren't totals or headers
+    if (row.rowType === 'lineItem' && row.period === 0 && row.ytd === 0) {
       return null;
     }
 
-    const isTotal = row.isTotal || row.label === 'Net Profit';
-    const isSubHeader = row.isSubHeader;
-    
+    // Determine styling based on row type
     let bgClass = '';
     let textClass = 'text-slate-300';
     let fontClass = '';
+    let paddingClass = 'pl-3';
     
-    if (isTotal) {
-      bgClass = 'bg-slate-700/50';
-      textClass = 'text-white';
-      fontClass = 'font-semibold';
-    } else if (isSubHeader) {
-      textClass = 'text-slate-200';
-      fontClass = 'font-medium';
+    switch (row.rowType) {
+      case 'subCategoryHeader':
+        textClass = 'text-slate-400';
+        fontClass = 'font-medium text-xs uppercase tracking-wide';
+        paddingClass = 'pl-3 pt-3';
+        break;
+      case 'lineItem':
+        paddingClass = row.subCategory ? 'pl-6' : 'pl-3';
+        break;
+      case 'subCategoryTotal':
+        bgClass = 'bg-slate-700/30';
+        textClass = 'text-slate-200';
+        fontClass = 'font-medium';
+        paddingClass = 'pl-4';
+        break;
+      case 'sectionTotal':
+        bgClass = 'bg-slate-700/50';
+        textClass = 'text-white';
+        fontClass = 'font-semibold';
+        paddingClass = 'pl-3';
+        break;
+      case 'netProfit':
+        const periodProfit = row.period || 0;
+        bgClass = periodProfit >= 0 ? 'bg-green-900/40' : 'bg-red-900/40';
+        textClass = periodProfit >= 0 ? 'text-green-400' : 'text-red-400';
+        fontClass = 'font-bold';
+        paddingClass = 'pl-3';
+        break;
     }
 
-    if (row.label === 'Net Profit') {
-      const periodProfit = row.period || 0;
-      bgClass = periodProfit >= 0 ? 'bg-green-900/30' : 'bg-red-900/30';
-      textClass = periodProfit >= 0 ? 'text-green-400' : 'text-red-400';
-      fontClass = 'font-bold';
+    // Sub-category headers don't show values
+    if (row.rowType === 'subCategoryHeader') {
+      return (
+        <tr key={idx} className="border-b border-slate-700/30">
+          <td colSpan={5} className={`py-1 ${paddingClass} ${textClass} ${fontClass}`}>
+            {row.label}
+          </td>
+        </tr>
+      );
     }
-
-    const indent = row.indent || 0;
-    const paddingLeft = indent === 0 ? 'pl-2' : indent === 1 ? 'pl-4' : 'pl-8';
 
     return (
-      <tr key={idx} className={`${bgClass} border-b border-slate-700/50 hover:bg-slate-700/30`}>
-        <td className={`py-1.5 ${paddingLeft} ${textClass} ${fontClass} text-sm`}>
+      <tr key={idx} className={`${bgClass} border-b border-slate-700/30 hover:bg-slate-700/20`}>
+        <td className={`py-2 ${paddingClass} ${textClass} ${fontClass} text-sm`}>
           {row.label}
         </td>
-        <td className={`py-1.5 px-2 text-right ${textClass} ${fontClass} text-sm tabular-nums`}>
+        <td className={`py-2 px-2 text-right ${textClass} ${fontClass} text-sm tabular-nums`}>
           {formatCurrency(row.period)}
         </td>
-        <td className={`py-1.5 px-2 text-right ${textClass} text-sm tabular-nums`}>
+        <td className={`py-2 px-2 text-right text-slate-400 text-sm tabular-nums`}>
           {formatPercent(row.periodPercent)}
         </td>
-        <td className={`py-1.5 px-2 text-right ${textClass} ${fontClass} text-sm tabular-nums`}>
+        <td className={`py-2 px-2 text-right ${textClass} ${fontClass} text-sm tabular-nums hidden sm:table-cell`}>
           {formatCurrency(row.ytd)}
         </td>
-        <td className={`py-1.5 px-2 text-right ${textClass} text-sm tabular-nums`}>
+        <td className={`py-2 px-2 text-right text-slate-400 text-sm tabular-nums hidden sm:table-cell`}>
           {formatPercent(row.ytdPercent)}
         </td>
       </tr>
@@ -263,25 +325,39 @@ export default function PLDashboard() {
     if (!rows || rows.length === 0) return null;
     
     const isExpanded = expandedSections[sectionName];
-    const totalRow = rows.find(r => r.label === `Total ${sectionName}` || r.label === 'Net Profit');
+    const totalRow = rows.find(r => r.rowType === 'sectionTotal' || r.rowType === 'netProfit');
+    
+    // Special styling for Net Profit section header
+    const isNetProfit = sectionName === 'Net Profit';
+    const netProfitPositive = isNetProfit && totalRow && (totalRow.period || 0) >= 0;
     
     return (
-      <div key={sectionName} className="mb-2">
+      <div key={sectionName} className="mb-3">
         <button
           onClick={() => toggleSection(sectionName)}
-          className="w-full flex items-center justify-between bg-slate-800 border border-slate-700 px-3 py-2 rounded-t-lg hover:bg-slate-700 transition-colors"
+          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-t-lg transition-colors ${
+            isNetProfit 
+              ? (netProfitPositive ? 'bg-green-900/50 hover:bg-green-900/60' : 'bg-red-900/50 hover:bg-red-900/60')
+              : 'bg-slate-800 hover:bg-slate-700'
+          } border border-slate-700`}
         >
           <div className="flex items-center gap-2 text-white">
             {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
             <span className="font-semibold">{sectionName}</span>
           </div>
           {totalRow && (
-            <div className="flex gap-6 text-sm">
-              <span className="text-slate-400">
-                Period: <span className="text-white font-medium">{formatCurrency(totalRow.period)}</span>
+            <div className="flex gap-4 text-sm">
+              <span className="text-slate-300">
+                <span className="text-slate-500 hidden sm:inline">Period: </span>
+                <span className={`font-medium ${isNetProfit ? (netProfitPositive ? 'text-green-400' : 'text-red-400') : 'text-white'}`}>
+                  {formatCurrency(totalRow.period)}
+                </span>
               </span>
-              <span className="text-slate-400">
-                YTD: <span className="text-white font-medium">{formatCurrency(totalRow.ytd)}</span>
+              <span className="text-slate-300 hidden sm:inline">
+                <span className="text-slate-500">YTD: </span>
+                <span className={`font-medium ${isNetProfit ? (netProfitPositive ? 'text-green-400' : 'text-red-400') : 'text-white'}`}>
+                  {formatCurrency(totalRow.ytd)}
+                </span>
               </span>
             </div>
           )}
@@ -309,7 +385,7 @@ export default function PLDashboard() {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
         <div className="max-w-[1400px] mx-auto">
           
-          {/* Main Header - Same as Dashboard */}
+          {/* Main Header */}
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 shadow-2xl">
             {/* Desktop Header */}
             <div className="hidden md:flex items-center justify-between gap-3">
@@ -434,7 +510,7 @@ export default function PLDashboard() {
           {/* Sub-Header: Location & Period Selection */}
           {accessType !== 'none' && (
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
-              <div className="flex flex-col md:flex-row md:items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-medium text-slate-400">Location:</label>
                   <select
@@ -449,7 +525,7 @@ export default function PLDashboard() {
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-slate-400">Period Ending:</label>
+                  <label className="text-sm font-medium text-slate-400">Period:</label>
                   <select
                     value={selectedPeriod}
                     onChange={(e) => setSelectedPeriod(e.target.value)}
@@ -462,13 +538,37 @@ export default function PLDashboard() {
                 </div>
 
                 {plData?.totalSales && (
-                  <div className="md:ml-auto text-right">
+                  <div className="sm:ml-auto">
                     <span className="text-sm text-slate-400">Total Sales: </span>
                     <span className="text-lg font-bold text-green-400">
                       ${plData.totalSales.period?.toLocaleString()}
                     </span>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Column Headers - Desktop */}
+          {plData && !loading && (
+            <div className="hidden sm:block bg-slate-700/50 border border-slate-600 rounded-lg mb-3 px-3 py-2">
+              <div className="grid grid-cols-5 gap-2 text-sm font-semibold text-slate-300">
+                <div></div>
+                <div className="text-right">Period</div>
+                <div className="text-right">%</div>
+                <div className="text-right">YTD</div>
+                <div className="text-right">%</div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Column Headers */}
+          {plData && !loading && (
+            <div className="sm:hidden bg-slate-700/50 border border-slate-600 rounded-lg mb-3 px-3 py-2">
+              <div className="grid grid-cols-3 gap-2 text-sm font-semibold text-slate-300">
+                <div></div>
+                <div className="text-right">Period</div>
+                <div className="text-right">%</div>
               </div>
             </div>
           )}
@@ -495,25 +595,9 @@ export default function PLDashboard() {
             </div>
           )}
 
-          {/* P&L Data */}
+          {/* P&L Data Sections */}
           {plData && !loading && (
             <>
-              {/* Table Header */}
-              <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden mb-2">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-slate-700">
-                      <th className="py-2 px-2 text-left text-sm font-semibold text-slate-300 w-1/3"></th>
-                      <th className="py-2 px-2 text-right text-sm font-semibold text-slate-300">Period</th>
-                      <th className="py-2 px-2 text-right text-sm font-semibold text-slate-300 w-16">%</th>
-                      <th className="py-2 px-2 text-right text-sm font-semibold text-slate-300">YTD</th>
-                      <th className="py-2 px-2 text-right text-sm font-semibold text-slate-300 w-16">%</th>
-                    </tr>
-                  </thead>
-                </table>
-              </div>
-
-              {/* Sections */}
               {renderSection('Sales', sections['Sales'])}
               {renderSection('Prime Cost', sections['Prime Cost'])}
               {renderSection('Operating Expense', sections['Operating Expense'])}
