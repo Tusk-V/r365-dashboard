@@ -395,8 +395,9 @@ export default function PLDashboard() {
   const renderRow = (row, idx) => {
     let bgClass = '';
     let textClass = 'text-slate-300';
-    let fontClass = 'text-sm';
-    let paddingClass = 'pl-3';
+    let fontClass = 'text-xs md:text-sm';
+    let paddingClass = 'pl-2 md:pl-3';
+    let isTotalRow = false;
     
     let periodPercent = row.periodPercent;
     let ytdPercent = row.ytdPercent;
@@ -411,45 +412,44 @@ export default function PLDashboard() {
       case 'subCategoryHeader':
         return (
           <tr key={idx} className="border-b border-slate-700/30">
-            <td colSpan={3} className="py-1 pl-3 text-slate-400 text-xs font-medium uppercase tracking-wide md:hidden">
-              {row.label}
-            </td>
-            <td colSpan={5} className="py-1 pl-3 text-slate-400 text-xs font-medium uppercase tracking-wide hidden md:table-cell">
+            <td colSpan={5} className="py-1 pl-2 md:pl-3 text-slate-400 text-[10px] md:text-xs font-medium uppercase tracking-wide">
               {row.label}
             </td>
           </tr>
         );
       case 'lineItem':
-        paddingClass = row.indent ? 'pl-5' : 'pl-3';
+        paddingClass = row.indent ? 'pl-4 md:pl-5' : 'pl-2 md:pl-3';
         break;
       case 'subCategoryTotal':
         bgClass = 'bg-slate-700/30';
         textClass = 'text-slate-200';
-        fontClass = 'text-sm font-medium';
-        paddingClass = 'pl-4';
+        fontClass = 'text-xs md:text-sm font-semibold';
+        paddingClass = 'pl-3 md:pl-4';
+        isTotalRow = true;
         break;
       case 'sectionTotal':
         bgClass = 'bg-slate-700/50';
         textClass = 'text-white';
-        fontClass = 'text-sm font-semibold';
+        fontClass = 'text-xs md:text-sm font-bold';
+        isTotalRow = true;
         break;
     }
 
     return (
       <tr key={idx} className={`${bgClass} border-b border-slate-700/30`}>
-        <td className={`py-1 ${paddingClass} ${textClass} ${fontClass}`}>
+        <td className={`py-1 ${paddingClass} ${textClass} ${fontClass}`} style={{ width: '32%' }}>
           {row.label}
         </td>
-        <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`}>
+        <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '17%' }}>
           {formatCurrency(row.period)}
         </td>
-        <td className="py-1 px-1 text-right text-slate-400 text-sm tabular-nums">
+        <td className={`py-1 px-1 text-right ${isTotalRow ? textClass : 'text-slate-400'} ${isTotalRow ? fontClass : 'text-xs md:text-sm'} tabular-nums`} style={{ width: '12%' }}>
           {formatPercent(periodPercent)}
         </td>
-        <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums hidden md:table-cell`}>
+        <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '17%' }}>
           {formatCurrency(row.ytd)}
         </td>
-        <td className="py-1 px-1 text-right text-slate-400 text-sm tabular-nums hidden md:table-cell">
+        <td className={`py-1 px-1 text-right ${isTotalRow ? textClass : 'text-slate-400'} ${isTotalRow ? fontClass : 'text-xs md:text-sm'} tabular-nums`} style={{ width: '12%' }}>
           {formatPercent(ytdPercent)}
         </td>
       </tr>
@@ -465,17 +465,24 @@ export default function PLDashboard() {
       <div key={sectionName} className="mb-2">
         <button
           onClick={() => toggleSection(sectionName)}
-          className="w-full flex items-center px-3 py-1.5 rounded-t-lg transition-colors bg-slate-800 hover:bg-slate-750 border border-slate-700"
+          className="w-full flex items-center px-2 md:px-3 py-1.5 rounded-t-lg transition-colors bg-slate-800 hover:bg-slate-750 border border-slate-700"
         >
           <div className="flex items-center gap-2 text-white">
             {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            <span className="font-semibold text-sm">{sectionName}</span>
+            <span className="font-semibold text-xs md:text-sm">{sectionName}</span>
           </div>
         </button>
         
         {isExpanded && (
           <div className="bg-slate-800/50 border border-t-0 border-slate-700 rounded-b-lg overflow-x-auto">
-            <table className="w-full min-w-[320px]">
+            <table className="w-full table-fixed" style={{ minWidth: '100%' }}>
+              <colgroup>
+                <col style={{ width: '32%' }} />
+                <col style={{ width: '17%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '17%' }} />
+                <col style={{ width: '12%' }} />
+              </colgroup>
               <tbody>
                 {sectionData.rows.map((row, idx) => renderRow(row, idx))}
               </tbody>
@@ -492,22 +499,29 @@ export default function PLDashboard() {
     return (
       <div className="mb-2">
         <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-x-auto">
-          <table className="w-full min-w-[320px]">
+          <table className="w-full table-fixed" style={{ minWidth: '100%' }}>
+            <colgroup>
+              <col style={{ width: '32%' }} />
+              <col style={{ width: '17%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '17%' }} />
+              <col style={{ width: '12%' }} />
+            </colgroup>
             <tbody>
               <tr>
-                <td className="py-2 pl-3 text-white text-sm font-bold">
+                <td className="py-2 pl-2 md:pl-3 text-white text-xs md:text-sm font-bold">
                   Net Income/Loss
                 </td>
-                <td className="py-2 px-1 text-right text-white text-sm font-bold tabular-nums">
+                <td className="py-2 px-1 text-right text-white text-xs md:text-sm font-bold tabular-nums">
                   {formatCurrency(netIncome.period)}
                 </td>
-                <td className="py-2 px-1 text-right text-slate-400 text-sm font-bold tabular-nums">
+                <td className="py-2 px-1 text-right text-white text-xs md:text-sm font-bold tabular-nums">
                   {formatPercent(netIncome.periodPercent)}
                 </td>
-                <td className="py-2 px-1 text-right text-white text-sm font-bold tabular-nums hidden md:table-cell">
+                <td className="py-2 px-1 text-right text-white text-xs md:text-sm font-bold tabular-nums">
                   {formatCurrency(netIncome.ytd)}
                 </td>
-                <td className="py-2 px-1 text-right text-slate-400 text-sm font-bold tabular-nums hidden md:table-cell">
+                <td className="py-2 px-1 text-right text-white text-xs md:text-sm font-bold tabular-nums">
                   {formatPercent(netIncome.ytdPercent)}
                 </td>
               </tr>
@@ -540,18 +554,18 @@ export default function PLDashboard() {
     
     return (
       <div className={`rounded-lg border ${colorClasses[displayColor]} p-2 md:p-3`}>
-        <div className="text-[10px] md:text-xs text-slate-400 uppercase tracking-wide mb-2 text-center font-medium">
+        <div className="text-xs md:text-sm text-slate-300 uppercase tracking-wide mb-2 text-center font-semibold">
           {label}
         </div>
-        <div className="grid grid-cols-2 gap-2 text-center">
+        <div className="grid grid-cols-2 gap-1 md:gap-2 text-center">
           <div>
-            <div className="text-[9px] md:text-[10px] text-slate-500 uppercase mb-0.5">Period</div>
+            <div className="text-[10px] md:text-xs text-slate-500 uppercase mb-0.5">Period</div>
             <div className={`text-sm md:text-lg font-bold ${textColors[displayColor]}`}>
               {isPercent ? formatKPIPercent(periodValue) : formatKPICurrency(periodValue)}
             </div>
           </div>
           <div>
-            <div className="text-[9px] md:text-[10px] text-slate-500 uppercase mb-0.5">YTD</div>
+            <div className="text-[10px] md:text-xs text-slate-500 uppercase mb-0.5">YTD</div>
             <div className={`text-sm md:text-lg font-bold ${textColors[displayColor]}`}>
               {isPercent ? formatKPIPercent(ytdValue) : formatKPICurrency(ytdValue)}
             </div>
@@ -572,7 +586,7 @@ export default function PLDashboard() {
         <div className="max-w-[1400px] mx-auto">
           
           {/* Main Header */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 shadow-2xl">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-4 mb-2 md:mb-3 shadow-2xl">
             {/* Desktop Header */}
             <div className="hidden md:flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -636,7 +650,7 @@ export default function PLDashboard() {
 
             {/* Mobile Header */}
             <div className="md:hidden">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-2">
                 <img 
                   src="https://i.imgur.com/kkJMVz0.png" 
                   alt="Andy's Frozen Custard" 
@@ -678,7 +692,7 @@ export default function PLDashboard() {
                     }
                   }
                 }}
-                className="w-full px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
                 <option value="sales">Weekly Sales & Labor</option>
                 <option value="daily-sales">Daily Sales</option>
@@ -693,7 +707,7 @@ export default function PLDashboard() {
 
           {/* Location & Period Selection */}
           {accessType !== 'none' && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 shadow-lg">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg">
               <div className="flex flex-wrap items-center gap-2 md:gap-4">
                 <div className="flex items-center gap-1 md:gap-2">
                   <label className="text-xs md:text-sm font-medium text-slate-400">Location:</label>
@@ -726,7 +740,7 @@ export default function PLDashboard() {
 
           {/* KPI Cards */}
           {plData && !loading && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2 md:mb-3">
               <KPICard 
                 label="Net Sales" 
                 periodValue={kpis.sales?.period} 
@@ -759,14 +773,21 @@ export default function PLDashboard() {
           {/* Column Headers */}
           {plData && !loading && (
             <div className="bg-slate-700/50 border border-slate-600 rounded-lg mb-2 overflow-hidden">
-              <table className="w-full">
+              <table className="w-full table-fixed">
+                <colgroup>
+                  <col style={{ width: '32%' }} />
+                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '17%' }} />
+                  <col style={{ width: '12%' }} />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th className="py-1.5 px-3 text-left text-xs md:text-sm font-semibold text-slate-300"></th>
+                    <th className="py-1.5 px-2 md:px-3 text-left text-xs md:text-sm font-semibold text-slate-300"></th>
                     <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">Period</th>
                     <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">%</th>
-                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300 hidden md:table-cell">YTD</th>
-                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300 hidden md:table-cell">%</th>
+                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">YTD</th>
+                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">%</th>
                   </tr>
                 </thead>
               </table>
