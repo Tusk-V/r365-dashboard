@@ -117,39 +117,20 @@ export default function PLDashboard() {
   };
 
   const formatCurrency = (value) => {
-    if (value === null || value === undefined) return '$0';
+    if (value === null || value === undefined) return '';
     const num = parseFloat(value);
-    if (isNaN(num)) return '$0';
-    if (num === 0) return '$0';
+    if (isNaN(num)) return '';
     const formatted = Math.abs(num).toLocaleString('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     });
-    return num < 0 ? `($${formatted})` : `$${formatted}`;
+    return num < 0 ? `(${formatted})` : formatted;
   };
 
   const formatPercent = (value) => {
-    if (value === null || value === undefined) return '0.0%';
+    if (value === null || value === undefined) return '';
     const num = parseFloat(value);
-    if (isNaN(num)) return '0.0%';
-    return num.toFixed(1) + '%';
-  };
-
-  const formatKPICurrency = (value) => {
-    if (value === null || value === undefined) return '$0';
-    const num = parseFloat(value);
-    if (isNaN(num)) return '$0';
-    const formatted = Math.abs(num).toLocaleString('en-US', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    });
-    return num < 0 ? `-$${formatted}` : `$${formatted}`;
-  };
-
-  const formatKPIPercent = (value) => {
-    if (value === null || value === undefined) return '0.0%';
-    const num = parseFloat(value);
-    if (isNaN(num)) return '0.0%';
+    if (isNaN(num)) return '';
     return num.toFixed(1) + '%';
   };
 
@@ -174,317 +155,150 @@ export default function PLDashboard() {
     );
   }
 
-  const sectionHeaders = ['Sales', 'Prime Cost', 'Operating Expense', 'Non Controllable Expense'];
-  
-  const subCategoryLabels = [
-    'Comps & Discounts', 'Food and Paper Cost', 'Salaries and Wages',
-    'Payroll Taxes', 'Payroll Benefits', 'Direct Operating Expense',
-    'Utilities', 'Advertising', 'General and Administrative',
-    'Occupancy Costs', 'Depreciation and Amortization'
-  ];
-
-  const managerWageLabels = ['Manager Wages', 'Market Manager Wages', 'General Manager Wages', 'Assistant Manager Wages'];
-
-  const processData = (rows) => {
-    if (!rows) return { sections: {}, kpis: {}, netIncome: null };
+  const groupRowsBySection = (rows) => {
+    if (!rows) return {};
     
     const sections = {
-      'Sales': { rows: [], total: { period: 0, ytd: 0, periodPercent: null, ytdPercent: null } },
-      'Prime Cost': { rows: [], total: { period: 0, ytd: 0, periodPercent: null, ytdPercent: null } },
-      'Operating Expense': { rows: [], total: { period: 0, ytd: 0, periodPercent: null, ytdPercent: null } },
-      'Non Controllable Expense': { rows: [], total: { period: 0, ytd: 0, periodPercent: null, ytdPercent: null } }
+      'Sales': [],
+      'Prime Cost': [],
+      'Operating Expense': [],
+      'Non Controllable Expense': [],
+      'Net Profit': []
     };
     
     let currentSection = '';
-    let currentSubCategory = '';
-    let subCategoryTotals = {};
-    
-    let totalSales = { period: 0, ytd: 0 };
-    let totalFoodPaper = { period: 0, ytd: 0 };
-    let totalSalariesWages = { period: 0, ytd: 0 };
-    let netIncome = { period: 0, ytd: 0, periodPercent: 0, ytdPercent: 0 };
-    
-    let managerWagesAccum = { period: 0, ytd: 0, periodPercent: 0, ytdPercent: 0 };
-    let managerWagesAdded = false;
     
     for (const row of rows) {
-      const label = row.label?.trim();
-      
-      if (sectionHeaders.includes(label) && !label.startsWith('Total')) {
-        currentSection = label;
-        currentSubCategory = '';
-        managerWagesAdded = false;
+      if (row.label === 'Sales') {
+        currentSection = 'Sales';
         continue;
-      }
-      
-      if (label === 'Net Profit') {
-        netIncome.period = row.period || 0;
-        netIncome.ytd = row.ytd || 0;
-        netIncome.periodPercent = row.periodPercent || 0;
-        netIncome.ytdPercent = row.ytdPercent || 0;
+      } else if (row.label === 'Prime Cost') {
+        currentSection = 'Prime Cost';
         continue;
+      } else if (row.label === 'Operating Expense') {
+        currentSection = 'Operating Expense';
+        continue;
+      } else if (row.label === 'Non Controllable Expense') {
+        currentSection = 'Non Controllable Expense';
+        continue;
+      } else if (row.label === 'Net Profit') {
+        currentSection = 'Net Profit';
       }
       
-      if (!currentSection || !sections[currentSection]) continue;
-      
-      const isSubCategoryHeader = subCategoryLabels.includes(label) && 
-        (row.period === null || row.period === undefined) && 
-        (row.ytd === null || row.ytd === undefined);
-      
-      const isTotalRow = label?.startsWith('Total ');
-      const isSubCategoryTotal = isTotalRow && subCategoryLabels.includes(label.replace('Total ', ''));
-      const isSectionTotal = isTotalRow && sectionHeaders.includes(label.replace('Total ', ''));
-      
-      const isManagerWage = managerWageLabels.includes(label);
-      
-      if (isSubCategoryHeader) {
-        currentSubCategory = label;
-        subCategoryTotals[label] = { period: 0, ytd: 0 };
-        if (label === 'Salaries and Wages') {
-          managerWagesAccum = { period: 0, ytd: 0, periodPercent: 0, ytdPercent: 0 };
-          managerWagesAdded = false;
-        }
-        sections[currentSection].rows.push({
-          ...row,
-          rowType: 'subCategoryHeader'
-        });
-      } else if (isSectionTotal) {
-        const calcTotal = sections[currentSection].total;
-        const actualPeriod = (row.period !== null && row.period !== undefined && row.period !== 0) 
-          ? row.period : calcTotal.period;
-        const actualYtd = (row.ytd !== null && row.ytd !== undefined && row.ytd !== 0) 
-          ? row.ytd : calcTotal.ytd;
-        
-        sections[currentSection].total = {
-          period: actualPeriod,
-          ytd: actualYtd,
-          periodPercent: row.periodPercent,
-          ytdPercent: row.ytdPercent
-        };
-        
-        if (label === 'Total Sales') {
-          totalSales = { period: actualPeriod, ytd: actualYtd };
-        }
-        
-        sections[currentSection].rows.push({
-          ...row,
-          period: actualPeriod,
-          ytd: actualYtd,
-          rowType: 'sectionTotal',
-          label: label === 'Total Sales' ? 'Net Sales' : label
-        });
-      } else if (isSubCategoryTotal) {
-        const subCatName = label.replace('Total ', '');
-        const calculated = subCategoryTotals[subCatName] || { period: 0, ytd: 0 };
-        const actualPeriod = (row.period !== null && row.period !== undefined && row.period !== 0) 
-          ? row.period : calculated.period;
-        const actualYtd = (row.ytd !== null && row.ytd !== undefined && row.ytd !== 0) 
-          ? row.ytd : calculated.ytd;
-        
-        if (subCatName === 'Food and Paper Cost') {
-          totalFoodPaper = { period: actualPeriod, ytd: actualYtd };
-        } else if (subCatName === 'Salaries and Wages') {
-          totalSalariesWages = { period: actualPeriod, ytd: actualYtd };
-        }
-        
-        sections[currentSection].rows.push({
-          ...row,
-          period: actualPeriod,
-          ytd: actualYtd,
-          rowType: 'subCategoryTotal'
-        });
-        currentSubCategory = '';
-      } else if (isManagerWage) {
-        managerWagesAccum.period += parseFloat(row.period) || 0;
-        managerWagesAccum.ytd += parseFloat(row.ytd) || 0;
-        
-        if (!managerWagesAdded && (managerWagesAccum.period !== 0 || managerWagesAccum.ytd !== 0)) {
-          const rowIndex = sections[currentSection].rows.length;
-          sections[currentSection].rows.push({
-            label: 'Manager Wages',
-            period: managerWagesAccum.period,
-            ytd: managerWagesAccum.ytd,
-            periodPercent: row.periodPercent,
-            ytdPercent: row.ytdPercent,
-            rowType: 'lineItem',
-            indent: currentSubCategory ? 1 : 0,
-            _managerWagesIndex: rowIndex
-          });
-          managerWagesAdded = true;
-        } else if (managerWagesAdded) {
-          const existingRow = sections[currentSection].rows.find(r => r._managerWagesIndex !== undefined);
-          if (existingRow) {
-            existingRow.period = managerWagesAccum.period;
-            existingRow.ytd = managerWagesAccum.ytd;
-          }
-        }
-        
-        const periodVal = parseFloat(row.period) || 0;
-        const ytdVal = parseFloat(row.ytd) || 0;
-        sections[currentSection].total.period += periodVal;
-        sections[currentSection].total.ytd += ytdVal;
-        if (currentSubCategory && subCategoryTotals[currentSubCategory]) {
-          subCategoryTotals[currentSubCategory].period += periodVal;
-          subCategoryTotals[currentSubCategory].ytd += ytdVal;
-        }
-      } else {
-        const periodVal = parseFloat(row.period) || 0;
-        const ytdVal = parseFloat(row.ytd) || 0;
-        
-        if (periodVal === 0 && ytdVal === 0) continue;
-        
-        sections[currentSection].total.period += periodVal;
-        sections[currentSection].total.ytd += ytdVal;
-        
-        if (currentSubCategory && subCategoryTotals[currentSubCategory]) {
-          subCategoryTotals[currentSubCategory].period += periodVal;
-          subCategoryTotals[currentSubCategory].ytd += ytdVal;
-        }
-        
-        sections[currentSection].rows.push({
-          ...row,
-          rowType: 'lineItem',
-          indent: currentSubCategory ? 1 : 0
-        });
+      if (currentSection && sections[currentSection]) {
+        sections[currentSection].push(row);
       }
     }
     
-    const cogsPercent = totalSales.period !== 0 ? (totalFoodPaper.period / totalSales.period) * 100 : 0;
-    const laborPercent = totalSales.period !== 0 ? (totalSalariesWages.period / totalSales.period) * 100 : 0;
-    const cogsPercentYtd = totalSales.ytd !== 0 ? (totalFoodPaper.ytd / totalSales.ytd) * 100 : 0;
-    const laborPercentYtd = totalSales.ytd !== 0 ? (totalSalariesWages.ytd / totalSales.ytd) * 100 : 0;
-    
-    if (netIncome.period === 0 && netIncome.ytd === 0) {
-      const primeCost = sections['Prime Cost'].total;
-      const opExp = sections['Operating Expense'].total;
-      const nonControllable = sections['Non Controllable Expense'].total;
-      
-      netIncome.period = totalSales.period - primeCost.period - opExp.period - nonControllable.period;
-      netIncome.ytd = totalSales.ytd - primeCost.ytd - opExp.ytd - nonControllable.ytd;
-    }
-    
-    if (totalSales.period !== 0) {
-      netIncome.periodPercent = (netIncome.period / totalSales.period) * 100;
-    }
-    if (totalSales.ytd !== 0) {
-      netIncome.ytdPercent = (netIncome.ytd / totalSales.ytd) * 100;
-    }
-    
-    return {
-      sections,
-      kpis: {
-        sales: totalSales,
-        cogsPercent,
-        cogsPercentYtd,
-        laborPercent,
-        laborPercentYtd,
-        netIncome
-      },
-      netIncome,
-      totalSales
-    };
+    return sections;
   };
 
-  const { sections, kpis, netIncome, totalSales } = plData ? processData(plData.rows) : { sections: {}, kpis: {}, netIncome: null, totalSales: { period: 0, ytd: 0 } };
-
-  const calcPercent = (value, total) => {
-    if (!value || !total || total === 0) return 0;
-    return (value / total) * 100;
-  };
+  const sections = plData ? groupRowsBySection(plData.rows) : {};
 
   const renderRow = (row, idx) => {
-    let bgClass = '';
-    let textClass = 'text-slate-300';
-    let fontClass = 'text-xs md:text-sm';
-    let paddingClass = 'pl-2 md:pl-3';
-    let isTotalRow = false;
-    
-    let periodPercent = row.periodPercent;
-    let ytdPercent = row.ytdPercent;
-    
-    if ((row.rowType === 'sectionTotal' || row.rowType === 'subCategoryTotal') && 
-        (periodPercent === null || periodPercent === undefined)) {
-      periodPercent = calcPercent(row.period, totalSales?.period);
-      ytdPercent = calcPercent(row.ytd, totalSales?.ytd);
-    }
-    
-    switch (row.rowType) {
-      case 'subCategoryHeader':
-        return (
-          <tr key={idx} className="border-b border-slate-700/30">
-            <td colSpan={5} className="py-1 pl-2 md:pl-3 text-slate-400 text-[10px] md:text-xs font-medium uppercase tracking-wide">
-              {row.label}
-            </td>
-          </tr>
-        );
-      case 'lineItem':
-        paddingClass = row.indent ? 'pl-4 md:pl-5' : 'pl-2 md:pl-3';
-        break;
-      case 'subCategoryTotal':
-        bgClass = 'bg-slate-700/30';
-        textClass = 'text-slate-200';
-        fontClass = 'text-xs md:text-sm font-semibold';
-        paddingClass = 'pl-3 md:pl-4';
-        isTotalRow = true;
-        break;
-      case 'sectionTotal':
-        bgClass = 'bg-slate-700/50';
-        textClass = 'text-white';
-        fontClass = 'text-xs md:text-sm font-bold';
-        isTotalRow = true;
-        break;
+    if (row.period === null && row.ytd === null && row.isSubHeader && !row.isTotal) {
+      const meaningfulSubHeaders = [
+        'Comps & Discounts', 'Food and Paper Cost', 'Salaries and Wages',
+        'Payroll Taxes', 'Payroll Benefits', 'Direct Operating Expense',
+        'Utilities', 'Advertising', 'General and Administrative',
+        'Occupancy Costs', 'Depreciation and Amortization'
+      ];
+      if (!meaningfulSubHeaders.includes(row.label)) {
+        return null;
+      }
     }
 
+    if (row.period === 0 && row.ytd === 0 && !row.isTotal && !row.isSubHeader) {
+      return null;
+    }
+
+    const isTotal = row.isTotal || row.label === 'Net Profit';
+    const isSubHeader = row.isSubHeader;
+    
+    let bgClass = '';
+    let textClass = 'text-slate-300';
+    let fontClass = '';
+    
+    if (isTotal) {
+      bgClass = 'bg-slate-700/50';
+      textClass = 'text-white';
+      fontClass = 'font-semibold';
+    } else if (isSubHeader) {
+      textClass = 'text-slate-200';
+      fontClass = 'font-medium';
+    }
+
+    if (row.label === 'Net Profit') {
+      const periodProfit = row.period || 0;
+      bgClass = periodProfit >= 0 ? 'bg-green-900/30' : 'bg-red-900/30';
+      textClass = periodProfit >= 0 ? 'text-green-400' : 'text-red-400';
+      fontClass = 'font-bold';
+    }
+
+    const indent = row.indent || 0;
+    const paddingLeft = indent === 0 ? 'pl-2' : indent === 1 ? 'pl-4' : 'pl-8';
+
     return (
-      <tr key={idx} className={`${bgClass} border-b border-slate-700/30`}>
-        <td className={`py-1 ${paddingClass} ${textClass} ${fontClass}`} style={{ width: '32%' }}>
+      <tr key={idx} className={`${bgClass} border-b border-slate-700/50 hover:bg-slate-700/30`}>
+        <td className={`py-1.5 ${paddingLeft} ${textClass} ${fontClass} text-sm`}>
           {row.label}
         </td>
-        <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '17%' }}>
+        <td className={`py-1.5 px-3 text-right ${textClass} ${fontClass} text-sm tabular-nums whitespace-nowrap`}>
           {formatCurrency(row.period)}
         </td>
-        <td className={`py-1 px-1 text-right ${isTotalRow ? textClass : 'text-slate-400'} ${isTotalRow ? fontClass : 'text-xs md:text-sm'} tabular-nums`} style={{ width: '12%' }}>
-          {formatPercent(periodPercent)}
+        <td className={`py-1.5 px-3 text-right ${textClass} text-sm tabular-nums whitespace-nowrap`}>
+          {formatPercent(row.periodPercent)}
         </td>
-        <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '17%' }}>
+        <td className={`py-1.5 px-3 text-right ${textClass} ${fontClass} text-sm tabular-nums whitespace-nowrap`}>
           {formatCurrency(row.ytd)}
         </td>
-        <td className={`py-1 px-1 text-right ${isTotalRow ? textClass : 'text-slate-400'} ${isTotalRow ? fontClass : 'text-xs md:text-sm'} tabular-nums`} style={{ width: '12%' }}>
-          {formatPercent(ytdPercent)}
+        <td className={`py-1.5 px-3 text-right ${textClass} text-sm tabular-nums whitespace-nowrap`}>
+          {formatPercent(row.ytdPercent)}
         </td>
       </tr>
     );
   };
 
-  const renderSection = (sectionName, sectionData) => {
-    if (!sectionData || sectionData.rows.length === 0) return null;
+  const renderSection = (sectionName, rows) => {
+    if (!rows || rows.length === 0) return null;
     
     const isExpanded = expandedSections[sectionName];
+    const totalRow = rows.find(r => r.label === `Total ${sectionName}` || r.label === 'Net Profit');
     
     return (
       <div key={sectionName} className="mb-2">
         <button
           onClick={() => toggleSection(sectionName)}
-          className="w-full flex items-center px-2 md:px-3 py-1.5 rounded-t-lg transition-colors bg-slate-800 hover:bg-slate-750 border border-slate-700"
+          className="w-full flex items-center justify-between bg-slate-800 border border-slate-700 px-3 py-2 rounded-t-lg hover:bg-slate-700 transition-colors"
         >
           <div className="flex items-center gap-2 text-white">
-            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            <span className="font-semibold text-xs md:text-sm">{sectionName}</span>
+            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+            <span className="font-semibold">{sectionName}</span>
           </div>
+          {totalRow && (
+            <div className="flex gap-6 text-sm">
+              <span className="text-slate-400">
+                Period: <span className="text-white font-medium">{formatCurrency(totalRow.period)}</span>
+              </span>
+              <span className="text-slate-400">
+                YTD: <span className="text-white font-medium">{formatCurrency(totalRow.ytd)}</span>
+              </span>
+            </div>
+          )}
         </button>
         
         {isExpanded && (
           <div className="bg-slate-800/50 border border-t-0 border-slate-700 rounded-b-lg overflow-x-auto">
-            <table className="w-full table-fixed" style={{ minWidth: '100%' }}>
+            <table className="w-full table-fixed min-w-[500px]">
               <colgroup>
-                <col style={{ width: '32%' }} />
-                <col style={{ width: '17%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '17%' }} />
-                <col style={{ width: '12%' }} />
+                <col className="w-[30%]" />
+                <col className="w-[17%]" />
+                <col className="w-[11%]" />
+                <col className="w-[24%]" />
+                <col className="w-[18%]" />
               </colgroup>
               <tbody>
-                {sectionData.rows.map((row, idx) => renderRow(row, idx))}
+                {rows.map((row, idx) => renderRow(row, idx))}
               </tbody>
             </table>
           </div>
@@ -493,100 +307,17 @@ export default function PLDashboard() {
     );
   };
 
-  const renderNetIncome = () => {
-    if (!netIncome) return null;
-    
-    return (
-      <div className="mb-2">
-        <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-x-auto">
-          <table className="w-full table-fixed" style={{ minWidth: '100%' }}>
-            <colgroup>
-              <col style={{ width: '32%' }} />
-              <col style={{ width: '17%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '17%' }} />
-              <col style={{ width: '12%' }} />
-            </colgroup>
-            <tbody>
-              <tr>
-                <td className="py-2 pl-2 md:pl-3 text-white text-xs md:text-sm font-bold">
-                  Net Income/Loss
-                </td>
-                <td className="py-2 px-1 text-right text-white text-xs md:text-sm font-bold tabular-nums">
-                  {formatCurrency(netIncome.period)}
-                </td>
-                <td className="py-2 px-1 text-right text-white text-xs md:text-sm font-bold tabular-nums">
-                  {formatPercent(netIncome.periodPercent)}
-                </td>
-                <td className="py-2 px-1 text-right text-white text-xs md:text-sm font-bold tabular-nums">
-                  {formatCurrency(netIncome.ytd)}
-                </td>
-                <td className="py-2 px-1 text-right text-white text-xs md:text-sm font-bold tabular-nums">
-                  {formatPercent(netIncome.ytdPercent)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
-
-  const KPICard = ({ label, periodValue, ytdValue, isPercent = false, color = 'blue' }) => {
-    const colorClasses = {
-      blue: 'border-blue-500/30 bg-blue-900/20',
-      green: 'border-green-500/30 bg-green-900/20',
-      orange: 'border-orange-500/30 bg-orange-900/20',
-      purple: 'border-purple-500/30 bg-purple-900/20',
-      red: 'border-red-500/30 bg-red-900/20'
-    };
-    
-    const textColors = {
-      blue: 'text-blue-400',
-      green: 'text-green-400',
-      orange: 'text-orange-400',
-      purple: 'text-purple-400',
-      red: 'text-red-400'
-    };
-    
-    const isNegative = typeof periodValue === 'number' && periodValue < 0;
-    const displayColor = isNegative ? 'red' : color;
-    
-    return (
-      <div className={`rounded-lg border ${colorClasses[displayColor]} p-2 md:p-3`}>
-        <div className="text-xs md:text-sm text-slate-300 uppercase tracking-wide mb-2 text-center font-semibold">
-          {label}
-        </div>
-        <div className="grid grid-cols-2 gap-1 md:gap-2 text-center">
-          <div>
-            <div className="text-[10px] md:text-xs text-slate-500 uppercase mb-0.5">Period</div>
-            <div className={`text-sm md:text-lg font-bold ${textColors[displayColor]}`}>
-              {isPercent ? formatKPIPercent(periodValue) : formatKPICurrency(periodValue)}
-            </div>
-          </div>
-          <div>
-            <div className="text-[10px] md:text-xs text-slate-500 uppercase mb-0.5">YTD</div>
-            <div className={`text-sm md:text-lg font-bold ${textColors[displayColor]}`}>
-              {isPercent ? formatKPIPercent(ytdValue) : formatKPICurrency(ytdValue)}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <>
       <Head>
         <title>P&L Dashboard - Andy's Frozen Custard</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </Head>
       
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
         <div className="max-w-[1400px] mx-auto">
           
-          {/* Main Header */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-4 mb-2 md:mb-3 shadow-2xl">
+          {/* Main Header - Same as Dashboard */}
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 shadow-2xl">
             {/* Desktop Header */}
             <div className="hidden md:flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -617,6 +348,7 @@ export default function PLDashboard() {
                   <option value="daily-labor">Daily Labor</option>
                   <option value="clockouts">Auto-Clockouts</option>
                   <option value="call-offs">Call-Offs</option>
+                  <option value="overtime">OT Warnings</option>
                   <option value="scheduled-today">Scheduled Today</option>
                   <option value="pl">Profit & Loss</option>
                 </select>
@@ -649,39 +381,33 @@ export default function PLDashboard() {
             </div>
 
             {/* Mobile Header */}
-            <div className="md:hidden">
-              <div className="flex items-center justify-between mb-2">
-                <img 
-                  src="https://i.imgur.com/kkJMVz0.png" 
-                  alt="Andy's Frozen Custard" 
-                  className="h-10"
-                />
-                <div className="flex items-center gap-1">
+            <div className="md:hidden flex items-center justify-between mb-3">
+              <img 
+                src="https://i.imgur.com/kkJMVz0.png" 
+                alt="Andy's Frozen Custard" 
+                className="h-12"
+              />
+              <div className="flex items-center gap-2">
+                {isAdmin && (
                   <button
-                    onClick={handleRefresh}
-                    className="p-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                    title="Refresh data"
+                    onClick={() => router.push('/pl-upload')}
+                    className="p-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                    title="Upload P&L"
                   >
-                    <RefreshCw size={14} className="text-white" />
+                    <Upload size={16} className="text-white" />
                   </button>
-                  {isAdmin && (
-                    <button
-                      onClick={() => router.push('/pl-upload')}
-                      className="p-1.5 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                      title="Upload P&L"
-                    >
-                      <Upload size={14} className="text-white" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => signOut()}
-                    className="px-2 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors"
-                  >
-                    Sign Out
-                  </button>
-                </div>
+                )}
+                <button
+                  onClick={() => signOut()}
+                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Sign Out
+                </button>
               </div>
-              
+            </div>
+
+            {/* Mobile Dropdown */}
+            <div className="md:hidden flex items-center gap-2">
               <select
                 value="pl"
                 onChange={(e) => {
@@ -692,24 +418,32 @@ export default function PLDashboard() {
                     }
                   }
                 }}
-                className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
                 <option value="sales">Weekly Sales & Labor</option>
                 <option value="daily-sales">Daily Sales</option>
                 <option value="daily-labor">Daily Labor</option>
                 <option value="clockouts">Auto-Clockouts</option>
                 <option value="call-offs">Call-Offs</option>
+                <option value="overtime">OT Warnings</option>
                 <option value="scheduled-today">Scheduled Today</option>
                 <option value="pl">Profit & Loss</option>
               </select>
+              
+              <button
+                onClick={handleRefresh}
+                className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                title="Refresh data"
+              >
+                <RefreshCw size={16} className="text-white" />
+              </button>
             </div>
           </div>
 
-          {/* Location & Period Selection */}
+          {/* Sub-Header: Location & Period Selection */}
           {accessType !== 'none' && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg">
-              {/* Desktop: Location left, Period right */}
-              <div className="hidden md:flex items-center justify-between">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+              <div className="flex flex-col md:flex-row md:items-center gap-3">
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-medium text-slate-400">Location:</label>
                   <select
@@ -724,7 +458,7 @@ export default function PLDashboard() {
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-slate-400">Period:</label>
+                  <label className="text-sm font-medium text-slate-400">Period Ending:</label>
                   <select
                     value={selectedPeriod}
                     onChange={(e) => setSelectedPeriod(e.target.value)}
@@ -735,92 +469,16 @@ export default function PLDashboard() {
                     ))}
                   </select>
                 </div>
-              </div>
-              
-              {/* Mobile: Fill the row */}
-              <div className="md:hidden flex items-center gap-2">
-                <div className="flex-1 flex items-center gap-1">
-                  <label className="text-xs font-medium text-slate-400">Location:</label>
-                  <select
-                    value={selectedLocation}
-                    onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    {availableLocations.map(loc => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div className="flex-1 flex items-center gap-1">
-                  <label className="text-xs font-medium text-slate-400">Period:</label>
-                  <select
-                    value={selectedPeriod}
-                    onChange={(e) => setSelectedPeriod(e.target.value)}
-                    className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    {availablePeriods.map(period => (
-                      <option key={period} value={period}>{period}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* KPI Cards */}
-          {plData && !loading && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2 md:mb-3">
-              <KPICard 
-                label="Net Sales" 
-                periodValue={kpis.sales?.period} 
-                ytdValue={kpis.sales?.ytd}
-                color="blue" 
-              />
-              <KPICard 
-                label="COGS %" 
-                periodValue={kpis.cogsPercent} 
-                ytdValue={kpis.cogsPercentYtd}
-                isPercent={true} 
-                color="orange" 
-              />
-              <KPICard 
-                label="Labor %" 
-                periodValue={kpis.laborPercent} 
-                ytdValue={kpis.laborPercentYtd}
-                isPercent={true} 
-                color="purple" 
-              />
-              <KPICard 
-                label="Net Income" 
-                periodValue={kpis.netIncome?.period}
-                ytdValue={kpis.netIncome?.ytd}
-                color={kpis.netIncome?.period >= 0 ? 'green' : 'red'} 
-              />
-            </div>
-          )}
-
-          {/* Column Headers */}
-          {plData && !loading && (
-            <div className="bg-slate-700/50 border border-slate-600 rounded-lg mb-2 overflow-hidden">
-              <table className="w-full table-fixed">
-                <colgroup>
-                  <col style={{ width: '32%' }} />
-                  <col style={{ width: '17%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '17%' }} />
-                  <col style={{ width: '12%' }} />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th className="py-1.5 px-2 md:px-3 text-left text-xs md:text-sm font-semibold text-slate-300"></th>
-                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">Period</th>
-                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">%</th>
-                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">YTD</th>
-                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">%</th>
-                  </tr>
-                </thead>
-              </table>
+                {plData?.totalSales && (
+                  <div className="md:ml-auto text-right">
+                    <span className="text-sm text-slate-400">Total Sales: </span>
+                    <span className="text-lg font-bold text-green-400">
+                      ${plData.totalSales.period?.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -846,14 +504,37 @@ export default function PLDashboard() {
             </div>
           )}
 
-          {/* P&L Data Sections */}
+          {/* P&L Data */}
           {plData && !loading && (
             <>
+              {/* Table Header */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-x-auto mb-2">
+                <table className="w-full table-fixed min-w-[500px]">
+                  <colgroup>
+                    <col className="w-[30%]" />
+                    <col className="w-[17%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[24%]" />
+                    <col className="w-[18%]" />
+                  </colgroup>
+                  <thead>
+                    <tr className="bg-slate-700">
+                      <th className="py-2 px-2 text-left text-sm font-semibold text-slate-300"></th>
+                      <th className="py-2 px-3 text-right text-sm font-semibold text-slate-300 whitespace-nowrap">Period</th>
+                      <th className="py-2 px-3 text-right text-sm font-semibold text-slate-300 whitespace-nowrap">%</th>
+                      <th className="py-2 px-3 text-right text-sm font-semibold text-slate-300 whitespace-nowrap">YTD</th>
+                      <th className="py-2 px-3 text-right text-sm font-semibold text-slate-300 whitespace-nowrap">%</th>
+                    </tr>
+                  </thead>
+                </table>
+              </div>
+
+              {/* Sections */}
               {renderSection('Sales', sections['Sales'])}
               {renderSection('Prime Cost', sections['Prime Cost'])}
               {renderSection('Operating Expense', sections['Operating Expense'])}
               {renderSection('Non Controllable Expense', sections['Non Controllable Expense'])}
-              {renderNetIncome()}
+              {renderSection('Net Profit', sections['Net Profit'])}
             </>
           )}
 
