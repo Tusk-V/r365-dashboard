@@ -20,8 +20,8 @@ export default function PLDashboard() {
   const [expandedSections, setExpandedSections] = useState({
     'Sales': true,
     'Prime Cost': true,
-    'Operating Expense': false,
-    'Non Controllable Expense': false
+    'Operating Expense': true,
+    'Non Controllable Expense': true
   });
 
   const isAdmin = session?.user?.email === ADMIN_EMAIL;
@@ -116,7 +116,6 @@ export default function PLDashboard() {
     }));
   };
 
-  // Format currency with $ sign, no decimals, parentheses for negative
   const formatCurrency = (value) => {
     if (value === null || value === undefined) return '$0';
     const num = parseFloat(value);
@@ -175,10 +174,8 @@ export default function PLDashboard() {
     );
   }
 
-  // Main section headers
   const sectionHeaders = ['Sales', 'Prime Cost', 'Operating Expense', 'Non Controllable Expense'];
   
-  // Sub-categories within sections
   const subCategoryLabels = [
     'Comps & Discounts', 'Food and Paper Cost', 'Salaries and Wages',
     'Payroll Taxes', 'Payroll Benefits', 'Direct Operating Expense',
@@ -186,7 +183,9 @@ export default function PLDashboard() {
     'Occupancy Costs', 'Depreciation and Amortization'
   ];
 
-  // Process rows and calculate totals
+  // Manager wage labels to combine
+  const managerWageLabels = ['Manager Wages', 'Market Manager Wages', 'General Manager Wages', 'Assistant Manager Wages'];
+
   const processData = (rows) => {
     if (!rows) return { sections: {}, kpis: {}, netIncome: null };
     
@@ -201,23 +200,25 @@ export default function PLDashboard() {
     let currentSubCategory = '';
     let subCategoryTotals = {};
     
-    // KPIs we need to extract
     let totalSales = { period: 0, ytd: 0 };
     let totalFoodPaper = { period: 0, ytd: 0 };
     let totalSalariesWages = { period: 0, ytd: 0 };
     let netIncome = { period: 0, ytd: 0, periodPercent: 0, ytdPercent: 0 };
     
+    // Accumulator for manager wages
+    let managerWagesAccum = { period: 0, ytd: 0, periodPercent: 0, ytdPercent: 0 };
+    let managerWagesAdded = false;
+    
     for (const row of rows) {
       const label = row.label?.trim();
       
-      // Detect section changes
       if (sectionHeaders.includes(label) && !label.startsWith('Total')) {
         currentSection = label;
         currentSubCategory = '';
+        managerWagesAdded = false;
         continue;
       }
       
-      // Capture Net Profit/Income separately
       if (label === 'Net Profit') {
         netIncome.period = row.period || 0;
         netIncome.ytd = row.ytd || 0;
@@ -228,25 +229,30 @@ export default function PLDashboard() {
       
       if (!currentSection || !sections[currentSection]) continue;
       
-      // Check for sub-category header (no values)
       const isSubCategoryHeader = subCategoryLabels.includes(label) && 
         (row.period === null || row.period === undefined) && 
         (row.ytd === null || row.ytd === undefined);
       
-      // Check for Total rows
       const isTotalRow = label?.startsWith('Total ');
       const isSubCategoryTotal = isTotalRow && subCategoryLabels.includes(label.replace('Total ', ''));
       const isSectionTotal = isTotalRow && sectionHeaders.includes(label.replace('Total ', ''));
       
+      // Check if this is a manager wage row to combine
+      const isManagerWage = managerWageLabels.includes(label);
+      
       if (isSubCategoryHeader) {
         currentSubCategory = label;
         subCategoryTotals[label] = { period: 0, ytd: 0 };
+        // Reset manager wages accumulator for new sub-category
+        if (label === 'Salaries and Wages') {
+          managerWagesAccum = { period: 0, ytd: 0, periodPercent: 0, ytdPercent: 0 };
+          managerWagesAdded = false;
+        }
         sections[currentSection].rows.push({
           ...row,
           rowType: 'subCategoryHeader'
         });
       } else if (isSectionTotal) {
-        // Use the actual total if available, otherwise calculate
         const calcTotal = sections[currentSection].total;
         const actualPeriod = (row.period !== null && row.period !== undefined && row.period !== 0) 
           ? row.period : calcTotal.period;
@@ -260,7 +266,6 @@ export default function PLDashboard() {
           ytdPercent: row.ytdPercent
         };
         
-        // Extract KPIs
         if (label === 'Total Sales') {
           totalSales = { period: actualPeriod, ytd: actualYtd };
         }
@@ -270,7 +275,6 @@ export default function PLDashboard() {
           period: actualPeriod,
           ytd: actualYtd,
           rowType: 'sectionTotal',
-          // Rename Total Sales to Net Sales
           label: label === 'Total Sales' ? 'Net Sales' : label
         });
       } else if (isSubCategoryTotal) {
@@ -281,7 +285,6 @@ export default function PLDashboard() {
         const actualYtd = (row.ytd !== null && row.ytd !== undefined && row.ytd !== 0) 
           ? row.ytd : calculated.ytd;
         
-        // Extract specific KPIs
         if (subCatName === 'Food and Paper Cost') {
           totalFoodPaper = { period: actualPeriod, ytd: actualYtd };
         } else if (subCatName === 'Salaries and Wages') {
@@ -295,13 +298,50 @@ export default function PLDashboard() {
           rowType: 'subCategoryTotal'
         });
         currentSubCategory = '';
-      } else {
-        // Regular line item - skip zero values
-        if (row.period === 0 && row.ytd === 0) continue;
+      } else if (isManagerWage) {
+        // Accumulate manager wages
+        managerWagesAccum.period += parseFloat(row.period) || 0;
+        managerWagesAccum.ytd += parseFloat(row.ytd) || 0;
         
-        // Add to running totals
+        // Add combined row only once (after first manager wage encountered)
+        if (!managerWagesAdded && (managerWagesAccum.period !== 0 || managerWagesAccum.ytd !== 0)) {
+          // We'll update this row later, mark position
+          const rowIndex = sections[currentSection].rows.length;
+          sections[currentSection].rows.push({
+            label: 'Manager Wages',
+            period: managerWagesAccum.period,
+            ytd: managerWagesAccum.ytd,
+            periodPercent: row.periodPercent,
+            ytdPercent: row.ytdPercent,
+            rowType: 'lineItem',
+            indent: currentSubCategory ? 1 : 0,
+            _managerWagesIndex: rowIndex
+          });
+          managerWagesAdded = true;
+        } else if (managerWagesAdded) {
+          // Update the existing combined row
+          const existingRow = sections[currentSection].rows.find(r => r._managerWagesIndex !== undefined);
+          if (existingRow) {
+            existingRow.period = managerWagesAccum.period;
+            existingRow.ytd = managerWagesAccum.ytd;
+          }
+        }
+        
+        // Still add to running totals
         const periodVal = parseFloat(row.period) || 0;
         const ytdVal = parseFloat(row.ytd) || 0;
+        sections[currentSection].total.period += periodVal;
+        sections[currentSection].total.ytd += ytdVal;
+        if (currentSubCategory && subCategoryTotals[currentSubCategory]) {
+          subCategoryTotals[currentSubCategory].period += periodVal;
+          subCategoryTotals[currentSubCategory].ytd += ytdVal;
+        }
+      } else {
+        // Regular line item - skip if both period and ytd are 0 or blank
+        const periodVal = parseFloat(row.period) || 0;
+        const ytdVal = parseFloat(row.ytd) || 0;
+        
+        if (periodVal === 0 && ytdVal === 0) continue;
         
         sections[currentSection].total.period += periodVal;
         sections[currentSection].total.ytd += ytdVal;
@@ -319,11 +359,11 @@ export default function PLDashboard() {
       }
     }
     
-    // Calculate percentages for COGS and Labor based on Net Sales
     const cogsPercent = totalSales.period !== 0 ? (totalFoodPaper.period / totalSales.period) * 100 : 0;
     const laborPercent = totalSales.period !== 0 ? (totalSalariesWages.period / totalSales.period) * 100 : 0;
+    const cogsPercentYtd = totalSales.ytd !== 0 ? (totalFoodPaper.ytd / totalSales.ytd) * 100 : 0;
+    const laborPercentYtd = totalSales.ytd !== 0 ? (totalSalariesWages.ytd / totalSales.ytd) * 100 : 0;
     
-    // Calculate Net Income if not provided
     if (netIncome.period === 0 && netIncome.ytd === 0) {
       const primeCost = sections['Prime Cost'].total;
       const opExp = sections['Operating Expense'].total;
@@ -333,7 +373,6 @@ export default function PLDashboard() {
       netIncome.ytd = totalSales.ytd - primeCost.ytd - opExp.ytd - nonControllable.ytd;
     }
     
-    // Calculate Net Income percentages
     if (totalSales.period !== 0) {
       netIncome.periodPercent = (netIncome.period / totalSales.period) * 100;
     }
@@ -345,9 +384,11 @@ export default function PLDashboard() {
       sections,
       kpis: {
         sales: totalSales,
-        cogsPercent: cogsPercent,
-        laborPercent: laborPercent,
-        netIncome: netIncome
+        cogsPercent,
+        cogsPercentYtd,
+        laborPercent,
+        laborPercentYtd,
+        netIncome
       },
       netIncome,
       totalSales
@@ -356,7 +397,6 @@ export default function PLDashboard() {
 
   const { sections, kpis, netIncome, totalSales } = plData ? processData(plData.rows) : { sections: {}, kpis: {}, netIncome: null, totalSales: { period: 0, ytd: 0 } };
 
-  // Calculate percentage for a row based on total sales
   const calcPercent = (value, total) => {
     if (!value || !total || total === 0) return 0;
     return (value / total) * 100;
@@ -368,7 +408,6 @@ export default function PLDashboard() {
     let fontClass = 'text-sm';
     let paddingClass = 'pl-3';
     
-    // Calculate percentages for total rows if missing
     let periodPercent = row.periodPercent;
     let ytdPercent = row.ytdPercent;
     
@@ -382,7 +421,7 @@ export default function PLDashboard() {
       case 'subCategoryHeader':
         return (
           <tr key={idx} className="border-b border-slate-700/30">
-            <td colSpan={5} className="py-2 pl-3 text-slate-400 text-xs font-medium uppercase tracking-wide">
+            <td colSpan={5} className="py-1 pl-3 text-slate-400 text-xs font-medium uppercase tracking-wide">
               {row.label}
             </td>
           </tr>
@@ -405,19 +444,19 @@ export default function PLDashboard() {
 
     return (
       <tr key={idx} className={`${bgClass} border-b border-slate-700/30`}>
-        <td className={`py-1.5 ${paddingClass} ${textClass} ${fontClass}`} style={{ width: '40%' }}>
+        <td className={`py-1 ${paddingClass} ${textClass} ${fontClass}`} style={{ width: '40%' }}>
           {row.label}
         </td>
-        <td className={`py-1.5 px-2 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '15%' }}>
+        <td className={`py-1 px-2 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '15%' }}>
           {formatCurrency(row.period)}
         </td>
-        <td className="py-1.5 px-2 text-right text-slate-400 text-sm tabular-nums" style={{ width: '10%' }}>
+        <td className="py-1 px-2 text-right text-slate-400 text-sm tabular-nums" style={{ width: '10%' }}>
           {formatPercent(periodPercent)}
         </td>
-        <td className={`py-1.5 px-2 text-right ${textClass} ${fontClass} tabular-nums hidden md:table-cell`} style={{ width: '15%' }}>
+        <td className={`py-1 px-2 text-right ${textClass} ${fontClass} tabular-nums hidden md:table-cell`} style={{ width: '15%' }}>
           {formatCurrency(row.ytd)}
         </td>
-        <td className="py-1.5 px-2 text-right text-slate-400 text-sm tabular-nums hidden md:table-cell" style={{ width: '10%' }}>
+        <td className="py-1 px-2 text-right text-slate-400 text-sm tabular-nums hidden md:table-cell" style={{ width: '10%' }}>
           {formatPercent(ytdPercent)}
         </td>
       </tr>
@@ -433,11 +472,11 @@ export default function PLDashboard() {
       <div key={sectionName} className="mb-2">
         <button
           onClick={() => toggleSection(sectionName)}
-          className="w-full flex items-center px-3 py-2 rounded-t-lg transition-colors bg-slate-800 hover:bg-slate-750 border border-slate-700"
+          className="w-full flex items-center px-3 py-1.5 rounded-t-lg transition-colors bg-slate-800 hover:bg-slate-750 border border-slate-700"
         >
           <div className="flex items-center gap-2 text-white">
-            {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-            <span className="font-semibold">{sectionName}</span>
+            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            <span className="font-semibold text-sm">{sectionName}</span>
           </div>
         </button>
         
@@ -461,18 +500,12 @@ export default function PLDashboard() {
     );
   };
 
-  // Render Net Income/Loss section (non-collapsible)
   const renderNetIncome = () => {
     if (!netIncome) return null;
     
-    const isPositive = netIncome.period >= 0;
-    const bgClass = isPositive ? 'bg-green-900/40' : 'bg-red-900/40';
-    const textClass = isPositive ? 'text-green-400' : 'text-red-400';
-    const borderClass = isPositive ? 'border-green-700' : 'border-red-700';
-    
     return (
       <div className="mb-2">
-        <div className={`${bgClass} border ${borderClass} rounded-lg overflow-hidden`}>
+        <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
           <table className="w-full table-fixed">
             <colgroup>
               <col style={{ width: '40%' }} />
@@ -483,19 +516,19 @@ export default function PLDashboard() {
             </colgroup>
             <tbody>
               <tr>
-                <td className={`py-2.5 pl-3 ${textClass} text-sm font-bold`}>
+                <td className="py-2 pl-3 text-white text-sm font-bold">
                   Net Income/Loss
                 </td>
-                <td className={`py-2.5 px-2 text-right ${textClass} text-sm font-bold tabular-nums`}>
+                <td className="py-2 px-2 text-right text-white text-sm font-bold tabular-nums">
                   {formatCurrency(netIncome.period)}
                 </td>
-                <td className={`py-2.5 px-2 text-right ${textClass} text-sm font-bold tabular-nums`}>
+                <td className="py-2 px-2 text-right text-slate-400 text-sm font-bold tabular-nums">
                   {formatPercent(netIncome.periodPercent)}
                 </td>
-                <td className={`py-2.5 px-2 text-right ${textClass} text-sm font-bold tabular-nums hidden md:table-cell`}>
+                <td className="py-2 px-2 text-right text-white text-sm font-bold tabular-nums hidden md:table-cell">
                   {formatCurrency(netIncome.ytd)}
                 </td>
-                <td className={`py-2.5 px-2 text-right ${textClass} text-sm font-bold tabular-nums hidden md:table-cell`}>
+                <td className="py-2 px-2 text-right text-slate-400 text-sm font-bold tabular-nums hidden md:table-cell">
                   {formatPercent(netIncome.ytdPercent)}
                 </td>
               </tr>
@@ -506,8 +539,7 @@ export default function PLDashboard() {
     );
   };
 
-  // KPI Card component
-  const KPICard = ({ label, value, isPercent = false, color = 'blue' }) => {
+  const KPICard = ({ label, periodValue, ytdValue, isPercent = false, color = 'blue' }) => {
     const colorClasses = {
       blue: 'border-blue-500/30 bg-blue-900/20',
       green: 'border-green-500/30 bg-green-900/20',
@@ -524,14 +556,25 @@ export default function PLDashboard() {
       red: 'text-red-400'
     };
     
-    const isNegative = typeof value === 'number' && value < 0;
+    const isNegative = typeof periodValue === 'number' && periodValue < 0;
     const displayColor = isNegative ? 'red' : color;
     
     return (
-      <div className={`rounded-lg border ${colorClasses[displayColor]} p-3`}>
+      <div className={`rounded-lg border ${colorClasses[displayColor]} p-2`}>
         <div className="text-xs text-slate-400 uppercase tracking-wide mb-1">{label}</div>
-        <div className={`text-xl font-bold ${textColors[displayColor]}`}>
-          {isPercent ? formatKPIPercent(value) : formatKPICurrency(value)}
+        <div className="flex justify-between items-end gap-2">
+          <div>
+            <div className="text-[10px] text-slate-500 uppercase">Period</div>
+            <div className={`text-lg font-bold ${textColors[displayColor]}`}>
+              {isPercent ? formatKPIPercent(periodValue) : formatKPICurrency(periodValue)}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] text-slate-500 uppercase">YTD</div>
+            <div className={`text-lg font-bold ${textColors[displayColor]}`}>
+              {isPercent ? formatKPIPercent(ytdValue) : formatKPICurrency(ytdValue)}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -668,7 +711,7 @@ export default function PLDashboard() {
             </div>
           </div>
 
-          {/* Location & Period Selection - Same Line */}
+          {/* Location & Period Selection */}
           {accessType !== 'none' && (
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
               <div className="flex flex-wrap items-center gap-4">
@@ -703,13 +746,31 @@ export default function PLDashboard() {
 
           {/* KPI Cards */}
           {plData && !loading && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-              <KPICard label="Net Sales" value={kpis.sales?.period} color="blue" />
-              <KPICard label="COGS %" value={kpis.cogsPercent} isPercent={true} color="orange" />
-              <KPICard label="Labor %" value={kpis.laborPercent} isPercent={true} color="purple" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+              <KPICard 
+                label="Net Sales" 
+                periodValue={kpis.sales?.period} 
+                ytdValue={kpis.sales?.ytd}
+                color="blue" 
+              />
+              <KPICard 
+                label="COGS %" 
+                periodValue={kpis.cogsPercent} 
+                ytdValue={kpis.cogsPercentYtd}
+                isPercent={true} 
+                color="orange" 
+              />
+              <KPICard 
+                label="Labor %" 
+                periodValue={kpis.laborPercent} 
+                ytdValue={kpis.laborPercentYtd}
+                isPercent={true} 
+                color="purple" 
+              />
               <KPICard 
                 label="Net Income" 
-                value={kpis.netIncome?.period} 
+                periodValue={kpis.netIncome?.period}
+                ytdValue={kpis.netIncome?.ytd}
                 color={kpis.netIncome?.period >= 0 ? 'green' : 'red'} 
               />
             </div>
@@ -717,7 +778,7 @@ export default function PLDashboard() {
 
           {/* Column Headers */}
           {plData && !loading && (
-            <div className="bg-slate-700/50 border border-slate-600 rounded-lg mb-3 overflow-hidden">
+            <div className="bg-slate-700/50 border border-slate-600 rounded-lg mb-2 overflow-hidden">
               <table className="w-full table-fixed">
                 <colgroup>
                   <col style={{ width: '40%' }} />
@@ -728,11 +789,11 @@ export default function PLDashboard() {
                 </colgroup>
                 <thead>
                   <tr>
-                    <th className="py-2 px-3 text-left text-sm font-semibold text-slate-300"></th>
-                    <th className="py-2 px-2 text-right text-sm font-semibold text-slate-300">Period</th>
-                    <th className="py-2 px-2 text-right text-sm font-semibold text-slate-300">%</th>
-                    <th className="py-2 px-2 text-right text-sm font-semibold text-slate-300 hidden md:table-cell">YTD</th>
-                    <th className="py-2 px-2 text-right text-sm font-semibold text-slate-300 hidden md:table-cell">%</th>
+                    <th className="py-1.5 px-3 text-left text-sm font-semibold text-slate-300"></th>
+                    <th className="py-1.5 px-2 text-right text-sm font-semibold text-slate-300">Period</th>
+                    <th className="py-1.5 px-2 text-right text-sm font-semibold text-slate-300">%</th>
+                    <th className="py-1.5 px-2 text-right text-sm font-semibold text-slate-300 hidden md:table-cell">YTD</th>
+                    <th className="py-1.5 px-2 text-right text-sm font-semibold text-slate-300 hidden md:table-cell">%</th>
                   </tr>
                 </thead>
               </table>
