@@ -12,6 +12,7 @@ const SPREADSHEET_ID = '1WsHBn5qLczH8QZ1c-CyVGfCWzMuLg2vmx5R5MZdHY20';
 const SHEET_NAME = 'Sheet1';
 const AUTO_CLOCKOUTS_SHEET = 'Auto-Clockouts';
 const CALL_OFFS_SHEET = 'Call-Offs';
+const OVERTIME_SHEET = 'Overtime Warning';
 const FLASH_DAILY_SALES_SHEET = 'Flash - Daily Sales';  // NEW: Sales & Guests  
 const FLASH_DAILY_LABOR_SHEET = 'Flash - Daily Labor';  // NEW: Labor hours
 const SCHEDULED_TODAY_SHEET = 'Scheduled Today';
@@ -54,6 +55,12 @@ export default function Home() {
   const [callOffsLoading, setCallOffsLoading] = useState(false);
   const [callOffsError, setCallOffsError] = useState(null);
   const [callOffLocationFilter, setCallOffLocationFilter] = useState('all');
+
+  const [overtimeWarnings, setOvertimeWarnings] = useState([]);
+  const [filteredOvertime, setFilteredOvertime] = useState([]);
+  const [overtimeLoading, setOvertimeLoading] = useState(false);
+  const [overtimeError, setOvertimeError] = useState(null);
+  const [overtimeLocationFilter, setOvertimeLocationFilter] = useState('all');
 
   const [scheduledToday, setScheduledToday] = useState([]);
   const [filteredScheduled, setFilteredScheduled] = useState([]);
@@ -464,6 +471,60 @@ export default function Home() {
     }
     
     setFilteredCallOffs(filtered);
+  };
+
+  const loadOvertimeWarnings = async () => {
+    setOvertimeLoading(true);
+    setOvertimeError(null);
+    
+    try {
+      const range = `${OVERTIME_SHEET}!A2:C`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to load overtime warnings');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        setOvertimeWarnings([]);
+        return;
+      }
+      
+      const parsedOvertime = data.values.map(row => ({
+        employee: row[0] || '',
+        location: row[1] || '',
+        estOTStart: row[2] || ''
+      }));
+      
+      setOvertimeWarnings(parsedOvertime);
+    } catch (err) {
+      console.error('Error loading overtime warnings:', err);
+      setOvertimeError(err.message);
+    } finally {
+      setOvertimeLoading(false);
+    }
+  };
+
+  const applyOvertimeFilters = () => {
+    let filtered = [...overtimeWarnings];
+    
+    // Apply access control first
+    if (!isAdmin && dashboardAccess?.type === 'specific') {
+      filtered = filtered.filter(o => dashboardAccess.locations?.includes(o.location));
+    } else if (!isAdmin && dashboardAccess?.type === 'none') {
+      filtered = [];
+    }
+    
+    if (overtimeLocationFilter !== 'all') {
+      filtered = filtered.filter(o => o.location === overtimeLocationFilter);
+    }
+    
+    setFilteredOvertime(filtered);
   };
 
   const loadDailyFlash = async () => {
@@ -970,6 +1031,7 @@ export default function Home() {
       loadAvailableWeeks();
       loadAutoClockouts();
       loadCallOffs();
+      loadOvertimeWarnings();
       loadScheduledToday();
       loadDailyFlash();
       loadDailyLabor();
@@ -1003,6 +1065,10 @@ export default function Home() {
   useEffect(() => {
     applyCallOffFilters();
   }, [callOffs, callOffLocationFilter, dashboardAccess]);
+
+  useEffect(() => {
+    applyOvertimeFilters();
+  }, [overtimeWarnings, overtimeLocationFilter, dashboardAccess]);
 
   useEffect(() => {
     applyScheduledFilters();
@@ -1095,6 +1161,7 @@ export default function Home() {
                   <option value="daily-labor">Daily Labor</option>
                   <option value="clockouts">Auto-Clockouts</option>
                   <option value="call-offs">Call-Offs</option>
+                  <option value="overtime">Overtime</option>
                   <option value="scheduled-today">Scheduled Today</option>
                   <option value="pl">Profit & Loss</option>
                 </select>
@@ -1111,6 +1178,8 @@ export default function Home() {
                       loadAutoClockouts();
                     } else if (activeTab === 'call-offs') {
                       loadCallOffs();
+                    } else if (activeTab === 'overtime') {
+                      loadOvertimeWarnings();
                     } else if (activeTab === 'scheduled-today') {
                       loadScheduledToday();
                     } else if (activeTab === 'daily-sales') {
@@ -1167,6 +1236,7 @@ export default function Home() {
                 <option value="daily-labor">Daily Labor</option>
                 <option value="clockouts">Auto-Clockouts</option>
                 <option value="call-offs">Call-Offs</option>
+                <option value="overtime">Overtime</option>
                 <option value="scheduled-today">Scheduled Today</option>
                 <option value="pl">Profit & Loss</option>
               </select>
@@ -1183,6 +1253,8 @@ export default function Home() {
                     loadAutoClockouts();
                   } else if (activeTab === 'call-offs') {
                     loadCallOffs();
+                  } else if (activeTab === 'overtime') {
+                    loadOvertimeWarnings();
                   } else if (activeTab === 'scheduled-today') {
                     loadScheduledToday();
                   } else if (activeTab === 'daily-sales') {
@@ -2133,6 +2205,78 @@ export default function Home() {
                       );
                     });
                   })()}
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'overtime' && (
+            <>
+              {/* Header */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Overtime Warnings</h2>
+                    <p className="text-sm text-slate-400">Employees approaching overtime this week</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold text-yellow-400">{filteredOvertime.length}</span>
+                    <p className="text-xs text-slate-400">Total</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Location Filter */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-slate-400">Location:</label>
+                  <select
+                    value={overtimeLocationFilter}
+                    onChange={(e) => setOvertimeLocationFilter(e.target.value)}
+                    className="flex-1 px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="all">All Locations</option>
+                    {[...new Set(overtimeWarnings.map(o => o.location))].sort().map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {overtimeError && (
+                <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                  <strong>Error:</strong> {overtimeError}
+                </div>
+              )}
+
+              {overtimeLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-white text-lg">Loading overtime warnings...</div>
+                </div>
+              ) : filteredOvertime.length === 0 ? (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                  <AlertCircle className="mx-auto mb-3 text-green-400" size={48} />
+                  <h3 className="text-xl font-bold text-white mb-2">No Overtime Warnings</h3>
+                  <p className="text-slate-400">No employees approaching overtime this week!</p>
+                </div>
+              ) : (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
+                  {/* Header Row */}
+                  <div className="grid gap-2 md:gap-4 p-2 md:p-3 border-b border-slate-700 bg-slate-900" style={{gridTemplateColumns: '1fr 100px 110px'}}>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold text-right">Est OT Start</div>
+                  </div>
+                  
+                  <div className="divide-y divide-slate-700">
+                    {filteredOvertime.map((ot, idx) => (
+                      <div key={idx} className="grid gap-2 md:gap-4 p-2 md:p-3 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '1fr 100px 110px'}}>
+                        <div className="text-white font-medium text-xs md:text-sm">{ot.employee}</div>
+                        <div className="text-slate-300 text-xs md:text-sm">{ot.location}</div>
+                        <div className="text-yellow-400 font-medium text-xs md:text-sm text-right">{ot.estOTStart}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </>
