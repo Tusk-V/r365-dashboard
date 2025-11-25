@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { ChevronDown, ChevronRight, RefreshCw, Upload } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, Upload, Printer } from 'lucide-react';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -465,10 +465,10 @@ export default function PLDashboard() {
       <div key={sectionName} className="mb-2">
         <button
           onClick={() => toggleSection(sectionName)}
-          className="w-full flex items-center px-2 md:px-3 py-1.5 rounded-t-lg transition-colors bg-slate-800 hover:bg-slate-750 border border-slate-700"
+          className="w-full flex items-center px-2 md:px-3 py-1.5 rounded-t-lg transition-colors bg-slate-800 hover:bg-slate-750 border border-slate-700 print:hover:bg-slate-800"
         >
           <div className="flex items-center gap-2 text-white">
-            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            <span className="print:hidden">{isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</span>
             <span className="font-semibold text-xs md:text-sm">{sectionName}</span>
           </div>
         </button>
@@ -578,22 +578,51 @@ export default function PLDashboard() {
   return (
     <>
       <Head>
-  <title>P&L Dashboard - Andy's Frozen Custard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <style>{`
-    @media print {
-      .text-slate-300, .text-slate-400, .text-slate-500, .text-white {
-        color: black !important;
-      }
-    }
-  `}</style>
-</Head>
+        <title>P&L Dashboard - Andy's Frozen Custard</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+        <style>{`
+          @media print {
+            /* Make gray text black but preserve KPI colors */
+            .text-slate-300, .text-slate-400, .text-slate-500, .text-white {
+              color: black !important;
+            }
+            /* White background for print */
+            body, .bg-slate-900, .bg-slate-800, .bg-gradient-to-br {
+              background: white !important;
+            }
+            /* Hide screen-only elements */
+            .no-print {
+              display: none !important;
+            }
+            /* Show print-only elements */
+            .print-only {
+              display: block !important;
+            }
+            /* Remove borders that look bad on print */
+            .border-slate-700, .border-slate-600 {
+              border-color: #ccc !important;
+            }
+          }
+        `}</style>
+      </Head>
       
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
         <div className="max-w-[1400px] mx-auto">
           
-          {/* Main Header */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-4 mb-2 md:mb-3 shadow-2xl">
+          {/* Print Header - Only shows when printing */}
+          <div className="print-only hidden mb-4">
+            <div className="flex flex-col items-center justify-center py-4">
+              <img 
+                src="https://i.imgur.com/kkJMVz0.png" 
+                alt="Andy's Frozen Custard" 
+                className="h-20"
+              />
+              <div className="mt-2 text-lg font-bold">{selectedLocation} - {selectedPeriod}</div>
+            </div>
+          </div>
+
+          {/* Main Header - Hidden when printing */}
+          <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-4 mb-2 md:mb-3 shadow-2xl">
             {/* Desktop Header */}
             <div className="hidden md:flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -714,8 +743,8 @@ export default function PLDashboard() {
 
           {/* Location & Period Selection */}
           {accessType !== 'none' && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg">
-              {/* Desktop: Location left, Period right */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg no-print">
+              {/* Desktop: Location left, Period right with Print button */}
               <div className="hidden md:flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-medium text-slate-400">Location:</label>
@@ -741,6 +770,13 @@ export default function PLDashboard() {
                       <option key={period} value={period}>{period}</option>
                     ))}
                   </select>
+                  <button
+                    onClick={() => window.print()}
+                    className="p-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg transition-colors"
+                    title="Print P&L"
+                  >
+                    <Printer size={16} className="text-white" />
+                  </button>
                 </div>
               </div>
               
@@ -771,6 +807,14 @@ export default function PLDashboard() {
                     ))}
                   </select>
                 </div>
+                
+                <button
+                  onClick={() => window.print()}
+                  className="p-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg transition-colors"
+                  title="Print P&L"
+                >
+                  <Printer size={14} className="text-white" />
+                </button>
               </div>
             </div>
           )}
