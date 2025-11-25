@@ -610,14 +610,14 @@ export default function PLDashboard() {
         <div className="max-w-[1400px] mx-auto">
           
           {/* Print Header - Only shows when printing */}
-          <div className="print-only hidden mb-4">
-            <div className="flex flex-col items-center justify-center py-4">
+          <div className="print-only hidden mb-2">
+            <div className="flex flex-col items-center justify-center py-2">
               <img 
                 src="https://i.imgur.com/kkJMVz0.png" 
                 alt="Andy's Frozen Custard" 
-                className="h-20"
+                className="h-12"
               />
-              <div className="mt-2 text-lg font-bold">{selectedLocation} - {selectedPeriod}</div>
+              <div className="mt-1 text-sm font-bold">{selectedLocation} — Period Ending {selectedPeriod}</div>
             </div>
           </div>
 
