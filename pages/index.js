@@ -2238,30 +2238,30 @@ export default function Home() {
                   <p className="text-slate-400">No employees approaching overtime this week!</p>
                 </div>
               ) : (
-                <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
+                <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-x-auto">
                   {/* Header Row */}
-                  <div className="grid gap-2 md:gap-4 p-2 md:p-3 border-b border-slate-700 bg-slate-900" style={{gridTemplateColumns: '1fr 100px 140px'}}>
-                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
-                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
-                    <div className="text-slate-400 text-xs md:text-sm font-semibold text-right">Est OT Start</div>
+                  <div className="grid gap-2 p-2 border-b border-slate-700 bg-slate-900 min-w-[360px]" style={{gridTemplateColumns: '1fr 90px 130px'}}>
+                    <div className="text-slate-400 text-xs font-semibold">Name</div>
+                    <div className="text-slate-400 text-xs font-semibold">Location</div>
+                    <div className="text-slate-400 text-xs font-semibold text-right">Est OT Start</div>
                   </div>
                   
-                  <div className="divide-y divide-slate-700">
+                  <div className="divide-y divide-slate-700 min-w-[360px]">
                     {filteredOvertime.map((ot, idx) => {
                       const hasAutoClockout = clockouts.some(c => 
                         c.employee.toLowerCase() === ot.employee.toLowerCase() && 
                         c.location === ot.location
                       );
                       return (
-                        <div key={idx} className="grid gap-2 md:gap-4 p-2 md:p-3 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '1fr 100px 140px'}}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-white font-medium text-xs md:text-sm">{ot.employee}</span>
+                        <div key={idx} className="grid gap-2 p-2 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '1fr 90px 130px'}}>
+                          <div className="flex items-center gap-1 overflow-hidden">
+                            <span className="text-white font-medium text-xs truncate">{ot.employee}</span>
                             {hasAutoClockout && (
-                              <span className="bg-red-600 text-white text-[9px] px-1 py-0.5 rounded font-semibold">AC</span>
+                              <span className="bg-red-600 text-white text-[9px] px-1 py-0.5 rounded font-semibold flex-shrink-0">AC</span>
                             )}
                           </div>
-                          <div className="text-slate-300 text-xs md:text-sm">{ot.location}</div>
-                          <div className="text-yellow-400 font-medium text-xs md:text-sm text-right">{ot.estOTStart}</div>
+                          <div className="text-slate-300 text-xs truncate">{ot.location}</div>
+                          <div className="text-yellow-400 font-medium text-xs text-right whitespace-nowrap">{ot.estOTStart}</div>
                         </div>
                       );
                     })}
