@@ -1,4 +1,4 @@
-// pages/api/check-access.js
+// pages/api/check-pl-access.js
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from './auth/[...nextauth]';
 import clientPromise from '../../lib/mongodb';
@@ -19,12 +19,15 @@ export default async function handler(req, res) {
 
     const userEmail = session.user.email;
 
-    // Admin has full access to everything
+    // Admin has full access
     if (userEmail === ADMIN_EMAIL) {
       return res.status(200).json({
+        success: true,
         isAdmin: true,
-        dashboardAccess: { type: 'all', locations: [] },
-        plAccess: { type: 'all', locations: [] }
+        access: {
+          type: 'all',
+          locations: []
+        }
       });
     }
 
@@ -33,22 +36,28 @@ export default async function handler(req, res) {
 
     const user = await db.collection('users').findOne({ email: userEmail });
 
-    if (!user) {
+    if (!user || !user.plAccess) {
       return res.status(200).json({
+        success: true,
         isAdmin: false,
-        dashboardAccess: { type: 'none', locations: [] },
-        plAccess: { type: 'none', locations: [] }
+        access: {
+          type: 'none',
+          locations: []
+        }
       });
     }
 
     return res.status(200).json({
+      success: true,
       isAdmin: false,
-      dashboardAccess: user.dashboardAccess || { type: 'none', locations: [] },
-      plAccess: user.plAccess || { type: 'none', locations: [] }
+      access: user.plAccess
     });
 
   } catch (error) {
-    console.error('Check access error:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('Check P&L access error:', error);
+    return res.status(500).json({
+      error: 'Failed to check access',
+      details: error.message
+    });
   }
 }
