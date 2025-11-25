@@ -16,6 +16,23 @@ const OVERTIME_SHEET = 'Overtime Warning';
 const FLASH_DAILY_SALES_SHEET = 'Flash - Daily Sales';  // NEW: Sales & Guests  
 const FLASH_DAILY_LABOR_SHEET = 'Flash - Daily Labor';  // NEW: Labor hours
 const SCHEDULED_TODAY_SHEET = 'Scheduled Today';
+const EMPLOYEE_TITLES_SHEET = 'Employee Titles';
+
+const TitleBadge = ({ title }) => {
+  if (!title) return null;
+  
+  const colors = {
+    'GM': 'bg-purple-600 text-white',
+    'AGM': 'bg-blue-600 text-white',
+    'SL': 'bg-green-600 text-white'
+  };
+  
+  return (
+    <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded ${colors[title] || 'bg-slate-600 text-white'}`}>
+      {title}
+    </span>
+  );
+};
 
 export default function Home() {
   const { data: session, status } = useSession()
@@ -67,6 +84,7 @@ export default function Home() {
   const [scheduledError, setScheduledError] = useState(null);
   const [scheduledLocationFilter, setScheduledLocationFilter] = useState('all');
   const [scheduledMarketFilter, setScheduledMarketFilter] = useState('all');
+  const [employeeTitles, setEmployeeTitles] = useState({});
 
   const [dailyFlashData, setDailyFlashData] = useState({});
   const [dailyFlashLoading, setDailyFlashLoading] = useState(false);
@@ -714,6 +732,44 @@ export default function Home() {
     }
   };
 
+  const loadEmployeeTitles = async () => {
+    try {
+      const range = `${EMPLOYEE_TITLES_SHEET}!A2:B`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        console.error('Failed to load employee titles');
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        return;
+      }
+      
+      const titlesMap = {};
+      data.values.forEach(row => {
+        const name = row[0]?.trim();
+        const title = row[1]?.trim();
+        if (name && title) {
+          titlesMap[name.toLowerCase()] = title;
+        }
+      });
+      
+      setEmployeeTitles(titlesMap);
+    } catch (err) {
+      console.error('Error loading employee titles:', err);
+    }
+  };
+
+  const getEmployeeTitle = (name) => {
+    if (!name) return null;
+    return employeeTitles[name.toLowerCase()] || null;
+  };
+
   const applyScheduledFilters = () => {
     let filtered = [...scheduledToday];
     
@@ -1028,6 +1084,7 @@ export default function Home() {
       loadCallOffs();
       loadOvertimeWarnings();
       loadScheduledToday();
+      loadEmployeeTitles();
       loadDailyFlash();
       loadDailyLabor();
     }
@@ -2356,7 +2413,10 @@ export default function Home() {
                             <div className="space-y-1">
                               {employees.map((emp, empIdx) => (
                                 <div key={empIdx} className="flex justify-between items-center py-1 border-b border-slate-700 last:border-b-0">
-                                  <span className="text-white text-xs md:text-sm font-medium">{emp.employee}</span>
+                                  <span className="text-white text-xs md:text-sm font-medium flex items-center">
+                                    {emp.employee}
+                                    <TitleBadge title={getEmployeeTitle(emp.employee)} />
+                                  </span>
                                   <span className="text-slate-300 text-xs md:text-sm whitespace-nowrap ml-2">{emp.schStart} - {emp.schEnd}</span>
                                 </div>
                               ))}
