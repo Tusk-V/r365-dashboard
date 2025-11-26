@@ -3,6 +3,7 @@ import { useRouter } from "next/router"
 import Head from "next/head"
 import { useState, useEffect } from 'react';
 import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown } from 'lucide-react';
+import SwipeNavigation from '../components/SwipeNavigation';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -1323,6 +1324,7 @@ export default function Home() {
             </div>
           </div>
 
+          <SwipeNavigation activeTab={activeTab} setActiveTab={setActiveTab}>
           {activeTab === 'sales' && (
             <>
               {availableWeeks.length > 0 && (
@@ -2430,6 +2432,7 @@ export default function Home() {
               )}
             </>
           )}
+          </SwipeNavigation>
         </div>
 
         {showClockoutModal && (
