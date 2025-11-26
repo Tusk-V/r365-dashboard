@@ -10,13 +10,24 @@ import nodemailer from "nodemailer";
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
+// Check if user has any access granted
+function hasAnyAccess(user) {
+  const dashboardAccess = user?.dashboardAccess?.type;
+  const plAccess = user?.plAccess?.type;
+  
+  // User has access if either dashboard or P&L access is not 'none'
+  return (dashboardAccess && dashboardAccess !== 'none') || 
+         (plAccess && plAccess !== 'none');
+}
+
 // Send notification email to admin
 async function sendNewUserNotification(newUser) {
   try {
+    const port = parseInt(process.env.EMAIL_SERVER_PORT, 10) || 587;
     const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_SERVER_HOST,
-      port: process.env.EMAIL_SERVER_PORT,
-      secure: process.env.EMAIL_SERVER_PORT === '465',
+      port: port,
+      secure: port === 465,
       auth: {
         user: process.env.EMAIL_SERVER_USER,
         pass: process.env.EMAIL_SERVER_PASSWORD,
@@ -67,6 +78,7 @@ export const authOptions = {
       authorization: {
         params: {
           prompt: "select_account",
+          hd: "rancherscustard.com"
         }
       }
     }),
@@ -162,6 +174,26 @@ export const authOptions = {
     async session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
+        
+        // Fetch user's access info from our users collection
+        try {
+          const client = await clientPromise;
+          const db = client.db('andysdashboard');
+          const userData = await db.collection('users').findOne({ email: session.user.email });
+          
+          if (userData) {
+            session.user.dashboardAccess = userData.dashboardAccess;
+            session.user.plAccess = userData.plAccess;
+            // Check if user has any access (admin always has access)
+            const isAdmin = session.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+            session.user.accessPending = !isAdmin && !hasAnyAccess(userData);
+          } else {
+            session.user.accessPending = session.user.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase();
+          }
+        } catch (err) {
+          console.error('Error fetching user access:', err);
+          session.user.accessPending = session.user.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase();
+        }
       }
       return session;
     },
