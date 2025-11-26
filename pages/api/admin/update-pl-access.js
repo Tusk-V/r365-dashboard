@@ -1,8 +1,52 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]';
 import clientPromise from '../../../lib/mongodb';
+import nodemailer from 'nodemailer';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
+
+// Send access granted email to user
+async function sendAccessGrantedEmail(userEmail, userName) {
+  try {
+    const port = parseInt(process.env.EMAIL_SERVER_PORT, 10) || 587;
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_SERVER_HOST,
+      port: port,
+      secure: port === 465,
+      auth: {
+        user: process.env.EMAIL_SERVER_USER,
+        pass: process.env.EMAIL_SERVER_PASSWORD,
+      },
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: userEmail,
+      subject: `Your Dashboard Access Has Been Granted`,
+      text: `Hi ${userName},\n\nYou now have access to Andy's Dashboard.\n\nVisit: https://andysdashboard.com\n\nThanks!`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #1e293b;">Access Granted! 🎉</h2>
+          <p>Hi ${userName},</p>
+          <p>You now have access to Andy's Dashboard.</p>
+          <a href="https://andysdashboard.com" style="display: inline-block; padding: 12px 24px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin-top: 16px;">Go to Dashboard</a>
+          <p style="color: #64748b; margin-top: 24px; font-size: 14px;">Thanks!</p>
+        </div>
+      `,
+    });
+    
+    console.log(`Access granted email sent to: ${userEmail}`);
+  } catch (err) {
+    console.error('Failed to send access granted email:', err);
+  }
+}
+
+// Check if user has any access
+function hasAnyAccess(dashboardAccess, plAccess) {
+  const hasDb = dashboardAccess?.type && dashboardAccess.type !== 'none';
+  const hasPl = plAccess?.type && plAccess.type !== 'none';
+  return hasDb || hasPl;
+}
 
 export default async function handler(req, res) {
   try {
@@ -46,6 +90,10 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Email required' });
       }
 
+      // Get existing user to check if this is a new grant
+      const existingUser = await db.collection('users').findOne({ email });
+      const hadAccessBefore = existingUser ? hasAnyAccess(existingUser.dashboardAccess, existingUser.plAccess) : false;
+
       // Build update object
       const updateFields = {
         updatedAt: new Date(),
@@ -80,6 +128,17 @@ export default async function handler(req, res) {
         { $set: updateFields },
         { upsert: true }
       );
+
+      // Check if user now has access when they didn't before
+      const newDashboardAccess = updateFields.dashboardAccess || existingUser?.dashboardAccess;
+      const newPlAccess = updateFields.plAccess || existingUser?.plAccess;
+      const hasAccessNow = hasAnyAccess(newDashboardAccess, newPlAccess);
+
+      // Send email if access was just granted
+      if (!hadAccessBefore && hasAccessNow) {
+        const userName = existingUser?.name || email.split('@')[0];
+        sendAccessGrantedEmail(email, userName);
+      }
 
       return res.status(200).json({ success: true });
     }
