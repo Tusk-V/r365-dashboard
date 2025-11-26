@@ -1014,6 +1014,15 @@ export default function Home() {
     }
   }, [status, router])
 
+  // Redirect to access-pending page if user has no access
+  useEffect(() => {
+    if (status === "authenticated" && !accessLoading && !isAdmin) {
+      if (!dashboardAccess || dashboardAccess.type === 'none') {
+        router.push('/auth/access-pending');
+      }
+    }
+  }, [status, accessLoading, isAdmin, dashboardAccess, router])
+
   // Load dashboard access permissions
   const loadDashboardAccess = async () => {
     try {
@@ -1139,36 +1148,13 @@ export default function Home() {
     return null
   }
 
-  // Check if user has any dashboard access
+  // Show loading while redirecting to access-pending (useEffect handles the redirect)
   if (!isAdmin && (!dashboardAccess || dashboardAccess.type === 'none')) {
     return (
-      <>
-        <Head>
-          <title>Andy's Dashboards</title>
-        </Head>
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 flex items-center justify-center">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 max-w-md text-center">
-            <div className="mb-4">
-              <img 
-                src="https://i.imgur.com/kkJMVz0.png" 
-                alt="Andy's Frozen Custard" 
-                className="h-16 mx-auto"
-              />
-            </div>
-            <h1 className="text-xl font-bold text-white mb-2">No Dashboard Access</h1>
-            <p className="text-slate-400 mb-6">
-              You don't have access to any dashboards yet. Please contact your administrator to request access.
-            </p>
-            <button
-              onClick={() => signOut()}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </>
-    )
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white text-lg">Checking access...</div>
+      </div>
+    );
   }
 
   const totals = calculateTotals();
