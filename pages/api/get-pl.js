@@ -32,10 +32,13 @@ export default async function handler(req, res) {
       allowedLocations = user.plAccess.locations || [];
     }
 
-    const { location, period, listPeriods } = req.query;
+    const { location, period, listPeriods, reportType } = req.query;
+    
+    // Default to 'period-ytd' if not specified
+    const selectedReportType = reportType || 'period-ytd';
 
-    // Get all available locations from database
-    const allLocations = await db.collection('pl_data').distinct('location');
+    // Get all available locations from database for this report type
+    const allLocations = await db.collection('pl_data').distinct('location', { reportType: selectedReportType });
     
     // Filter locations based on access
     let availableLocations = [];
@@ -65,7 +68,7 @@ export default async function handler(req, res) {
     // If listPeriods=true, return list of available periods for this location
     if (listPeriods === 'true') {
       const periods = await db.collection('pl_data')
-        .find({ location })
+        .find({ location, reportType: selectedReportType })
         .project({ periodEnding: 1 })
         .sort({ periodEnding: -1 })
         .toArray();
@@ -78,7 +81,7 @@ export default async function handler(req, res) {
     }
 
     // Get P&L data for location (and optionally specific period)
-    const query = { location };
+    const query = { location, reportType: selectedReportType };
     if (period) {
       query.periodEnding = period;
     }
