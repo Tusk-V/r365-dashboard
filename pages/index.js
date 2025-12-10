@@ -1187,6 +1187,17 @@ export default function Home() {
     }
   }, [status, router])
 
+  // Check for pending tab from P&L page navigation
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const pendingTab = sessionStorage.getItem('pendingTab');
+      if (pendingTab) {
+        setActiveTab(pendingTab);
+        sessionStorage.removeItem('pendingTab');
+      }
+    }
+  }, [])
+
   // Redirect to access-pending page if user has no access
   useEffect(() => {
     if (status === "authenticated" && !accessLoading && !isAdmin) {
