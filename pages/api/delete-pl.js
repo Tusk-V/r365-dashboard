@@ -19,7 +19,7 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const { location, periodEnding } = req.query;
+    const { location, periodEnding, reportType } = req.query;
 
     if (!location) {
       return res.status(400).json({ error: 'Location required' });
@@ -28,7 +28,14 @@ export default async function handler(req, res) {
     const client = await clientPromise;
     const db = client.db('andysdashboard');
 
-    const query = { location };
+    const selectedReportType = reportType || 'period-ytd';
+    
+    // For period-ytd, also match documents without reportType field (legacy data)
+    const reportTypeFilter = selectedReportType === 'period-ytd' 
+      ? { $or: [{ reportType: 'period-ytd' }, { reportType: { $exists: false } }] }
+      : { reportType: selectedReportType };
+
+    const query = { location, ...reportTypeFilter };
     if (periodEnding) {
       query.periodEnding = periodEnding;
     }
