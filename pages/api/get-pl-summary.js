@@ -19,12 +19,20 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
+    const { reportType } = req.query;
+    const selectedReportType = reportType || 'period-ytd';
+    
+    // For period-ytd, also match documents without reportType field (legacy data)
+    const reportTypeFilter = selectedReportType === 'period-ytd' 
+      ? { $or: [{ reportType: 'period-ytd' }, { reportType: { $exists: false } }] }
+      : { reportType: selectedReportType };
+
     const client = await clientPromise;
     const db = client.db('andysdashboard');
 
     const plData = await db.collection('pl_data')
-      .find({})
-      .project({ location: 1, periodEnding: 1, uploadedAt: 1, uploadedBy: 1 })
+      .find(reportTypeFilter)
+      .project({ location: 1, periodEnding: 1, uploadedAt: 1, uploadedBy: 1, reportType: 1 })
       .sort({ location: 1, periodEnding: -1 })
       .toArray();
 
