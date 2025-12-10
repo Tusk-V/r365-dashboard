@@ -17,6 +17,7 @@ export default function PLDashboard() {
   const [selectedLocation, setSelectedLocation] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [plData, setPlData] = useState(null);
+  const [reportType, setReportType] = useState('period-ytd');
   const [expandedSections, setExpandedSections] = useState({
     'Sales': true,
     'Prime Cost': true,
@@ -30,13 +31,13 @@ export default function PLDashboard() {
     if (status === 'authenticated') {
       loadInitialData();
     }
-  }, [status]);
+  }, [status, reportType]);
 
   useEffect(() => {
     if (selectedLocation) {
       loadPeriodsForLocation(selectedLocation);
     }
-  }, [selectedLocation]);
+  }, [selectedLocation, reportType]);
 
   useEffect(() => {
     if (selectedLocation && selectedPeriod) {
@@ -47,7 +48,7 @@ export default function PLDashboard() {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/get-pl');
+      const res = await fetch(`/api/get-pl?reportType=${reportType}`);
       const data = await res.json();
       
       if (res.ok) {
@@ -68,7 +69,7 @@ export default function PLDashboard() {
 
   const loadPeriodsForLocation = async (location) => {
     try {
-      const res = await fetch(`/api/get-pl?location=${encodeURIComponent(location)}&listPeriods=true`);
+      const res = await fetch(`/api/get-pl?location=${encodeURIComponent(location)}&listPeriods=true&reportType=${reportType}`);
       const data = await res.json();
       
       if (res.ok && data.periods) {
@@ -85,7 +86,7 @@ export default function PLDashboard() {
   const loadPLData = async (location, period) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/get-pl?location=${encodeURIComponent(location)}&period=${encodeURIComponent(period)}`);
+      const res = await fetch(`/api/get-pl?location=${encodeURIComponent(location)}&period=${encodeURIComponent(period)}&reportType=${reportType}`);
       const data = await res.json();
       
       if (res.ok) {
@@ -532,7 +533,7 @@ export default function PLDashboard() {
     );
   };
 
-  const KPICard = ({ label, periodValue, ytdValue, isPercent = false, color = 'blue' }) => {
+  const KPICard = ({ label, periodValue, ytdValue, isPercent = false, color = 'blue', periodLabel = 'Period', ytdLabel = 'YTD' }) => {
     const colorClasses = {
       blue: 'border-2 border-blue-500/50 bg-blue-900/20',
       green: 'border-2 border-green-500/50 bg-green-900/20',
@@ -559,13 +560,13 @@ export default function PLDashboard() {
         </div>
         <div className="grid grid-cols-2 gap-1 md:gap-2 text-center">
           <div>
-            <div className="text-[10px] md:text-xs text-slate-500 uppercase mb-0.5">Period</div>
+            <div className="text-[10px] md:text-xs text-slate-500 uppercase mb-0.5">{periodLabel}</div>
             <div className={`text-sm md:text-lg font-bold ${textColors[displayColor]}`}>
               {isPercent ? formatKPIPercent(periodValue) : formatKPICurrency(periodValue)}
             </div>
           </div>
           <div>
-            <div className="text-[10px] md:text-xs text-slate-500 uppercase mb-0.5">YTD</div>
+            <div className="text-[10px] md:text-xs text-slate-500 uppercase mb-0.5">{ytdLabel}</div>
             <div className={`text-sm md:text-lg font-bold ${textColors[displayColor]}`}>
               {isPercent ? formatKPIPercent(ytdValue) : formatKPICurrency(ytdValue)}
             </div>
@@ -820,6 +821,30 @@ export default function PLDashboard() {
                   <Printer size={14} className="text-white" />
                 </button>
               </div>
+              
+              {/* Report Type Toggle - Below dropdowns */}
+              <div className="flex gap-1 mt-2">
+                <button
+                  onClick={() => setReportType('period-ytd')}
+                  className={`flex-1 px-3 py-1.5 text-xs md:text-sm font-medium rounded-lg transition-colors ${
+                    reportType === 'period-ytd'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  Period / YTD
+                </button>
+                <button
+                  onClick={() => setReportType('current-prior')}
+                  className={`flex-1 px-3 py-1.5 text-xs md:text-sm font-medium rounded-lg transition-colors ${
+                    reportType === 'current-prior'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  Current / Prior Period
+                </button>
+              </div>
             </div>
           )}
 
@@ -830,27 +855,35 @@ export default function PLDashboard() {
                 label="Net Sales" 
                 periodValue={kpis.sales?.period} 
                 ytdValue={kpis.sales?.ytd}
-                color="blue" 
+                color="blue"
+                periodLabel={reportType === 'period-ytd' ? 'Period' : 'Current'}
+                ytdLabel={reportType === 'period-ytd' ? 'YTD' : 'Prior'}
               />
               <KPICard 
                 label="COGS %" 
                 periodValue={kpis.cogsPercent} 
                 ytdValue={kpis.cogsPercentYtd}
                 isPercent={true} 
-                color="orange" 
+                color="orange"
+                periodLabel={reportType === 'period-ytd' ? 'Period' : 'Current'}
+                ytdLabel={reportType === 'period-ytd' ? 'YTD' : 'Prior'}
               />
               <KPICard 
                 label="Labor %" 
                 periodValue={kpis.laborPercent} 
                 ytdValue={kpis.laborPercentYtd}
                 isPercent={true} 
-                color="purple" 
+                color="purple"
+                periodLabel={reportType === 'period-ytd' ? 'Period' : 'Current'}
+                ytdLabel={reportType === 'period-ytd' ? 'YTD' : 'Prior'}
               />
               <KPICard 
                 label="Net Income" 
                 periodValue={kpis.netIncome?.period}
                 ytdValue={kpis.netIncome?.ytd}
-                color={kpis.netIncome?.period >= 0 ? 'green' : 'red'} 
+                color={kpis.netIncome?.period >= 0 ? 'green' : 'red'}
+                periodLabel={reportType === 'period-ytd' ? 'Period' : 'Current'}
+                ytdLabel={reportType === 'period-ytd' ? 'YTD' : 'Prior'}
               />
             </div>
           )}
@@ -869,9 +902,13 @@ export default function PLDashboard() {
                 <thead>
                   <tr>
                     <th className="py-1.5 px-2 md:px-3 text-left text-xs md:text-sm font-semibold text-slate-300"></th>
-                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">Period</th>
+                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">
+                      {reportType === 'period-ytd' ? 'Period' : 'Current'}
+                    </th>
                     <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">%</th>
-                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">YTD</th>
+                    <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">
+                      {reportType === 'period-ytd' ? 'YTD' : 'Prior'}
+                    </th>
                     <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">%</th>
                   </tr>
                 </thead>
