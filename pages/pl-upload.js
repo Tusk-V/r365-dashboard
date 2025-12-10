@@ -28,6 +28,7 @@ export default function PLUpload() {
 
   const loadExistingData = async () => {
     try {
+      setLoading(true);
       const res = await fetch(`/api/get-pl-summary?reportType=${reportType}`);
       const data = await res.json();
       if (res.ok) {
