@@ -149,8 +149,19 @@ export default function Home() {
     if (!comment) return null;
     const patterns = [
       /DT[:\s]+(\d+:\d+)/i,
-      /Drive\s*Time[s]?[:\s]+(\d+:\d+)/i,
-      /Drive\s*Time[s]?\s+averaged?\s+(\d+:\d+)/i
+      /Drive\s*[-]?\s*Time[s]?[:\s]+(\d+:\d+)/i,
+      /Drive\s*[-]?\s*Time[s]?\s+averaged?\s+(\d+:\d+)/i,
+      /Drive\s*[-]?\s*Time[s]?\s+of\s+(\d+:\d+)/i,
+      /(\d+:\d+)\s+Drive\s*[-]?\s*Time/i,
+      /a\s+(\d+:\d+)\s+Drive\s*[-]?\s*Time/i,
+      /Drive\s*[-]?\s*through\s+Time[s]?[:\s]+(\d+:\d+)/i,
+      /(\d+:\d+)\s+Drive\s*[-]?\s*through\s+Time/i,
+      /Drop\s+Time[s]?[:\s]+(\d+:\d+)/i,
+      /(\d+:\d+)\s+Drop\s+Time/i,
+      /DT\s+was\s+(\d+:\d+)/i,
+      /DT\s+at\s+(\d+:\d+)/i,
+      /averaged?\s+(\d+:\d+)\s+DT/i,
+      /(\d+:\d+)\s+avg/i
     ];
     for (const pattern of patterns) {
       const match = comment.match(pattern);
