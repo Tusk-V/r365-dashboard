@@ -36,9 +36,14 @@ export default async function handler(req, res) {
     
     // Default to 'period-ytd' if not specified
     const selectedReportType = reportType || 'period-ytd';
+    
+    // For period-ytd, also match documents without reportType field (legacy data)
+    const reportTypeFilter = selectedReportType === 'period-ytd' 
+      ? { $or: [{ reportType: 'period-ytd' }, { reportType: { $exists: false } }] }
+      : { reportType: selectedReportType };
 
     // Get all available locations from database for this report type
-    const allLocations = await db.collection('pl_data').distinct('location', { reportType: selectedReportType });
+    const allLocations = await db.collection('pl_data').distinct('location', reportTypeFilter);
     
     // Filter locations based on access
     let availableLocations = [];
@@ -68,7 +73,7 @@ export default async function handler(req, res) {
     // If listPeriods=true, return list of available periods for this location
     if (listPeriods === 'true') {
       const periods = await db.collection('pl_data')
-        .find({ location, reportType: selectedReportType })
+        .find({ location, ...reportTypeFilter })
         .project({ periodEnding: 1 })
         .sort({ periodEnding: -1 })
         .toArray();
@@ -81,7 +86,7 @@ export default async function handler(req, res) {
     }
 
     // Get P&L data for location (and optionally specific period)
-    const query = { location, reportType: selectedReportType };
+    const query = { location, ...reportTypeFilter };
     if (period) {
       query.periodEnding = period;
     }
