@@ -758,7 +758,7 @@ export default function Home() {
     setLogbookError(null);
     
     try {
-      const range = `${LOGBOOK_ENTRIES_SHEET}!A2:E`;
+      const range = `${LOGBOOK_ENTRIES_SHEET}!A2:F`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
       
       const response = await fetch(url);
@@ -781,7 +781,8 @@ export default function Home() {
         location: row[1] || '',
         category: row[2] || '',
         priority: row[3] || '',
-        comment: row[4] || ''
+        comment: row[4] || '',
+        summary: row[5] || ''
       }));
       
       parsedEntries.sort((a, b) => new Date(b.reportDate) - new Date(a.reportDate));
@@ -1595,7 +1596,7 @@ export default function Home() {
                               const isExpanded = expandedLogbookIds.has(entry.id);
                               const driveTime = extractDriveTime(entry.comment);
                               const mood = extractMood(entry.comment);
-                              const summary = generateSummary(entry.comment);
+                              const summary = entry.summary || generateSummary(entry.comment);
                               
                               return (
                                 <div 
@@ -1620,7 +1621,7 @@ export default function Home() {
                                       </div>
                                       
                                       {!isExpanded && (
-                                        <p className="text-xs text-slate-400 line-clamp-2">{summary}</p>
+                                        <p className="text-xs text-slate-400"><span className="text-slate-500 font-medium">Summary:</span> {summary}</p>
                                       )}
                                       
                                       {isExpanded && (
