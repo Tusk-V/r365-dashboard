@@ -42,9 +42,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Get report type from form fields (default to 'period-ytd')
-    const reportType = fields.reportType?.[0] || fields.reportType || 'period-ytd';
-
     const fileBuffer = fs.readFileSync(uploadedFile.filepath);
     const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellFormula: false });
 
@@ -59,11 +56,10 @@ export default async function handler(req, res) {
         
         if (plData) {
           await db.collection('pl_data').updateOne(
-            { location: plData.location, periodEnding: plData.periodEnding, reportType: reportType },
+            { location: plData.location, periodEnding: plData.periodEnding, reportType: plData.reportType },
             { 
               $set: {
                 ...plData,
-                reportType: reportType,
                 uploadedAt: new Date(),
                 uploadedBy: session.user.email
               }
@@ -74,7 +70,7 @@ export default async function handler(req, res) {
           results.push({
             location: plData.location,
             periodEnding: plData.periodEnding,
-            reportType: reportType,
+            reportType: plData.reportType,
             status: 'success'
           });
         }
@@ -124,6 +120,15 @@ function parseSheet(sheet, sheetName) {
     } else {
       periodEnding = String(periodCell);
     }
+  }
+
+  // Auto-detect report type from row 6 column headers
+  const colBHeader = String(getCellValue('B6') || '').toLowerCase();
+  const colDHeader = String(getCellValue('D6') || '').toLowerCase();
+  
+  let reportType = 'period-ytd'; // default
+  if (colBHeader.includes('current') || colDHeader.includes('prior')) {
+    reportType = 'current-prior';
   }
 
   // Parse all rows
@@ -189,6 +194,7 @@ function parseSheet(sheet, sheetName) {
   return {
     location,
     periodEnding,
+    reportType,
     totalSales,
     rows
   };
