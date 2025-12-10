@@ -30,12 +30,14 @@ export default async function handler(req, res) {
 
     const selectedReportType = reportType || 'period-ytd';
     
-    // For period-ytd, also match documents without reportType field (legacy data)
-    const reportTypeFilter = selectedReportType === 'period-ytd' 
-      ? { $or: [{ reportType: 'period-ytd' }, { reportType: { $exists: false } }] }
-      : { reportType: selectedReportType };
-
-    const query = { location, ...reportTypeFilter };
+    // Build query
+    let query = { location };
+    if (selectedReportType === 'current-prior') {
+      query.reportType = 'current-prior';
+    } else {
+      query.reportType = { $ne: 'current-prior' };
+    }
+    
     if (periodEnding) {
       query.periodEnding = periodEnding;
     }
