@@ -1616,9 +1616,9 @@ export default function Home() {
                           <div className="divide-y divide-slate-700">
                             {entries.map((entry) => {
                               const isExpanded = expandedLogbookIds.has(entry.id);
-                              const driveTime = extractDriveTime(entry.comment);
-                              const mood = extractMood(entry.comment);
                               const summary = entry.summary || generateSummary(entry.comment);
+                              const driveTime = extractDriveTime(entry.comment) || extractDriveTime(summary);
+                              const mood = extractMood(entry.comment) || extractMood(summary);
                               
                               return (
                                 <div 
