@@ -829,16 +829,6 @@ export default function PLDashboard() {
               {/* Report Type Toggle - Below dropdowns */}
               <div className="flex gap-1 mt-2">
                 <button
-                  onClick={() => setReportType('period-ytd')}
-                  className={`flex-1 px-3 py-1.5 text-xs md:text-sm font-medium rounded-lg transition-colors ${
-                    reportType === 'period-ytd'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                  }`}
-                >
-                  Period / YTD
-                </button>
-                <button
                   onClick={() => setReportType('current-prior')}
                   className={`flex-1 px-3 py-1.5 text-xs md:text-sm font-medium rounded-lg transition-colors ${
                     reportType === 'current-prior'
@@ -847,6 +837,16 @@ export default function PLDashboard() {
                   }`}
                 >
                   Current / Prior Period
+                </button>
+                <button
+                  onClick={() => setReportType('period-ytd')}
+                  className={`flex-1 px-3 py-1.5 text-xs md:text-sm font-medium rounded-lg transition-colors ${
+                    reportType === 'period-ytd'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  Period / YTD
                 </button>
               </div>
             </div>
