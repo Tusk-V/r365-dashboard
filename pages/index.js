@@ -2,7 +2,7 @@ import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/router"
 import Head from "next/head"
 import { useState, useEffect } from 'react';
-import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown } from 'lucide-react';
+import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen } from 'lucide-react';
 import SwipeNavigation from '../components/SwipeNavigation';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
@@ -18,6 +18,7 @@ const FLASH_DAILY_SALES_SHEET = 'Flash - Daily Sales';  // NEW: Sales & Guests
 const FLASH_DAILY_LABOR_SHEET = 'Flash - Daily Labor';  // NEW: Labor hours
 const SCHEDULED_TODAY_SHEET = 'Scheduled Today';
 const EMPLOYEE_TITLES_SHEET = 'Employee Titles';
+const LOGBOOK_ENTRIES_SHEET = 'Logbook Entries';
 
 const TitleBadge = ({ title }) => {
   if (!title) return null;
@@ -112,6 +113,18 @@ export default function Home() {
   const [isDailyFlashFiltersOpen, setIsDailyFlashFiltersOpen] = useState(false);
   const [isScheduledFiltersOpen, setIsScheduledFiltersOpen] = useState(false);
 
+  // Logbook state
+  const [logbookEntries, setLogbookEntries] = useState([]);
+  const [filteredLogbook, setFilteredLogbook] = useState([]);
+  const [logbookLoading, setLogbookLoading] = useState(false);
+  const [logbookError, setLogbookError] = useState(null);
+  const [logbookFilters, setLogbookFilters] = useState({
+    location: 'all',
+    market: 'all'
+  });
+  const [expandedLogbookIds, setExpandedLogbookIds] = useState(new Set());
+  const [isLogbookFiltersOpen, setIsLogbookFiltersOpen] = useState(false);
+
   // Access control
   const [dashboardAccess, setDashboardAccess] = useState(null);
   const [accessLoading, setAccessLoading] = useState(true);
@@ -129,6 +142,80 @@ export default function Home() {
     if (dallas.includes(locationName)) return 'Dallas';
     if (orlando.includes(locationName)) return 'Orlando';
     return 'Other';
+  };
+
+  // Logbook helper functions
+  const extractDriveTime = (comment) => {
+    if (!comment) return null;
+    const patterns = [
+      /DT[:\s]+(\d+:\d+)/i,
+      /Drive\s*Time[s]?[:\s]+(\d+:\d+)/i,
+      /Drive\s*Time[s]?\s+averaged?\s+(\d+:\d+)/i
+    ];
+    for (const pattern of patterns) {
+      const match = comment.match(pattern);
+      if (match) return match[1];
+    }
+    return null;
+  };
+
+  const extractMood = (comment) => {
+    if (!comment) return null;
+    const lowerComment = comment.toLowerCase();
+    if (/\b(hectic|crazy|insane|nightmare)\b/.test(lowerComment)) return 'Hectic';
+    if (/\b(tough|hard|struggled|difficult|short[- ]?staffed)\b/.test(lowerComment)) return 'Tough';
+    if (/\b(busy|rush|crowds|packed|slammed)\b/.test(lowerComment)) return 'Busy';
+    if (/\b(great|excellent|perfect|flawless|amazing|awesome)\b/.test(lowerComment)) return 'Great';
+    if (/\b(good|solid|nice)\b/.test(lowerComment)) return 'Good';
+    if (/\b(slow|quiet|light|dead)\b/.test(lowerComment)) return 'Slow';
+    if (/\b(smooth|steady|normal|standard|typical)\b/.test(lowerComment)) return 'Normal';
+    return null;
+  };
+
+  const getMoodColor = (mood) => {
+    switch (mood) {
+      case 'Great':
+      case 'Good':
+        return 'bg-green-500';
+      case 'Normal':
+      case 'Smooth':
+      case 'Steady':
+        return 'bg-slate-500';
+      case 'Slow':
+        return 'bg-yellow-500';
+      case 'Busy':
+      case 'Tough':
+        return 'bg-orange-500';
+      case 'Hectic':
+        return 'bg-red-500';
+      default:
+        return 'bg-slate-500';
+    }
+  };
+
+  const generateSummary = (comment) => {
+    if (!comment) return '';
+    let cleaned = comment.replace(/^(Sales:.*?\n|DT:.*?\n|Drive Time:.*?\n)/gim, '').trim();
+    const sentences = cleaned.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    let summary = sentences.slice(0, 2).join('. ').trim();
+    if (summary.length > 150) {
+      summary = summary.substring(0, 147) + '...';
+    }
+    return summary || cleaned.substring(0, 150);
+  };
+
+  const getLogbookDateRange = () => {
+    if (filteredLogbook.length === 0) return null;
+    const dates = filteredLogbook
+      .map(e => new Date(e.reportDate))
+      .filter(d => !isNaN(d.getTime()))
+      .sort((a, b) => a - b);
+    if (dates.length === 0) return null;
+    const formatDate = (date) => `${date.getMonth() + 1}/${date.getDate()}`;
+    const minDate = dates[0];
+    const maxDate = dates[dates.length - 1];
+    if (minDate.getTime() === maxDate.getTime()) return formatDate(minDate);
+    return `${formatDate(minDate)} - ${formatDate(maxDate)}`;
   };
 
   const parseSheetData = (rows) => {
@@ -666,6 +753,80 @@ export default function Home() {
     }
   };
 
+  const loadLogbookEntries = async () => {
+    setLogbookLoading(true);
+    setLogbookError(null);
+    
+    try {
+      const range = `${LOGBOOK_ENTRIES_SHEET}!A2:E`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Failed to load logbook entries');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.values || data.values.length === 0) {
+        setLogbookEntries([]);
+        return;
+      }
+      
+      const parsedEntries = data.values.map((row, idx) => ({
+        id: idx,
+        reportDate: row[0] || '',
+        location: row[1] || '',
+        category: row[2] || '',
+        priority: row[3] || '',
+        comment: row[4] || ''
+      }));
+      
+      parsedEntries.sort((a, b) => new Date(b.reportDate) - new Date(a.reportDate));
+      
+      setLogbookEntries(parsedEntries);
+    } catch (err) {
+      console.error('Error loading logbook entries:', err);
+      setLogbookError(err.message);
+    } finally {
+      setLogbookLoading(false);
+    }
+  };
+
+  const applyLogbookFilters = () => {
+    let filtered = [...logbookEntries];
+    
+    if (!isAdmin && dashboardAccess?.type === 'specific') {
+      filtered = filtered.filter(e => dashboardAccess.locations?.includes(e.location));
+    } else if (!isAdmin && dashboardAccess?.type === 'none') {
+      filtered = [];
+    }
+    
+    if (logbookFilters.location !== 'all') {
+      filtered = filtered.filter(e => e.location === logbookFilters.location);
+    }
+    
+    if (logbookFilters.market !== 'all') {
+      filtered = filtered.filter(e => getMarket(e.location) === logbookFilters.market);
+    }
+    
+    setFilteredLogbook(filtered);
+  };
+
+  const toggleLogbookExpanded = (id) => {
+    setExpandedLogbookIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
   const adjustSingleTime = (timeString) => {
     if (!timeString) return timeString;
     
@@ -1097,6 +1258,7 @@ export default function Home() {
       loadEmployeeTitles();
       loadDailyFlash();
       loadDailyLabor();
+      loadLogbookEntries();
     }
   }, [status]);
 
@@ -1135,6 +1297,10 @@ export default function Home() {
   useEffect(() => {
     applyScheduledFilters();
   }, [scheduledToday, scheduledLocationFilter, scheduledMarketFilter, dashboardAccess]);
+
+  useEffect(() => {
+    applyLogbookFilters();
+  }, [logbookEntries, logbookFilters, dashboardAccess]);
 
   if (status === "loading" || accessLoading) {
     return (
@@ -1201,6 +1367,7 @@ export default function Home() {
                   <option value="clockouts">Auto-Clockouts</option>
                   <option value="call-offs">Call-Offs</option>
                   <option value="overtime">OT Warnings</option>
+                  <option value="logbook">Logbook</option>
                   <option value="scheduled-today">Scheduled Today</option>
                   <option value="pl">Profit & Loss</option>
                 </select>
@@ -1225,6 +1392,8 @@ export default function Home() {
                       loadDailyFlash();
                     } else if (activeTab === 'daily-labor') {
                       loadDailyLabor();
+                    } else if (activeTab === 'logbook') {
+                      loadLogbookEntries();
                     }
                   }}
                   className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -1276,6 +1445,7 @@ export default function Home() {
                 <option value="clockouts">Auto-Clockouts</option>
                 <option value="call-offs">Call-Offs</option>
                 <option value="overtime">OT Warnings</option>
+                <option value="logbook">Logbook</option>
                 <option value="scheduled-today">Scheduled Today</option>
                 <option value="pl">Profit & Loss</option>
               </select>
@@ -1300,6 +1470,8 @@ export default function Home() {
                     loadDailyFlash();
                   } else if (activeTab === 'daily-labor') {
                     loadDailyLabor();
+                  } else if (activeTab === 'logbook') {
+                    loadLogbookEntries();
                   }
                 }}
                 className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -1311,6 +1483,187 @@ export default function Home() {
           </div>
 
           <SwipeNavigation activeTab={activeTab} setActiveTab={setActiveTab}>
+          {activeTab === 'logbook' && (
+            <>
+              {/* Header */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      <BookOpen className="w-5 h-5 text-blue-400" />
+                      Logbook Entries
+                    </h2>
+                    {getLogbookDateRange() && (
+                      <p className="text-sm text-slate-400">Showing data for: {getLogbookDateRange()}</p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl font-bold text-blue-400">{filteredLogbook.length}</span>
+                    <p className="text-xs text-slate-400">Entries</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <button 
+                  onClick={() => setIsLogbookFiltersOpen(!isLogbookFiltersOpen)}
+                  className="flex items-center gap-2 w-full"
+                >
+                  <Filter className="w-4 h-4 text-blue-400" />
+                  <h3 className="text-sm font-semibold text-white">Filters</h3>
+                  <span className="text-slate-400 text-sm ml-auto">{isLogbookFiltersOpen ? '▼' : '▶'}</span>
+                </button>
+                {isLogbookFiltersOpen && (
+                  <div className="flex flex-col md:flex-row gap-2 mt-3">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Location</label>
+                      <select
+                        value={logbookFilters.location}
+                        onChange={(e) => setLogbookFilters({...logbookFilters, location: e.target.value})}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      >
+                        <option value="all">All Locations</option>
+                        {[...new Set(logbookEntries.map(e => e.location))].sort().map(loc => (
+                          <option key={loc} value={loc}>{loc}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+                      <select
+                        value={logbookFilters.market}
+                        onChange={(e) => setLogbookFilters({...logbookFilters, market: e.target.value})}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      >
+                        <option value="all">All Markets</option>
+                        <option value="Tulsa">Tulsa</option>
+                        <option value="Oklahoma City">Oklahoma City</option>
+                        <option value="Dallas">Dallas</option>
+                        <option value="Orlando">Orlando</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {logbookError && (
+                <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+                  <strong>Error:</strong> {logbookError}
+                </div>
+              )}
+
+              {logbookLoading ? (
+                <div className="flex justify-center items-center py-20">
+                  <div className="text-white text-lg">Loading logbook entries...</div>
+                </div>
+              ) : filteredLogbook.length === 0 ? (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                  <BookOpen className="mx-auto mb-3 text-slate-500" size={48} />
+                  <h3 className="text-xl font-bold text-white mb-2">No Logbook Entries</h3>
+                  <p className="text-slate-400">No entries found for the selected filters</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {(() => {
+                    const groupedLogbook = filteredLogbook.reduce((acc, entry) => {
+                      const date = entry.reportDate;
+                      if (!acc[date]) acc[date] = [];
+                      acc[date].push(entry);
+                      return acc;
+                    }, {});
+                    const sortedDates = Object.keys(groupedLogbook).sort((a, b) => new Date(b) - new Date(a));
+                    
+                    return sortedDates.map(date => {
+                      const entries = groupedLogbook[date];
+                      const formattedDate = new Date(date).toLocaleDateString('en-US', { 
+                        weekday: 'long',
+                        month: 'numeric', 
+                        day: 'numeric', 
+                        year: 'numeric' 
+                      });
+                      
+                      return (
+                        <div key={date} className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
+                          <div className="bg-slate-900 p-3 border-b border-slate-700">
+                            <h3 className="text-lg font-bold text-white">{formattedDate}</h3>
+                            <p className="text-xs text-slate-400">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</p>
+                          </div>
+                          
+                          <div className="divide-y divide-slate-700">
+                            {entries.map((entry) => {
+                              const isExpanded = expandedLogbookIds.has(entry.id);
+                              const driveTime = extractDriveTime(entry.comment);
+                              const mood = extractMood(entry.comment);
+                              const summary = generateSummary(entry.comment);
+                              
+                              return (
+                                <div 
+                                  key={entry.id}
+                                  className="p-3 cursor-pointer hover:bg-slate-750 transition-colors"
+                                  onClick={() => toggleLogbookExpanded(entry.id)}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                                        <h4 className="text-sm md:text-base font-bold text-white">{entry.location}</h4>
+                                        {driveTime && (
+                                          <span className="bg-slate-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">
+                                            Drive Time {driveTime}
+                                          </span>
+                                        )}
+                                        {mood && (
+                                          <span className={`${getMoodColor(mood)} text-white text-[10px] px-1.5 py-0.5 rounded font-semibold`}>
+                                            {mood}
+                                          </span>
+                                        )}
+                                      </div>
+                                      
+                                      {!isExpanded && (
+                                        <p className="text-xs text-slate-400 line-clamp-2">{summary}</p>
+                                      )}
+                                      
+                                      {isExpanded && (
+                                        <div className="mt-3 bg-slate-900 rounded-lg p-3">
+                                          <pre className="text-xs md:text-sm text-slate-300 whitespace-pre-wrap font-sans leading-relaxed">
+                                            {entry.comment}
+                                          </pre>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <button className="p-1 text-slate-400 hover:text-white transition-colors flex-shrink-0">
+                                      <ChevronDown 
+                                        className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                      />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+
+              {/* Legend */}
+              <div className="mt-4 bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
+                <p className="text-xs text-slate-400 mb-2 font-semibold">Shift Status:</p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Great</span>
+                  <span className="bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Good</span>
+                  <span className="bg-slate-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Normal</span>
+                  <span className="bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Slow</span>
+                  <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Busy</span>
+                  <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Tough</span>
+                  <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Hectic</span>
+                </div>
+              </div>
+            </>
+          )}
+
           {activeTab === 'sales' && (
             <>
               {availableWeeks.length > 0 && (
