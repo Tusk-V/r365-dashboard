@@ -653,6 +653,8 @@ export default function PLDashboard() {
                   <option value="daily-labor">Daily Labor</option>
                   <option value="clockouts">Auto-Clockouts</option>
                   <option value="call-offs">Call-Offs</option>
+                  <option value="overtime">OT Warnings</option>
+                  <option value="logbook">Logbook</option>
                   <option value="scheduled-today">Scheduled Today</option>
                   <option value="pl">Profit & Loss</option>
                 </select>
