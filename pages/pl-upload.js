@@ -14,6 +14,7 @@ export default function PLUpload() {
   const [existingData, setExistingData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dragActive, setDragActive] = useState(false);
+  const [reportType, setReportType] = useState('period-ytd');
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -77,6 +78,7 @@ export default function PLUpload() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('reportType', reportType);
 
       const res = await fetch('/api/upload-pl', {
         method: 'POST',
@@ -196,6 +198,8 @@ export default function PLUpload() {
                   <option value="daily-labor">Daily Labor</option>
                   <option value="clockouts">Auto-Clockouts</option>
                   <option value="call-offs">Call-Offs</option>
+                  <option value="overtime">OT Warnings</option>
+                  <option value="logbook">Logbook</option>
                   <option value="scheduled-today">Scheduled Today</option>
                   <option value="pl">Profit & Loss</option>
                 </select>
@@ -265,6 +269,8 @@ export default function PLUpload() {
                 <option value="daily-labor">Daily Labor</option>
                 <option value="clockouts">Auto-Clockouts</option>
                 <option value="call-offs">Call-Offs</option>
+                <option value="overtime">OT Warnings</option>
+                <option value="logbook">Logbook</option>
                 <option value="scheduled-today">Scheduled Today</option>
                 <option value="pl">Profit & Loss</option>
               </select>
@@ -289,6 +295,38 @@ export default function PLUpload() {
                 View P&L Dashboard
               </button>
             </div>
+          </div>
+
+          {/* Report Type Selection */}
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-4">
+            <label className="block text-sm font-medium text-slate-400 mb-2">Report Type</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setReportType('period-ytd')}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  reportType === 'period-ytd'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                Period / YTD
+              </button>
+              <button
+                onClick={() => setReportType('current-prior')}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  reportType === 'current-prior'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                Current Period / Prior Period
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              {reportType === 'period-ytd' 
+                ? 'Upload P&L with Period and Year-to-Date columns'
+                : 'Upload P&L with Current Period and Prior Period columns'}
+            </p>
           </div>
 
           {/* Upload Area */}
