@@ -42,6 +42,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    // Get report type from form fields (default to 'period-ytd')
+    const reportType = fields.reportType?.[0] || fields.reportType || 'period-ytd';
+
     const fileBuffer = fs.readFileSync(uploadedFile.filepath);
     const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellFormula: false });
 
@@ -56,10 +59,11 @@ export default async function handler(req, res) {
         
         if (plData) {
           await db.collection('pl_data').updateOne(
-            { location: plData.location, periodEnding: plData.periodEnding },
+            { location: plData.location, periodEnding: plData.periodEnding, reportType: reportType },
             { 
               $set: {
                 ...plData,
+                reportType: reportType,
                 uploadedAt: new Date(),
                 uploadedBy: session.user.email
               }
@@ -70,6 +74,7 @@ export default async function handler(req, res) {
           results.push({
             location: plData.location,
             periodEnding: plData.periodEnding,
+            reportType: reportType,
             status: 'success'
           });
         }
