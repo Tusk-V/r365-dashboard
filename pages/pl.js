@@ -43,11 +43,13 @@ export default function PLDashboard() {
     if (selectedLocation && selectedPeriod) {
       loadPLData(selectedLocation, selectedPeriod);
     }
-  }, [selectedLocation, selectedPeriod]);
+  }, [selectedLocation, selectedPeriod, reportType]);
 
   const loadInitialData = async () => {
     try {
       setLoading(true);
+      setPlData(null);
+      setSelectedPeriod('');
       const res = await fetch(`/api/get-pl?reportType=${reportType}`);
       const data = await res.json();
       
@@ -56,6 +58,8 @@ export default function PLDashboard() {
         setAvailableLocations(data.availableLocations || []);
         if (data.availableLocations?.length > 0) {
           setSelectedLocation(data.availableLocations[0]);
+        } else {
+          setSelectedLocation('');
         }
       } else {
         setError(data.error);
