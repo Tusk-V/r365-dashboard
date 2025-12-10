@@ -22,16 +22,21 @@ export default async function handler(req, res) {
     const { reportType } = req.query;
     const selectedReportType = reportType || 'period-ytd';
     
-    // For period-ytd, also match documents without reportType field (legacy data)
-    const reportTypeFilter = selectedReportType === 'period-ytd' 
-      ? { $or: [{ reportType: 'period-ytd' }, { reportType: { $exists: false } }] }
-      : { reportType: selectedReportType };
+    // Build query - for period-ytd show everything except current-prior
+    // For current-prior, only show current-prior
+    let query = {};
+    if (selectedReportType === 'current-prior') {
+      query.reportType = 'current-prior';
+    } else {
+      // period-ytd: exclude current-prior (includes legacy data with no reportType)
+      query.reportType = { $ne: 'current-prior' };
+    }
 
     const client = await clientPromise;
     const db = client.db('andysdashboard');
 
     const plData = await db.collection('pl_data')
-      .find(reportTypeFilter)
+      .find(query)
       .project({ location: 1, periodEnding: 1, uploadedAt: 1, uploadedBy: 1, reportType: 1 })
       .sort({ location: 1, periodEnding: -1 })
       .toArray();
