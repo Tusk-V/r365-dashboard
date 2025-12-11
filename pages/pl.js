@@ -17,7 +17,7 @@ export default function PLDashboard() {
   const [selectedLocation, setSelectedLocation] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [plData, setPlData] = useState(null);
-  const [reportType, setReportType] = useState('period-ytd');
+  const [reportType, setReportType] = useState('current-prior');
   const [expandedSections, setExpandedSections] = useState({
     'Sales': true,
     'Prime Cost': true,
@@ -842,7 +842,7 @@ export default function PLDashboard() {
                       : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                   }`}
                 >
-                  Current / Prior Period
+                  Current/Prior Year Period
                 </button>
                 <button
                   onClick={() => setReportType('period-ytd')}
@@ -852,7 +852,7 @@ export default function PLDashboard() {
                       : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                   }`}
                 >
-                  Period / YTD
+                  Period/YTD
                 </button>
               </div>
             </div>
