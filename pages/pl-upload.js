@@ -14,7 +14,7 @@ export default function PLUpload() {
   const [existingData, setExistingData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dragActive, setDragActive] = useState(false);
-  const [reportType, setReportType] = useState('period-ytd');
+  const [reportType, setReportType] = useState('current-prior');
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -309,7 +309,7 @@ export default function PLUpload() {
                     : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                 }`}
               >
-                Current Period / Prior Period
+                Current/Prior Year Period
               </button>
               <button
                 onClick={() => setReportType('period-ytd')}
@@ -319,7 +319,7 @@ export default function PLUpload() {
                     : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                 }`}
               >
-                Period / YTD
+                Period/YTD
               </button>
             </div>
             <p className="text-xs text-slate-500 mt-2">
@@ -409,13 +409,13 @@ export default function PLUpload() {
           <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-700">
               <h2 className="font-semibold text-white">
-                {reportType === 'period-ytd' ? 'Period / YTD' : 'Current / Prior Period'} Data ({existingData.length} records)
+                {reportType === 'period-ytd' ? 'Period/YTD' : 'Current/Prior Year Period'} Data ({existingData.length} records)
               </h2>
             </div>
             
             {existingData.length === 0 ? (
               <div className="p-8 text-center text-slate-400">
-                No {reportType === 'period-ytd' ? 'Period / YTD' : 'Current / Prior Period'} data uploaded yet
+                No {reportType === 'period-ytd' ? 'Period/YTD' : 'Current/Prior Year Period'} data uploaded yet
               </div>
             ) : (
               <div className="divide-y divide-slate-700 max-h-[500px] overflow-y-auto">
