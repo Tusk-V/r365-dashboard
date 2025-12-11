@@ -183,11 +183,23 @@ export default function PLDashboard() {
   const sectionHeaders = ['Sales', 'Prime Cost', 'Operating Expense', 'Non Controllable Expense'];
   
   const subCategoryLabels = [
-    'Comps & Discounts', 'Food and Paper Cost', 'Salaries and Wages',
+    'Discounts & Refunds', 'Food and Paper Cost', 'Salaries and Wages',
     'Payroll Taxes', 'Payroll Benefits', 'Direct Operating Expense',
     'Utilities', 'Advertising', 'General and Administrative',
     'Occupancy Costs', 'Depreciation and Amortization'
   ];
+  
+  // Map old labels to new display labels
+  const labelTransforms = {
+    'Food Sales': 'Gross Sales',
+    'Comps & Discounts': 'Discounts & Refunds',
+    'Total Comps & Discounts': 'Total Discounts & Refunds'
+  };
+  
+  // Labels that should be grouped under Discounts & Refunds
+  const discountsRefundsItems = ['Comps', 'Discounts', 'Refunds'];
+  
+  const transformLabel = (label) => labelTransforms[label] || label;
 
   const managerWageLabels = ['Manager Wages', 'Market Manager Wages', 'General Manager Wages', 'Assistant Manager Wages'];
 
@@ -233,27 +245,57 @@ export default function PLDashboard() {
       
       if (!currentSection || !sections[currentSection]) continue;
       
-      const isSubCategoryHeader = subCategoryLabels.includes(label) && 
+      // Check if this is a subcategory header (handle old 'Comps & Discounts' label)
+      const normalizedLabel = label === 'Comps & Discounts' ? 'Discounts & Refunds' : label;
+      const isSubCategoryHeader = (subCategoryLabels.includes(normalizedLabel) || label === 'Comps & Discounts') && 
         (row.period === null || row.period === undefined) && 
         (row.ytd === null || row.ytd === undefined);
       
       const isTotalRow = label?.startsWith('Total ');
-      const isSubCategoryTotal = isTotalRow && subCategoryLabels.includes(label.replace('Total ', ''));
+      // Check for subcategory total (handle old 'Total Comps & Discounts' label)
+      const totalSubCatName = label?.replace('Total ', '');
+      const normalizedTotalSubCat = totalSubCatName === 'Comps & Discounts' ? 'Discounts & Refunds' : totalSubCatName;
+      const isSubCategoryTotal = isTotalRow && (subCategoryLabels.includes(normalizedTotalSubCat) || totalSubCatName === 'Comps & Discounts');
       const isSectionTotal = isTotalRow && sectionHeaders.includes(label.replace('Total ', ''));
+      
+      // Check if this is a Refunds line item - should be grouped under Discounts & Refunds
+      const isRefundsItem = label === 'Refunds';
       
       const isManagerWage = managerWageLabels.includes(label);
       
       if (isSubCategoryHeader) {
-        currentSubCategory = label;
-        subCategoryTotals[label] = { period: 0, ytd: 0 };
+        currentSubCategory = normalizedLabel;
+        subCategoryTotals[normalizedLabel] = { period: 0, ytd: 0 };
         if (label === 'Salaries and Wages') {
           managerWagesAccum = { period: 0, ytd: 0, periodPercent: 0, ytdPercent: 0 };
           managerWagesAdded = false;
         }
         sections[currentSection].rows.push({
           ...row,
+          label: transformLabel(label),
           rowType: 'subCategoryHeader'
         });
+      } else if (isRefundsItem && currentSection === 'Sales') {
+        // Add Refunds to Discounts & Refunds subcategory
+        const periodVal = parseFloat(row.period) || 0;
+        const ytdVal = parseFloat(row.ytd) || 0;
+        
+        if (periodVal !== 0 || ytdVal !== 0) {
+          sections[currentSection].total.period += periodVal;
+          sections[currentSection].total.ytd += ytdVal;
+          
+          if (subCategoryTotals['Discounts & Refunds']) {
+            subCategoryTotals['Discounts & Refunds'].period += periodVal;
+            subCategoryTotals['Discounts & Refunds'].ytd += ytdVal;
+          }
+          
+          sections[currentSection].rows.push({
+            ...row,
+            rowType: 'lineItem',
+            indent: 1,
+            _subCategory: 'Discounts & Refunds'
+          });
+        }
       } else if (isSectionTotal) {
         const calcTotal = sections[currentSection].total;
         const actualPeriod = (row.period !== null && row.period !== undefined && row.period !== 0) 
@@ -281,15 +323,16 @@ export default function PLDashboard() {
         });
       } else if (isSubCategoryTotal) {
         const subCatName = label.replace('Total ', '');
-        const calculated = subCategoryTotals[subCatName] || { period: 0, ytd: 0 };
+        const normalizedSubCat = subCatName === 'Comps & Discounts' ? 'Discounts & Refunds' : subCatName;
+        const calculated = subCategoryTotals[normalizedSubCat] || { period: 0, ytd: 0 };
         const actualPeriod = (row.period !== null && row.period !== undefined && row.period !== 0) 
           ? row.period : calculated.period;
         const actualYtd = (row.ytd !== null && row.ytd !== undefined && row.ytd !== 0) 
           ? row.ytd : calculated.ytd;
         
-        if (subCatName === 'Food and Paper Cost') {
+        if (normalizedSubCat === 'Food and Paper Cost') {
           totalFoodPaper = { period: actualPeriod, ytd: actualYtd };
-        } else if (subCatName === 'Salaries and Wages') {
+        } else if (normalizedSubCat === 'Salaries and Wages') {
           totalSalariesWages = { period: actualPeriod, ytd: actualYtd };
         }
         
@@ -297,7 +340,8 @@ export default function PLDashboard() {
           ...row,
           period: actualPeriod,
           ytd: actualYtd,
-          rowType: 'subCategoryTotal'
+          rowType: 'subCategoryTotal',
+          label: transformLabel(label)
         });
         currentSubCategory = '';
       } else if (isManagerWage) {
@@ -349,9 +393,32 @@ export default function PLDashboard() {
         
         sections[currentSection].rows.push({
           ...row,
+          label: transformLabel(label),
           rowType: 'lineItem',
           indent: currentSubCategory ? 1 : 0
         });
+      }
+    }
+    
+    // Post-process: Move Refunds rows to be with Discounts & Refunds section
+    const salesRows = sections['Sales'].rows;
+    const refundsRows = salesRows.filter(r => r._subCategory === 'Discounts & Refunds');
+    if (refundsRows.length > 0) {
+      // Find the Total Discounts & Refunds row index
+      const totalIdx = salesRows.findIndex(r => 
+        r.rowType === 'subCategoryTotal' && r.label === 'Total Discounts & Refunds'
+      );
+      if (totalIdx !== -1) {
+        // Remove Refunds rows from their current positions
+        const newRows = salesRows.filter(r => r._subCategory !== 'Discounts & Refunds');
+        // Insert them right before the Total Discounts & Refunds row
+        const totalRowNewIdx = newRows.findIndex(r => 
+          r.rowType === 'subCategoryTotal' && r.label === 'Total Discounts & Refunds'
+        );
+        if (totalRowNewIdx !== -1) {
+          newRows.splice(totalRowNewIdx, 0, ...refundsRows);
+          sections['Sales'].rows = newRows;
+        }
       }
     }
     
@@ -400,10 +467,13 @@ export default function PLDashboard() {
 
   const renderRow = (row, idx, currentSubCategory, isSubCategoryExpanded) => {
     let bgClass = '';
-    let textClass = 'text-slate-300';
+    let textClass = 'text-slate-200';
     let fontClass = 'text-xs md:text-sm';
     let paddingClass = 'pl-2 md:pl-3';
     let isTotalRow = false;
+    
+    // Make Gross Sales bold
+    const isGrossSales = row.label === 'Gross Sales';
     
     let periodPercent = row.periodPercent;
     let ytdPercent = row.ytdPercent;
@@ -420,7 +490,7 @@ export default function PLDashboard() {
         if (!isSubCategoryExpanded) return null;
         return (
           <tr key={idx} className="border-b border-slate-700/30">
-            <td colSpan={5} className="py-1 pl-2 md:pl-3 text-slate-400 text-[10px] md:text-xs font-medium uppercase tracking-wide">
+            <td colSpan={5} className="py-1 pl-2 md:pl-3 text-slate-200 text-[10px] md:text-xs font-medium uppercase tracking-wide">
               {row.label}
             </td>
           </tr>
@@ -429,10 +499,12 @@ export default function PLDashboard() {
         // Only show when parent subcategory is expanded
         if (currentSubCategory && !isSubCategoryExpanded) return null;
         paddingClass = row.indent ? 'pl-4 md:pl-5' : 'pl-2 md:pl-3';
+        if (isGrossSales) {
+          fontClass = 'text-xs md:text-sm font-bold';
+        }
         break;
       case 'subCategoryTotal':
         bgClass = 'bg-slate-700/30 cursor-pointer hover:bg-slate-700/50';
-        textClass = 'text-slate-200';
         fontClass = 'text-xs md:text-sm font-semibold';
         paddingClass = 'pl-2 md:pl-3';
         isTotalRow = true;
@@ -468,7 +540,6 @@ export default function PLDashboard() {
         );
       case 'sectionTotal':
         bgClass = 'bg-slate-700/50';
-        textClass = 'text-white';
         fontClass = 'text-xs md:text-sm font-bold';
         isTotalRow = true;
         break;
@@ -482,13 +553,13 @@ export default function PLDashboard() {
         <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '17%' }}>
           {formatCurrency(row.period)}
         </td>
-        <td className={`py-1 px-1 text-right ${isTotalRow ? textClass : 'text-slate-400'} ${isTotalRow ? fontClass : 'text-xs md:text-sm'} tabular-nums`} style={{ width: '12%' }}>
+        <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '12%' }}>
           {formatPercent(periodPercent)}
         </td>
         <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '17%' }}>
           {formatCurrency(row.ytd)}
         </td>
-        <td className={`py-1 px-1 text-right ${isTotalRow ? textClass : 'text-slate-400'} ${isTotalRow ? fontClass : 'text-xs md:text-sm'} tabular-nums`} style={{ width: '12%' }}>
+        <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '12%' }}>
           {formatPercent(ytdPercent)}
         </td>
       </tr>
@@ -516,8 +587,10 @@ export default function PLDashboard() {
           currentSubCategory = null;
         }
         
-        const isExpanded = currentSubCategory ? expandedSubCategories[currentSubCategory] : true;
-        return renderRow(row, idx, currentSubCategory, isExpanded);
+        // Use row._subCategory if set (for items like Refunds that belong to a specific subcategory)
+        const effectiveSubCategory = row._subCategory || currentSubCategory;
+        const isExpanded = effectiveSubCategory ? expandedSubCategories[effectiveSubCategory] : true;
+        return renderRow(row, idx, effectiveSubCategory, isExpanded);
       });
     };
     
