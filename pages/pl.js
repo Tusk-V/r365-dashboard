@@ -122,6 +122,18 @@ export default function PLDashboard() {
     }));
   };
 
+  const expandAll = () => {
+    const allSubCategories = {};
+    subCategoryLabels.forEach(label => {
+      allSubCategories[label] = true;
+    });
+    setExpandedSubCategories(allSubCategories);
+  };
+
+  const collapseAll = () => {
+    setExpandedSubCategories({});
+  };
+
   const formatCurrency = (value) => {
     if (value === null || value === undefined) return '$0';
     const num = parseFloat(value);
@@ -465,7 +477,7 @@ export default function PLDashboard() {
     return (value / total) * 100;
   };
 
-  const renderRow = (row, idx, currentSubCategory, isSubCategoryExpanded) => {
+  const renderRow = (row, idx, isExpanded) => {
     let bgClass = '';
     let textClass = 'text-slate-200';
     let fontClass = 'text-xs md:text-sm';
@@ -486,19 +498,10 @@ export default function PLDashboard() {
     
     switch (row.rowType) {
       case 'subCategoryHeader':
-        // Only show when expanded
-        if (!isSubCategoryExpanded) return null;
-        return (
-          <tr key={idx} className="border-b border-slate-700/30">
-            <td colSpan={5} className="py-1 pl-2 md:pl-3 text-slate-200 text-[10px] md:text-xs font-medium uppercase tracking-wide">
-              {row.label}
-            </td>
-          </tr>
-        );
+        // Don't render subcategory headers anymore
+        return null;
       case 'lineItem':
-        // Only show when parent subcategory is expanded
-        if (currentSubCategory && !isSubCategoryExpanded) return null;
-        paddingClass = row.indent ? 'pl-4 md:pl-5' : 'pl-2 md:pl-3';
+        paddingClass = row.indent ? 'pl-6 md:pl-8' : 'pl-2 md:pl-3';
         if (isGrossSales) {
           fontClass = 'text-xs md:text-sm font-bold';
         }
@@ -511,7 +514,6 @@ export default function PLDashboard() {
         
         // Clickable subcategory total
         const subCatName = row.label.replace('Total ', '');
-        const isExpanded = expandedSubCategories[subCatName];
         return (
           <tr 
             key={idx} 
@@ -569,29 +571,73 @@ export default function PLDashboard() {
   const renderSection = (sectionName, sectionData) => {
     if (!sectionData || sectionData.rows.length === 0) return null;
     
-    // Track current subcategory for each row
-    let currentSubCategory = null;
-    
+    // Group rows by subcategory, with totals first then line items
     const renderRows = () => {
-      return sectionData.rows.map((row, idx) => {
-        // Update current subcategory tracking
+      const result = [];
+      let currentSubCatRows = [];
+      let currentSubCatTotal = null;
+      let currentSubCatName = null;
+      let standaloneRows = []; // Rows not in a subcategory
+      
+      for (let i = 0; i < sectionData.rows.length; i++) {
+        const row = sectionData.rows[i];
+        
         if (row.rowType === 'subCategoryHeader') {
-          currentSubCategory = row.label;
+          // Start a new subcategory - flush any standalone rows first
+          if (standaloneRows.length > 0) {
+            standaloneRows.forEach((r, idx) => {
+              result.push(renderRow(r, `standalone-${result.length}-${idx}`, true));
+            });
+            standaloneRows = [];
+          }
+          currentSubCatName = row.label;
+          currentSubCatRows = [];
+          currentSubCatTotal = null;
         } else if (row.rowType === 'subCategoryTotal') {
+          currentSubCatTotal = row;
           const subCatName = row.label.replace('Total ', '');
           const isExpanded = expandedSubCategories[subCatName];
-          const result = renderRow(row, idx, subCatName, isExpanded);
-          currentSubCategory = null; // Reset after total
-          return result;
+          
+          // Render total first (always visible)
+          result.push(renderRow(row, `total-${result.length}`, isExpanded));
+          
+          // Then render line items if expanded
+          if (isExpanded) {
+            currentSubCatRows.forEach((r, idx) => {
+              result.push(renderRow(r, `item-${result.length}-${idx}`, true));
+            });
+          }
+          
+          // Reset
+          currentSubCatName = null;
+          currentSubCatRows = [];
+          currentSubCatTotal = null;
         } else if (row.rowType === 'sectionTotal') {
-          currentSubCategory = null;
+          // Flush any remaining standalone rows
+          if (standaloneRows.length > 0) {
+            standaloneRows.forEach((r, idx) => {
+              result.push(renderRow(r, `standalone-${result.length}-${idx}`, true));
+            });
+            standaloneRows = [];
+          }
+          result.push(renderRow(row, `section-total-${result.length}`, true));
+        } else if (row.rowType === 'lineItem') {
+          if (currentSubCatName || row._subCategory) {
+            currentSubCatRows.push(row);
+          } else {
+            standaloneRows.push(row);
+          }
         }
-        
-        // Use row._subCategory if set (for items like Refunds that belong to a specific subcategory)
-        const effectiveSubCategory = row._subCategory || currentSubCategory;
-        const isExpanded = effectiveSubCategory ? expandedSubCategories[effectiveSubCategory] : true;
-        return renderRow(row, idx, effectiveSubCategory, isExpanded);
-      });
+      }
+      
+      // Flush any remaining standalone rows
+      if (standaloneRows.length > 0) {
+        standaloneRows.forEach((r, idx) => {
+          result.push(renderRow(r, `standalone-final-${idx}`, true));
+        });
+      }
+      
+      return result;
     };
     
     return (
@@ -1025,7 +1071,23 @@ export default function PLDashboard() {
                 </colgroup>
                 <thead>
                   <tr>
-                    <th className="py-1.5 px-2 md:px-3 text-left text-xs md:text-sm font-semibold text-slate-300"></th>
+                    <th className="py-1.5 px-2 md:px-3 text-left text-xs md:text-sm font-semibold text-slate-300">
+                      <div className="flex items-center gap-2 print:hidden">
+                        <button
+                          onClick={expandAll}
+                          className="text-[10px] text-slate-400 hover:text-white transition-colors"
+                        >
+                          Expand All
+                        </button>
+                        <span className="text-slate-600">|</span>
+                        <button
+                          onClick={collapseAll}
+                          className="text-[10px] text-slate-400 hover:text-white transition-colors"
+                        >
+                          Collapse All
+                        </button>
+                      </div>
+                    </th>
                     <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">
                       {reportType === 'period-ytd' ? 'Period' : 'Current'}
                     </th>
