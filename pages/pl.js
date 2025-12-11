@@ -18,12 +18,7 @@ export default function PLDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [plData, setPlData] = useState(null);
   const [reportType, setReportType] = useState('current-prior');
-  const [expandedSections, setExpandedSections] = useState({
-    'Sales': true,
-    'Prime Cost': true,
-    'Operating Expense': true,
-    'Non Controllable Expense': true
-  });
+  const [expandedSubCategories, setExpandedSubCategories] = useState({});
 
   const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
@@ -120,10 +115,10 @@ export default function PLDashboard() {
     }
   };
 
-  const toggleSection = (section) => {
-    setExpandedSections(prev => ({
+  const toggleSubCategory = (subCategory) => {
+    setExpandedSubCategories(prev => ({
       ...prev,
-      [section]: !prev[section]
+      [subCategory]: !prev[subCategory]
     }));
   };
 
@@ -403,7 +398,7 @@ export default function PLDashboard() {
     return (value / total) * 100;
   };
 
-  const renderRow = (row, idx) => {
+  const renderRow = (row, idx, currentSubCategory, isSubCategoryExpanded) => {
     let bgClass = '';
     let textClass = 'text-slate-300';
     let fontClass = 'text-xs md:text-sm';
@@ -421,6 +416,8 @@ export default function PLDashboard() {
     
     switch (row.rowType) {
       case 'subCategoryHeader':
+        // Only show when expanded
+        if (!isSubCategoryExpanded) return null;
         return (
           <tr key={idx} className="border-b border-slate-700/30">
             <td colSpan={5} className="py-1 pl-2 md:pl-3 text-slate-400 text-[10px] md:text-xs font-medium uppercase tracking-wide">
@@ -429,15 +426,46 @@ export default function PLDashboard() {
           </tr>
         );
       case 'lineItem':
+        // Only show when parent subcategory is expanded
+        if (currentSubCategory && !isSubCategoryExpanded) return null;
         paddingClass = row.indent ? 'pl-4 md:pl-5' : 'pl-2 md:pl-3';
         break;
       case 'subCategoryTotal':
-        bgClass = 'bg-slate-700/30';
+        bgClass = 'bg-slate-700/30 cursor-pointer hover:bg-slate-700/50';
         textClass = 'text-slate-200';
         fontClass = 'text-xs md:text-sm font-semibold';
-        paddingClass = 'pl-3 md:pl-4';
+        paddingClass = 'pl-2 md:pl-3';
         isTotalRow = true;
-        break;
+        
+        // Clickable subcategory total
+        const subCatName = row.label.replace('Total ', '');
+        const isExpanded = expandedSubCategories[subCatName];
+        return (
+          <tr 
+            key={idx} 
+            className={`${bgClass} border-b border-slate-700/30`}
+            onClick={() => toggleSubCategory(subCatName)}
+          >
+            <td className={`py-1 ${paddingClass} ${textClass} ${fontClass}`} style={{ width: '32%' }}>
+              <div className="flex items-center gap-1">
+                <span className="print:hidden">{isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
+                {row.label}
+              </div>
+            </td>
+            <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '17%' }}>
+              {formatCurrency(row.period)}
+            </td>
+            <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '12%' }}>
+              {formatPercent(periodPercent)}
+            </td>
+            <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '17%' }}>
+              {formatCurrency(row.ytd)}
+            </td>
+            <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '12%' }}>
+              {formatPercent(ytdPercent)}
+            </td>
+          </tr>
+        );
       case 'sectionTotal':
         bgClass = 'bg-slate-700/50';
         textClass = 'text-white';
@@ -470,36 +498,49 @@ export default function PLDashboard() {
   const renderSection = (sectionName, sectionData) => {
     if (!sectionData || sectionData.rows.length === 0) return null;
     
-    const isExpanded = expandedSections[sectionName];
+    // Track current subcategory for each row
+    let currentSubCategory = null;
+    
+    const renderRows = () => {
+      return sectionData.rows.map((row, idx) => {
+        // Update current subcategory tracking
+        if (row.rowType === 'subCategoryHeader') {
+          currentSubCategory = row.label;
+        } else if (row.rowType === 'subCategoryTotal') {
+          const subCatName = row.label.replace('Total ', '');
+          const isExpanded = expandedSubCategories[subCatName];
+          const result = renderRow(row, idx, subCatName, isExpanded);
+          currentSubCategory = null; // Reset after total
+          return result;
+        } else if (row.rowType === 'sectionTotal') {
+          currentSubCategory = null;
+        }
+        
+        const isExpanded = currentSubCategory ? expandedSubCategories[currentSubCategory] : true;
+        return renderRow(row, idx, currentSubCategory, isExpanded);
+      });
+    };
     
     return (
       <div key={sectionName} className="mb-2">
-        <button
-          onClick={() => toggleSection(sectionName)}
-          className="w-full flex items-center px-2 md:px-3 py-1.5 rounded-t-lg transition-colors bg-slate-800 hover:bg-slate-750 border-2 border-slate-600 print:hover:bg-slate-800"
-        >
-          <div className="flex items-center gap-2 text-white">
-            <span className="print:hidden">{isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</span>
-            <span className="font-semibold text-xs md:text-sm">{sectionName}</span>
-          </div>
-        </button>
+        <div className="px-2 md:px-3 py-1.5 rounded-t-lg bg-slate-800 border-2 border-slate-600">
+          <span className="font-semibold text-xs md:text-sm text-white">{sectionName}</span>
+        </div>
         
-        {isExpanded && (
-          <div className="bg-slate-800/50 border-2 border-t-0 border-slate-600 rounded-b-lg overflow-x-auto">
-            <table className="w-full table-fixed" style={{ minWidth: '100%' }}>
-              <colgroup>
-                <col style={{ width: '32%' }} />
-                <col style={{ width: '17%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '17%' }} />
-                <col style={{ width: '12%' }} />
-              </colgroup>
-              <tbody>
-                {sectionData.rows.map((row, idx) => renderRow(row, idx))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <div className="bg-slate-800/50 border-2 border-t-0 border-slate-600 rounded-b-lg overflow-x-auto">
+          <table className="w-full table-fixed" style={{ minWidth: '100%' }}>
+            <colgroup>
+              <col style={{ width: '32%' }} />
+              <col style={{ width: '17%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '17%' }} />
+              <col style={{ width: '12%' }} />
+            </colgroup>
+            <tbody>
+              {renderRows()}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
