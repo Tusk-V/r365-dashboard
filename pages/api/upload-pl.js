@@ -55,17 +55,34 @@ export default async function handler(req, res) {
         const plData = parseSheet(sheet, sheetName);
         
         if (plData) {
-          await db.collection('pl_data').updateOne(
-            { location: plData.location, periodEnding: plData.periodEnding, reportType: plData.reportType },
-            { 
-              $set: {
-                ...plData,
-                uploadedAt: new Date(),
-                uploadedBy: session.user.email
-              }
-            },
-            { upsert: true }
-          );
+          // Build query to find existing document
+          // For period-ytd: also match legacy data without reportType field
+          let findQuery;
+          if (plData.reportType === 'period-ytd') {
+            findQuery = {
+              location: plData.location,
+              periodEnding: plData.periodEnding,
+              $or: [
+                { reportType: 'period-ytd' },
+                { reportType: { $exists: false } }
+              ]
+            };
+          } else {
+            findQuery = {
+              location: plData.location,
+              periodEnding: plData.periodEnding,
+              reportType: plData.reportType
+            };
+          }
+          
+          // Delete existing document(s) first, then insert new one
+          await db.collection('pl_data').deleteMany(findQuery);
+          
+          await db.collection('pl_data').insertOne({
+            ...plData,
+            uploadedAt: new Date(),
+            uploadedBy: session.user.email
+          });
           
           results.push({
             location: plData.location,
