@@ -512,7 +512,7 @@ export default function PLDashboard() {
         paddingClass = 'pl-2 md:pl-3';
         isTotalRow = true;
         
-        // Clickable subcategory total
+        // Clickable subcategory total - display without "Total" prefix
         const subCatName = row.label.replace('Total ', '');
         return (
           <tr 
@@ -523,7 +523,7 @@ export default function PLDashboard() {
             <td className={`py-1 ${paddingClass} ${textClass} ${fontClass}`} style={{ width: '32%' }}>
               <div className="flex items-center gap-1">
                 <span className="print:hidden">{isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
-                {row.label}
+                {subCatName}
               </div>
             </td>
             <td className={`py-1 px-1 text-right ${textClass} ${fontClass} tabular-nums`} style={{ width: '17%' }}>
