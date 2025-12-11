@@ -50,6 +50,7 @@ export default function PLDashboard() {
       setLoading(true);
       setPlData(null);
       setSelectedPeriod('');
+      const currentLocation = selectedLocation; // Remember current selection
       const res = await fetch(`/api/get-pl?reportType=${reportType}`);
       const data = await res.json();
       
@@ -57,7 +58,12 @@ export default function PLDashboard() {
         setAccessType(data.accessType);
         setAvailableLocations(data.availableLocations || []);
         if (data.availableLocations?.length > 0) {
-          setSelectedLocation(data.availableLocations[0]);
+          // Keep current location if it exists in the new list, otherwise use first
+          if (currentLocation && data.availableLocations.includes(currentLocation)) {
+            setSelectedLocation(currentLocation);
+          } else {
+            setSelectedLocation(data.availableLocations[0]);
+          }
         } else {
           setSelectedLocation('');
         }
