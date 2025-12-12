@@ -8,6 +8,7 @@ const DASHBOARD_ORDER = [
   { id: 'clockouts', label: 'Auto-Clockouts' },
   { id: 'call-offs', label: 'Call-Offs' },
   { id: 'overtime', label: 'OT Warnings' },
+  { id: 'logbook', label: 'Logbook' },
   { id: 'scheduled-today', label: 'Scheduled' },
 ];
 
