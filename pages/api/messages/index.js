@@ -148,7 +148,7 @@ export default async function handler(req, res) {
   // PUT - Update message
   if (req.method === 'PUT') {
     try {
-      const { messageId, title, content, pinned, priority } = req.body;
+      const { messageId, title, content, pinned, priority, archived } = req.body;
 
       if (!messageId) {
         return res.status(400).json({ error: 'Message ID is required' });
@@ -172,6 +172,7 @@ export default async function handler(req, res) {
       if (content) updates.content = content;
       if (canPin && typeof pinned === 'boolean') updates.pinned = pinned;
       if (priority) updates.priority = priority;
+      if (canDelete && typeof archived === 'boolean') updates.archived = archived;
 
       await db.collection('messages').updateOne(
         { _id: new ObjectId(messageId) },
