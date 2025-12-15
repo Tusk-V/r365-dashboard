@@ -102,8 +102,8 @@ export default async function handler(req, res) {
         return res.status(200).json({ unreadCount: 0 });
       }
 
-      // Build query for messages user can see
-      let query = {};
+      // Build query for messages user can see (exclude archived)
+      let query = { archived: { $ne: true } };
       if (!isAdmin && accessType === 'specific') {
         query.$or = [
           { targetType: 'all' },
