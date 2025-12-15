@@ -2,8 +2,12 @@ import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/router"
 import Head from "next/head"
 import { useState, useEffect } from 'react';
-import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen } from 'lucide-react';
+import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen, Bell, Send, MessageSquare, Settings } from 'lucide-react';
 import SwipeNavigation from '../components/SwipeNavigation';
+import NotificationManager from '../components/NotificationManager';
+import AdminNotificationSender from '../components/AdminNotificationSender';
+import MessagesPanel from '../components/MessagesPanel';
+import MessagingPermissions from '../components/MessagingPermissions';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -124,6 +128,15 @@ export default function Home() {
   });
   const [expandedLogbookIds, setExpandedLogbookIds] = useState(new Set());
   const [isLogbookFiltersOpen, setIsLogbookFiltersOpen] = useState(false);
+
+  // Notification state
+  const [showNotificationSender, setShowNotificationSender] = useState(false);
+
+  // Messages state
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [showMessagesPanel, setShowMessagesPanel] = useState(false);
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [userTitle, setUserTitle] = useState(null);
 
   // Access control
   const [dashboardAccess, setDashboardAccess] = useState(null);
@@ -939,6 +952,30 @@ export default function Home() {
     }
   };
 
+  const loadCurrentUserTitle = async () => {
+    try {
+      const res = await fetch('/api/check-access');
+      const data = await res.json();
+      if (res.ok && data.employeeTitle) {
+        setUserTitle(data.employeeTitle);
+      }
+    } catch (err) {
+      console.error('Error loading user title:', err);
+    }
+  };
+
+  const loadUnreadCount = async () => {
+    try {
+      const res = await fetch('/api/messages/read');
+      const data = await res.json();
+      if (res.ok) {
+        setUnreadMessagesCount(data.unreadCount || 0);
+      }
+    } catch (err) {
+      console.error('Error loading unread count:', err);
+    }
+  };
+
   const getEmployeeTitle = (name) => {
     if (!name) return null;
     return employeeTitles[name.toLowerCase()] || null;
@@ -1272,6 +1309,8 @@ export default function Home() {
   useEffect(() => {
     if (status === "authenticated") {
       loadDashboardAccess();
+      loadCurrentUserTitle();
+      loadUnreadCount();
       loadDataFromGoogleSheets();
       loadAvailableWeeks();
       loadAutoClockouts();
@@ -1425,6 +1464,32 @@ export default function Home() {
                   <RefreshCw size={16} className="text-white" />
                 </button>
 
+                {/* Messages Button */}
+                <button
+                  onClick={() => setShowMessagesPanel(true)}
+                  className="relative p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                  title="Messages"
+                >
+                  <MessageSquare size={16} className="text-white" />
+                  {unreadMessagesCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-[10px] font-bold bg-red-600 text-white rounded-full">
+                      {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
+                    </span>
+                  )}
+                </button>
+
+                <NotificationManager userEmail={session?.user?.email} />
+
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowNotificationSender(true)}
+                    className="p-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                    title="Send notification"
+                  >
+                    <Send size={16} className="text-white" />
+                  </button>
+                )}
+
                 <button
                   onClick={() => signOut()}
                   className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
@@ -1441,13 +1506,28 @@ export default function Home() {
                 alt="Andy's Frozen Custard" 
                 className="h-12"
               />
-              <button
-                onClick={() => signOut()}
-                className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
-                title="Sign out"
-              >
-                Sign Out
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Messages Button */}
+                <button
+                  onClick={() => setShowMessagesPanel(true)}
+                  className="relative p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                  title="Messages"
+                >
+                  <MessageSquare size={16} className="text-white" />
+                  {unreadMessagesCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-[10px] font-bold bg-red-600 text-white rounded-full">
+                      {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => signOut()}
+                  className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                  title="Sign out"
+                >
+                  Sign Out
+                </button>
+              </div>
             </div>
 
             <div className="md:hidden flex items-center gap-2">
@@ -2903,6 +2983,23 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {showNotificationSender && (
+          <AdminNotificationSender onClose={() => setShowNotificationSender(false)} />
+        )}
+
+        {showPermissionsModal && (
+          <MessagingPermissions onClose={() => setShowPermissionsModal(false)} />
+        )}
+
+        <MessagesPanel
+          isOpen={showMessagesPanel}
+          onClose={() => setShowMessagesPanel(false)}
+          userEmail={session?.user?.email}
+          userTitle={userTitle}
+          onUnreadCountChange={setUnreadMessagesCount}
+          onOpenPermissions={() => setShowPermissionsModal(true)}
+        />
       </div>
     </>
   );
