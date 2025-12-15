@@ -36,6 +36,7 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
   const [replyContent, setReplyContent] = useState('');
   const [filter, setFilter] = useState('all');
   const [editingMessage, setEditingMessage] = useState(null);
+  const [editingReply, setEditingReply] = useState(null);
 
   const isAdmin = userEmail === ADMIN_EMAIL;
   const canDelete = userRole === 'Admin' || userRole === 'FOM';
@@ -167,6 +168,52 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
       }
     } catch (err) {
       alert('Failed to save changes');
+    }
+  };
+
+  const startEditingReply = (messageId, reply) => {
+    setEditingReply({
+      messageId,
+      replyId: reply._id,
+      content: reply.content
+    });
+  };
+
+  const handleSaveReplyEdit = async () => {
+    if (!editingReply || !editingReply.content.trim()) return;
+
+    try {
+      const res = await fetch('/api/messages/reply', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageId: editingReply.messageId,
+          replyId: editingReply.replyId,
+          content: editingReply.content
+        })
+      });
+
+      if (res.ok) {
+        setMessages(prev => prev.map(m => {
+          if (m._id === editingReply.messageId) {
+            return {
+              ...m,
+              replies: m.replies.map(r => 
+                r._id === editingReply.replyId 
+                  ? { ...r, content: editingReply.content }
+                  : r
+              )
+            };
+          }
+          return m;
+        }));
+        setEditingReply(null);
+      } else {
+        const data = await res.json();
+        alert(data.error);
+      }
+    } catch (err) {
+      alert('Failed to save reply');
     }
   };
 
@@ -598,27 +645,64 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
                         <div className="bg-slate-900/50">
                           {message.replies.map(reply => (
                             <div key={reply._id} className="px-3 py-2 border-t border-slate-700/30">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                                    <span className="font-medium text-slate-300 flex items-center">
-                                      {reply.authorName}
-                                      <RoleBadge role={reply.authorRole} />
-                                    </span>
-                                    <span>•</span>
-                                    <span>{formatDate(reply.createdAt)}</span>
+                              {editingReply?.replyId === reply._id ? (
+                                <div className="space-y-2">
+                                  <textarea
+                                    value={editingReply.content}
+                                    onChange={(e) => setEditingReply({ ...editingReply, content: e.target.value })}
+                                    rows={2}
+                                    className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-600 resize-none"
+                                    autoFocus
+                                  />
+                                  <div className="flex gap-2 justify-end">
+                                    <button
+                                      onClick={() => setEditingReply(null)}
+                                      className="px-2 py-0.5 text-xs text-slate-400 hover:text-white transition-colors"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      onClick={handleSaveReplyEdit}
+                                      disabled={!editingReply.content.trim()}
+                                      className="px-2 py-0.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded transition-colors"
+                                    >
+                                      Save
+                                    </button>
                                   </div>
-                                  <p className="text-slate-300 text-xs mt-0.5">{reply.content}</p>
                                 </div>
-                                {(canDelete || reply.authorEmail === userEmail) && (
-                                  <button
-                                    onClick={() => handleDeleteReply(message._id, reply._id)}
-                                    className="p-0.5 text-red-400 hover:text-red-300 transition-colors"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                )}
-                              </div>
+                              ) : (
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                      <span className="font-medium text-slate-300 flex items-center">
+                                        {reply.authorName}
+                                        <RoleBadge role={reply.authorRole} />
+                                      </span>
+                                      <span>•</span>
+                                      <span>{formatDate(reply.createdAt)}</span>
+                                    </div>
+                                    <p className="text-slate-300 text-xs mt-0.5">{reply.content}</p>
+                                  </div>
+                                  {(canDelete || reply.authorEmail === userEmail) && (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => startEditingReply(message._id, reply)}
+                                        className="p-0.5 text-slate-400 hover:text-blue-400 transition-colors"
+                                        title="Edit"
+                                      >
+                                        <Pencil size={12} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteReply(message._id, reply._id)}
+                                        className="p-0.5 text-red-400 hover:text-red-300 transition-colors"
+                                        title="Delete"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
