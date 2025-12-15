@@ -529,20 +529,23 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
                             <span className="px-1 py-px text-[9px] font-semibold bg-slate-600 text-slate-300 rounded leading-none">ARCHIVED</span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400">
-                          <span className="flex items-center">
-                            {message.authorName}
-                            <RoleBadge role={message.authorRole} />
-                          </span>
-                          <span>•</span>
-                          <span>{formatDate(message.createdAt)}</span>
-                          {message.replyCount > 0 && (
-                            <>
-                              <span>•</span>
-                              <span>{message.replyCount} {message.replyCount === 1 ? 'reply' : 'replies'}</span>
-                            </>
-                          )}
-                        </div>
+                        {/* Show author line when collapsed */}
+                        {!expandedMessages.has(message._id) && (
+                          <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400">
+                            <span className="flex items-center">
+                              {message.authorName}
+                              <RoleBadge role={message.authorRole} />
+                            </span>
+                            <span>•</span>
+                            <span>{formatDate(message.createdAt)}</span>
+                            {message.replyCount > 0 && (
+                              <>
+                                <span>•</span>
+                                <span>{message.replyCount} {message.replyCount === 1 ? 'reply' : 'replies'}</span>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="flex-shrink-0">
                         {expandedMessages.has(message._id) ? (
@@ -565,7 +568,23 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
                         </div>
                       )}
 
-                      <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-700/30">
+                      {/* Author line when expanded */}
+                      <div className="flex items-center gap-1.5 mt-2 text-[11px] text-slate-400">
+                        <span className="flex items-center">
+                          {message.authorName}
+                          <RoleBadge role={message.authorRole} />
+                        </span>
+                        <span>•</span>
+                        <span>{formatDate(message.createdAt)}</span>
+                        {message.replyCount > 0 && (
+                          <>
+                            <span>•</span>
+                            <span>{message.replyCount} {message.replyCount === 1 ? 'reply' : 'replies'}</span>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700/30">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
