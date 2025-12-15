@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, MessageSquare, Send, Pin, ChevronDown, ChevronUp, Trash2, Plus, Settings, CheckCheck } from 'lucide-react';
+import { X, MessageSquare, Send, Pin, ChevronDown, ChevronUp, Trash2, Plus, Settings, CheckCheck, Archive } from 'lucide-react';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -92,6 +92,42 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
       }
     } catch (err) {
       console.error('Failed to mark all as read:', err);
+    }
+  };
+
+  const handleArchiveMessage = async (messageId) => {
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId, archived: true })
+      });
+
+      if (res.ok) {
+        setMessages(prev => prev.map(m => 
+          m._id === messageId ? { ...m, archived: true } : m
+        ));
+      }
+    } catch (err) {
+      alert('Failed to archive message');
+    }
+  };
+
+  const handleUnarchiveMessage = async (messageId) => {
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId, archived: false })
+      });
+
+      if (res.ok) {
+        setMessages(prev => prev.map(m => 
+          m._id === messageId ? { ...m, archived: false } : m
+        ));
+      }
+    } catch (err) {
+      alert('Failed to unarchive message');
     }
   };
 
@@ -278,6 +314,12 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
   };
 
   const filteredMessages = messages.filter(m => {
+    // Show archived only when filter is 'archived'
+    if (filter === 'archived') return m.archived === true;
+    
+    // For all other filters, exclude archived messages
+    if (m.archived) return false;
+    
     if (filter === 'unread') return !m.isRead;
     if (filter === 'mine') return m.authorEmail === userEmail;
     return true;
@@ -324,6 +366,7 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
             <option value="all">All Messages</option>
             <option value="unread">Unread</option>
             <option value="mine">My Posts</option>
+            <option value="archived">Archived</option>
           </select>
 
           <button
@@ -334,7 +377,7 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
             New
           </button>
 
-          {messages.filter(m => !m.isRead).length > 0 && (
+          {messages.filter(m => !m.isRead && !m.archived).length > 0 && (
             <button
               onClick={markAllAsRead}
               className="p-1.5 text-slate-400 hover:text-green-400 transition-colors"
@@ -389,13 +432,16 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
                           {message.pinned && (
                             <Pin size={12} className="text-blue-400 flex-shrink-0" />
                           )}
-                          {!message.isRead && (
+                          {!message.isRead && !message.archived && (
                             <span className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
                           )}
-                          <h3 className={`font-medium text-sm truncate ${message.isRead ? 'text-slate-300' : 'text-white'}`}>
+                          <h3 className={`font-medium text-sm truncate ${message.isRead || message.archived ? 'text-slate-300' : 'text-white'}`}>
                             {message.title}
                           </h3>
                           {getPriorityBadge(message.priority)}
+                          {message.archived && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-slate-600 text-slate-300 rounded">ARCHIVED</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400">
                           <span className="flex items-center">
@@ -444,13 +490,51 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
                           >
                             Reply
                           </button>
-                          {(canDelete || message.authorEmail === userEmail) && (
+                          {canDelete && (
+                            <>
+                              {message.archived ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUnarchiveMessage(message._id);
+                                  }}
+                                  className="p-1 text-green-400 hover:text-green-300 transition-colors"
+                                  title="Unarchive"
+                                >
+                                  <Archive size={14} />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleArchiveMessage(message._id);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-yellow-400 transition-colors"
+                                  title="Archive"
+                                >
+                                  <Archive size={14} />
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteMessage(message._id);
+                                }}
+                                className="p-1 text-red-400 hover:text-red-300 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
+                          {!canDelete && message.authorEmail === userEmail && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeleteMessage(message._id);
                               }}
                               className="p-1 text-red-400 hover:text-red-300 transition-colors"
+                              title="Delete"
                             >
                               <Trash2 size={14} />
                             </button>
