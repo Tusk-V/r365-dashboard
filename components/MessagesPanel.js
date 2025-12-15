@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, MessageSquare, Send, Pin, ChevronDown, ChevronUp, Trash2, Plus, Settings, CheckCheck, Archive } from 'lucide-react';
+import { X, MessageSquare, Send, Pin, ChevronDown, ChevronUp, Trash2, Plus, Settings, CheckCheck, Archive, Pencil } from 'lucide-react';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -15,13 +15,13 @@ const MARKETS = ['Tulsa', 'Oklahoma City', 'Dallas', 'Orlando'];
 // Role badge component
 const RoleBadge = ({ role }) => {
   if (role === 'Admin') {
-    return <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-red-600 text-white rounded ml-1">Admin</span>;
+    return <span className="px-1 py-px text-[9px] font-semibold bg-red-600 text-white rounded ml-1 leading-none">Admin</span>;
   }
   if (role === 'FOM') {
-    return <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-blue-600 text-white rounded ml-1">FOM</span>;
+    return <span className="px-1 py-px text-[9px] font-semibold bg-blue-600 text-white rounded ml-1 leading-none">FOM</span>;
   }
   if (role === 'Manager') {
-    return <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-green-600 text-white rounded ml-1">Manager</span>;
+    return <span className="px-1 py-px text-[9px] font-semibold bg-green-600 text-white rounded ml-1 leading-none">Manager</span>;
   }
   return null; // No badge for User
 };
@@ -35,6 +35,7 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyContent, setReplyContent] = useState('');
   const [filter, setFilter] = useState('all');
+  const [editingMessage, setEditingMessage] = useState(null);
 
   const isAdmin = userEmail === ADMIN_EMAIL;
   const canDelete = userRole === 'Admin' || userRole === 'FOM';
@@ -128,6 +129,44 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
       }
     } catch (err) {
       alert('Failed to unarchive message');
+    }
+  };
+
+  const startEditing = (message) => {
+    setEditingMessage({
+      _id: message._id,
+      title: message.title,
+      content: message.content
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMessage || !editingMessage.title.trim() || !editingMessage.content.trim()) return;
+
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageId: editingMessage._id,
+          title: editingMessage.title,
+          content: editingMessage.content
+        })
+      });
+
+      if (res.ok) {
+        setMessages(prev => prev.map(m => 
+          m._id === editingMessage._id 
+            ? { ...m, title: editingMessage.title, content: editingMessage.content }
+            : m
+        ));
+        setEditingMessage(null);
+      } else {
+        const data = await res.json();
+        alert(data.error);
+      }
+    } catch (err) {
+      alert('Failed to save changes');
     }
   };
 
@@ -289,9 +328,9 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
   const getPriorityBadge = (priority) => {
     switch (priority) {
       case 'urgent':
-        return <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-red-600 text-white rounded">URGENT</span>;
+        return <span className="px-1 py-px text-[9px] font-semibold bg-red-600 text-white rounded leading-none">URGENT</span>;
       case 'important':
-        return <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-yellow-600 text-white rounded">IMPORTANT</span>;
+        return <span className="px-1 py-px text-[9px] font-semibold bg-yellow-600 text-white rounded leading-none">IMPORTANT</span>;
       default:
         return null;
     }
@@ -440,7 +479,7 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
                           </h3>
                           {getPriorityBadge(message.priority)}
                           {message.archived && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-slate-600 text-slate-300 rounded">ARCHIVED</span>
+                            <span className="px-1 py-px text-[9px] font-semibold bg-slate-600 text-slate-300 rounded leading-none">ARCHIVED</span>
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400">
@@ -490,6 +529,18 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
                           >
                             Reply
                           </button>
+                          {(canDelete || message.authorEmail === userEmail) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEditing(message);
+                              }}
+                              className="p-1 text-slate-400 hover:text-blue-400 transition-colors"
+                              title="Edit"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          )}
                           {canDelete && (
                             <>
                               {message.archived ? (
@@ -766,6 +817,60 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
               >
                 <Send size={14} />
                 Post Message
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Message Modal */}
+        {editingMessage && (
+          <div className="absolute inset-0 bg-slate-800 z-10 flex flex-col">
+            <div className="flex items-center justify-between p-3 border-b border-slate-700">
+              <h3 className="text-base font-bold text-white">Edit Message</h3>
+              <button
+                onClick={() => setEditingMessage(null)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={editingMessage.title}
+                  onChange={(e) => setEditingMessage({ ...editingMessage, title: e.target.value })}
+                  className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 text-sm"
+                  maxLength={100}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Message</label>
+                <textarea
+                  value={editingMessage.content}
+                  onChange={(e) => setEditingMessage({ ...editingMessage, content: e.target.value })}
+                  rows={6}
+                  className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600 resize-none text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 border-t border-slate-700 flex gap-2">
+              <button
+                onClick={() => setEditingMessage(null)}
+                className="flex-1 py-2 px-4 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={!editingMessage.title.trim() || !editingMessage.content.trim()}
+                className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors"
+              >
+                Save Changes
               </button>
             </div>
           </div>
