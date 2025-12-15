@@ -3,6 +3,8 @@ import { authOptions } from "../auth/[...nextauth]";
 import clientPromise from "../../../lib/mongodb";
 import { ObjectId } from "mongodb";
 
+const ADMIN_EMAIL = 'dalton@rancherscustard.com';
+
 export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
   
@@ -13,6 +15,12 @@ export default async function handler(req, res) {
   const client = await clientPromise;
   const db = client.db("andysdashboard");
   const userEmail = session.user.email;
+  const isAdmin = userEmail === ADMIN_EMAIL;
+
+  // Get user's role
+  const user = await db.collection('users').findOne({ email: userEmail });
+  const userRole = isAdmin ? 'Admin' : (user?.role || 'User');
+  const canDelete = userRole === 'Admin' || userRole === 'FOM';
 
   // POST - Add reply to a message
   if (req.method === 'POST') {
@@ -36,6 +44,7 @@ export default async function handler(req, res) {
         content,
         authorEmail: userEmail,
         authorName: session.user.name || userEmail,
+        authorRole: userRole,
         createdAt: new Date()
       };
 
@@ -54,12 +63,10 @@ export default async function handler(req, res) {
     }
   }
 
-  // DELETE - Delete a reply (admin or reply author only)
+  // DELETE - Delete a reply
   if (req.method === 'DELETE') {
     try {
       const { messageId, replyId } = req.query;
-      const ADMIN_EMAIL = 'dalton@rancherscustard.com';
-      const isAdmin = userEmail === ADMIN_EMAIL;
 
       if (!messageId || !replyId) {
         return res.status(400).json({ error: 'Message ID and reply ID are required' });
@@ -79,8 +86,8 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Reply not found' });
       }
 
-      // Only admin or reply author can delete
-      if (!isAdmin && reply.authorEmail !== userEmail) {
+      // Only Admin/FOM can delete anyone's, others can only delete own
+      if (!canDelete && reply.authorEmail !== userEmail) {
         return res.status(403).json({ error: 'You can only delete your own replies' });
       }
 
