@@ -1,54 +1,67 @@
-// pages/api/check-access.js
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from './auth/[...nextauth]';
-import clientPromise from '../../lib/mongodb';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "./auth/[...nextauth]";
+import clientPromise from "../../lib/mongodb";
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  const session = await getServerSession(req, res, authOptions);
+  
+  if (!session) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  try {
-    const session = await getServerSession(req, res, authOptions);
-    
-    if (!session) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
+  const client = await clientPromise;
+  const db = client.db("andys_dashboard");
+  const userEmail = session.user.email;
+  const isAdmin = userEmail === ADMIN_EMAIL;
 
-    const userEmail = session.user.email;
+  if (req.method === 'GET') {
+    try {
+      // Admin always has full access
+      if (isAdmin) {
+        return res.status(200).json({ 
+          dashboardAccess: { type: 'all', locations: [] },
+          plAccess: { type: 'all', locations: [] },
+          employeeTitle: 'Admin',
+          messagingPermission: 'admin',
+          isAdmin: true
+        });
+      }
 
-    // Admin has full access to everything
-    if (userEmail === ADMIN_EMAIL) {
-      return res.status(200).json({
-        isAdmin: true,
-        dashboardAccess: { type: 'all', locations: [] },
-        plAccess: { type: 'all', locations: [] }
+      // Find user in database
+      const user = await db.collection('users').findOne({ email: userEmail });
+
+      if (!user) {
+        return res.status(200).json({ 
+          dashboardAccess: { type: 'none', locations: [] },
+          plAccess: { type: 'none', locations: [] },
+          employeeTitle: null,
+          messagingPermission: 'user',
+          isAdmin: false
+        });
+      }
+
+      // Calculate effective messaging permission
+      let effectivePermission = user.messagingPermission || 'user';
+      if (!user.messagingPermission || user.messagingPermission === 'user') {
+        if (user.employeeTitle === 'GM' || user.employeeTitle === 'AGM') {
+          effectivePermission = 'manager';
+        }
+      }
+
+      return res.status(200).json({ 
+        dashboardAccess: user.dashboardAccess || { type: 'none', locations: [] },
+        plAccess: user.plAccess || { type: 'none', locations: [] },
+        employeeTitle: user.employeeTitle || null,
+        messagingPermission: effectivePermission,
+        isAdmin: false
       });
+    } catch (error) {
+      console.error('Error checking access:', error);
+      return res.status(500).json({ error: 'Failed to check access' });
     }
-
-    const client = await clientPromise;
-    const db = client.db('andysdashboard');
-
-    const user = await db.collection('users').findOne({ email: userEmail });
-
-    if (!user) {
-      return res.status(200).json({
-        isAdmin: false,
-        dashboardAccess: { type: 'none', locations: [] },
-        plAccess: { type: 'none', locations: [] }
-      });
-    }
-
-    return res.status(200).json({
-      isAdmin: false,
-      dashboardAccess: user.dashboardAccess || { type: 'none', locations: [] },
-      plAccess: user.plAccess || { type: 'none', locations: [] }
-    });
-
-  } catch (error) {
-    console.error('Check access error:', error);
-    return res.status(500).json({ error: error.message });
   }
+
+  return res.status(405).json({ error: 'Method not allowed' });
 }
