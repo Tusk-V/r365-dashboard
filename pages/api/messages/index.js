@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   }
 
   const client = await clientPromise;
-  const db = client.db("andys_dashboard");
+  const db = client.db("andysdashboard");
   const userEmail = session.user.email;
   const isAdmin = userEmail === ADMIN_EMAIL;
 
