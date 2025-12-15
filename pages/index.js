@@ -2,10 +2,8 @@ import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/router"
 import Head from "next/head"
 import { useState, useEffect } from 'react';
-import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen, Bell, Send, MessageSquare, Settings } from 'lucide-react';
+import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen, MessageSquare, Settings } from 'lucide-react';
 import SwipeNavigation from '../components/SwipeNavigation';
-import NotificationManager from '../components/NotificationManager';
-import AdminNotificationSender from '../components/AdminNotificationSender';
 import MessagesPanel from '../components/MessagesPanel';
 import MessagingPermissions from '../components/MessagingPermissions';
 
@@ -128,9 +126,6 @@ export default function Home() {
   });
   const [expandedLogbookIds, setExpandedLogbookIds] = useState(new Set());
   const [isLogbookFiltersOpen, setIsLogbookFiltersOpen] = useState(false);
-
-  // Notification state
-  const [showNotificationSender, setShowNotificationSender] = useState(false);
 
   // Messages state
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
@@ -1477,18 +1472,6 @@ export default function Home() {
                     </span>
                   )}
                 </button>
-
-                <NotificationManager userEmail={session?.user?.email} />
-
-                {isAdmin && (
-                  <button
-                    onClick={() => setShowNotificationSender(true)}
-                    className="p-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                    title="Send notification"
-                  >
-                    <Send size={16} className="text-white" />
-                  </button>
-                )}
 
                 <button
                   onClick={() => signOut()}
@@ -2982,10 +2965,6 @@ export default function Home() {
               </div>
             </div>
           </div>
-        )}
-
-        {showNotificationSender && (
-          <AdminNotificationSender onClose={() => setShowNotificationSender(false)} />
         )}
 
         {showPermissionsModal && (
