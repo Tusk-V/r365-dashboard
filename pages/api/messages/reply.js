@@ -106,5 +106,51 @@ export default async function handler(req, res) {
     }
   }
 
+  // PUT - Edit a reply
+  if (req.method === 'PUT') {
+    try {
+      const { messageId, replyId, content } = req.body;
+
+      if (!messageId || !replyId || !content) {
+        return res.status(400).json({ error: 'Message ID, reply ID, and content are required' });
+      }
+
+      const message = await db.collection('messages').findOne({ 
+        _id: new ObjectId(messageId) 
+      });
+
+      if (!message) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+
+      const reply = message.replies?.find(r => r._id === replyId);
+      
+      if (!reply) {
+        return res.status(404).json({ error: 'Reply not found' });
+      }
+
+      // Only Admin/FOM can edit anyone's, others can only edit own
+      if (!canDelete && reply.authorEmail !== userEmail) {
+        return res.status(403).json({ error: 'You can only edit your own replies' });
+      }
+
+      await db.collection('messages').updateOne(
+        { _id: new ObjectId(messageId), "replies._id": replyId },
+        { 
+          $set: { 
+            "replies.$.content": content,
+            "replies.$.editedAt": new Date(),
+            updatedAt: new Date() 
+          }
+        }
+      );
+
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error('Error editing reply:', error);
+      return res.status(500).json({ error: 'Failed to edit reply' });
+    }
+  }
+
   return res.status(405).json({ error: 'Method not allowed' });
 }
