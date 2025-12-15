@@ -23,8 +23,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ 
           dashboardAccess: { type: 'all', locations: [] },
           plAccess: { type: 'all', locations: [] },
-          employeeTitle: 'Admin',
-          messagingPermission: 'admin',
+          role: 'Admin',
           isAdmin: true
         });
       }
@@ -36,25 +35,15 @@ export default async function handler(req, res) {
         return res.status(200).json({ 
           dashboardAccess: { type: 'none', locations: [] },
           plAccess: { type: 'none', locations: [] },
-          employeeTitle: null,
-          messagingPermission: 'user',
+          role: 'User',
           isAdmin: false
         });
-      }
-
-      // Calculate effective messaging permission
-      let effectivePermission = user.messagingPermission || 'user';
-      if (!user.messagingPermission || user.messagingPermission === 'user') {
-        if (user.employeeTitle === 'GM' || user.employeeTitle === 'AGM') {
-          effectivePermission = 'manager';
-        }
       }
 
       return res.status(200).json({ 
         dashboardAccess: user.dashboardAccess || { type: 'none', locations: [] },
         plAccess: user.plAccess || { type: 'none', locations: [] },
-        employeeTitle: user.employeeTitle || null,
-        messagingPermission: effectivePermission,
+        role: user.role || 'User',
         isAdmin: false
       });
     } catch (error) {
