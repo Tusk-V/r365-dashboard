@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   }
 
   const client = await clientPromise;
-  const db = client.db("andys_dashboard");
+  const db = client.db("andysdashboard");
   const userEmail = session.user.email;
 
   // POST - Add reply to a message
