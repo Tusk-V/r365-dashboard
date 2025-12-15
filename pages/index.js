@@ -131,7 +131,7 @@ export default function Home() {
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [showMessagesPanel, setShowMessagesPanel] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
-  const [userTitle, setUserTitle] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
   // Access control
   const [dashboardAccess, setDashboardAccess] = useState(null);
@@ -947,15 +947,15 @@ export default function Home() {
     }
   };
 
-  const loadCurrentUserTitle = async () => {
+  const loadCurrentUserRole = async () => {
     try {
       const res = await fetch('/api/check-access');
       const data = await res.json();
-      if (res.ok && data.employeeTitle) {
-        setUserTitle(data.employeeTitle);
+      if (res.ok && data.role) {
+        setUserRole(data.role);
       }
     } catch (err) {
-      console.error('Error loading user title:', err);
+      console.error('Error loading user role:', err);
     }
   };
 
@@ -1304,7 +1304,7 @@ export default function Home() {
   useEffect(() => {
     if (status === "authenticated") {
       loadDashboardAccess();
-      loadCurrentUserTitle();
+      loadCurrentUserRole();
       loadUnreadCount();
       loadDataFromGoogleSheets();
       loadAvailableWeeks();
@@ -2975,7 +2975,7 @@ export default function Home() {
           isOpen={showMessagesPanel}
           onClose={() => setShowMessagesPanel(false)}
           userEmail={session?.user?.email}
-          userTitle={userTitle}
+          userRole={userRole}
           onUnreadCountChange={setUnreadMessagesCount}
           onOpenPermissions={() => setShowPermissionsModal(true)}
         />
