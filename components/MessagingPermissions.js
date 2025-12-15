@@ -6,7 +6,7 @@ export default function MessagingPermissions({ onClose }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState('all'); // all, managers, users
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     loadUsers();
@@ -29,41 +29,13 @@ export default function MessagingPermissions({ onClose }) {
     setLoading(false);
   };
 
-  const updatePermission = async (userId, permission) => {
+  const updateRole = async (userId, role) => {
     setSaving(userId);
     try {
       const res = await fetch('/api/messages/permissions', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userId, 
-          messagingPermission: permission === 'reset' ? null : permission 
-        })
-      });
-
-      if (res.ok) {
-        // Reload to get updated effective permissions
-        await loadUsers();
-      } else {
-        const data = await res.json();
-        alert(data.error);
-      }
-    } catch (err) {
-      alert('Failed to update permission');
-    }
-    setSaving(null);
-  };
-
-  const updateTitle = async (userId, title) => {
-    setSaving(userId);
-    try {
-      const res = await fetch('/api/messages/permissions', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userId, 
-          employeeTitle: title === '' ? null : title 
-        })
+        body: JSON.stringify({ userId, role })
       });
 
       if (res.ok) {
@@ -73,44 +45,30 @@ export default function MessagingPermissions({ onClose }) {
         alert(data.error);
       }
     } catch (err) {
-      alert('Failed to update title');
+      alert('Failed to update role');
     }
     setSaving(null);
   };
 
-  const getPermissionBadge = (user) => {
+  const getRoleBadge = (role) => {
     const colors = {
-      admin: 'bg-purple-600',
-      manager: 'bg-blue-600',
-      user: 'bg-slate-600'
+      Admin: 'bg-red-600',
+      FOM: 'bg-blue-600',
+      Manager: 'bg-green-600',
+      User: 'bg-slate-600'
     };
     
     return (
-      <span className={`px-2 py-0.5 text-xs font-semibold text-white rounded ${colors[user.effectivePermission]}`}>
-        {user.effectivePermission.toUpperCase()}
-      </span>
-    );
-  };
-
-  const getTitleBadge = (title) => {
-    if (!title) return null;
-    
-    const colors = {
-      'GM': 'bg-purple-600',
-      'AGM': 'bg-blue-600',
-      'SL': 'bg-green-600'
-    };
-    
-    return (
-      <span className={`px-1.5 py-0.5 text-[10px] font-semibold text-white rounded ${colors[title] || 'bg-slate-600'}`}>
-        {title}
+      <span className={`px-2 py-0.5 text-xs font-semibold text-white rounded ${colors[role] || colors.User}`}>
+        {role || 'User'}
       </span>
     );
   };
 
   const filteredUsers = users.filter(u => {
-    if (filter === 'managers') return u.effectivePermission === 'manager' || u.effectivePermission === 'admin';
-    if (filter === 'users') return u.effectivePermission === 'user';
+    if (filter === 'admins') return u.role === 'Admin' || u.role === 'FOM';
+    if (filter === 'managers') return u.role === 'Manager';
+    if (filter === 'users') return !u.role || u.role === 'User';
     return true;
   });
 
@@ -120,14 +78,14 @@ export default function MessagingPermissions({ onClose }) {
       onClick={onClose}
     >
       <div 
-        className="bg-slate-800 border border-slate-700 rounded-lg p-4 max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-xl flex flex-col"
+        className="bg-slate-800 border border-slate-700 rounded-lg p-4 max-w-lg w-full max-h-[90vh] overflow-hidden shadow-xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-blue-400" />
-            <h3 className="text-lg font-bold text-white">Messaging Permissions</h3>
+            <h3 className="text-lg font-bold text-white">User Roles</h3>
           </div>
           <button
             onClick={onClose}
@@ -139,15 +97,13 @@ export default function MessagingPermissions({ onClose }) {
 
         {/* Legend */}
         <div className="bg-slate-700/50 rounded-lg p-3 mb-4 text-sm">
-          <p className="text-slate-300 mb-2">Permission levels:</p>
-          <div className="flex flex-wrap gap-3 text-xs text-slate-400">
-            <span><span className="text-purple-400 font-semibold">Admin</span> - Can post all types + pin</span>
-            <span><span className="text-blue-400 font-semibold">Manager</span> - Can post normal & important</span>
-            <span><span className="text-slate-400 font-semibold">User</span> - Can reply only</span>
+          <p className="text-slate-300 mb-2">Role permissions:</p>
+          <div className="grid grid-cols-2 gap-2 text-xs text-slate-400">
+            <span><span className="text-red-400 font-semibold">Admin</span> - Delete & Pin</span>
+            <span><span className="text-blue-400 font-semibold">FOM</span> - Delete & Pin</span>
+            <span><span className="text-green-400 font-semibold">Manager</span> - Post & Reply</span>
+            <span><span className="text-slate-400 font-semibold">User</span> - Post & Reply</span>
           </div>
-          <p className="text-slate-500 text-xs mt-2">
-            GM/AGM titles automatically grant Manager permissions unless overridden.
-          </p>
         </div>
 
         {/* Filter */}
@@ -159,8 +115,9 @@ export default function MessagingPermissions({ onClose }) {
             className="px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded text-white"
           >
             <option value="all">All Users ({users.length})</option>
-            <option value="managers">Managers ({users.filter(u => u.effectivePermission === 'manager' || u.effectivePermission === 'admin').length})</option>
-            <option value="users">Users Only ({users.filter(u => u.effectivePermission === 'user').length})</option>
+            <option value="admins">Admin/FOM ({users.filter(u => u.role === 'Admin' || u.role === 'FOM').length})</option>
+            <option value="managers">Managers ({users.filter(u => u.role === 'Manager').length})</option>
+            <option value="users">Users ({users.filter(u => !u.role || u.role === 'User').length})</option>
           </select>
         </div>
 
@@ -183,41 +140,23 @@ export default function MessagingPermissions({ onClose }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-white truncate">{user.name || user.email}</span>
-                      {getTitleBadge(user.employeeTitle)}
-                      {getPermissionBadge(user)}
-                      {user.permissionSource === 'manual' && (
-                        <span className="text-[10px] text-slate-500">(override)</span>
-                      )}
+                      {getRoleBadge(user.role)}
                     </div>
                     <p className="text-xs text-slate-400 truncate">{user.email}</p>
                   </div>
 
-                  {/* Controls */}
+                  {/* Role Selector */}
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {/* Title Selector */}
                     <select
-                      value={user.employeeTitle || ''}
-                      onChange={(e) => updateTitle(user._id, e.target.value)}
-                      disabled={saving === user._id}
-                      className="px-2 py-1 text-xs bg-slate-600 border border-slate-500 rounded text-white w-20"
-                    >
-                      <option value="">No Title</option>
-                      <option value="GM">GM</option>
-                      <option value="AGM">AGM</option>
-                      <option value="SL">SL</option>
-                    </select>
-
-                    {/* Permission Selector */}
-                    <select
-                      value={user.messagingPermission || 'auto'}
-                      onChange={(e) => updatePermission(user._id, e.target.value === 'auto' ? 'reset' : e.target.value)}
+                      value={user.role || 'User'}
+                      onChange={(e) => updateRole(user._id, e.target.value)}
                       disabled={saving === user._id}
                       className="px-2 py-1 text-xs bg-slate-600 border border-slate-500 rounded text-white w-24"
                     >
-                      <option value="auto">Auto (Title)</option>
-                      <option value="user">User</option>
-                      <option value="manager">Manager</option>
-                      <option value="admin">Admin</option>
+                      <option value="User">User</option>
+                      <option value="Manager">Manager</option>
+                      <option value="FOM">FOM</option>
+                      <option value="Admin">Admin</option>
                     </select>
 
                     {saving === user._id && (
