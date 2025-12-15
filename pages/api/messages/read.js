@@ -16,7 +16,47 @@ export default async function handler(req, res) {
   // POST - Mark message(s) as read
   if (req.method === 'POST') {
     try {
-      const { messageId, messageIds } = req.body;
+      const { messageId, messageIds, markAll } = req.body;
+
+      // Handle mark all
+      if (markAll) {
+        const user = await db.collection('users').findOne({ email: userEmail });
+        const ADMIN_EMAIL = 'dalton@rancherscustard.com';
+        const isAdmin = userEmail === ADMIN_EMAIL;
+        const userLocations = isAdmin ? null : (user?.dashboardAccess?.locations || []);
+        const accessType = isAdmin ? 'all' : (user?.dashboardAccess?.type || 'none');
+
+        let query = {};
+        if (!isAdmin && accessType === 'specific') {
+          query.$or = [
+            { targetType: 'all' },
+            { targetLocations: { $in: userLocations } },
+            { authorEmail: userEmail }
+          ];
+        }
+
+        const messages = await db.collection('messages').find(query).toArray();
+        const allIds = messages.map(m => m._id.toString());
+
+        if (allIds.length > 0) {
+          const operations = allIds.map(id => ({
+            updateOne: {
+              filter: { messageId: id, userEmail: userEmail },
+              update: { 
+                $set: { 
+                  messageId: id, 
+                  userEmail: userEmail,
+                  readAt: new Date() 
+                }
+              },
+              upsert: true
+            }
+          }));
+          await db.collection('message_reads').bulkWrite(operations);
+        }
+
+        return res.status(200).json({ success: true, marked: allIds.length });
+      }
 
       // Handle single or multiple message IDs
       const idsToMark = messageIds || (messageId ? [messageId] : []);
