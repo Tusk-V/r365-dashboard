@@ -106,17 +106,22 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Title and content are required' });
       }
 
-      // Check user's messaging permission
-      const user = await db.collection('users').findOne({ email: userEmail });
-      const messagingPermission = user?.messagingPermission || 'user';
+      // Admin can always post
+      let effectivePermission = isAdmin ? 'admin' : 'user';
       
-      // Determine effective permission (title-based default with override)
-      let effectivePermission = messagingPermission;
-      if (messagingPermission === 'user') {
-        // Check if user has a title that grants higher permission
-        const employeeTitle = user?.employeeTitle;
-        if (employeeTitle === 'GM' || employeeTitle === 'AGM') {
-          effectivePermission = 'manager';
+      if (!isAdmin) {
+        // Check user's messaging permission
+        const user = await db.collection('users').findOne({ email: userEmail });
+        const messagingPermission = user?.messagingPermission || 'user';
+        
+        // Determine effective permission (title-based default with override)
+        effectivePermission = messagingPermission;
+        if (messagingPermission === 'user') {
+          // Check if user has a title that grants higher permission
+          const employeeTitle = user?.employeeTitle;
+          if (employeeTitle === 'GM' || employeeTitle === 'AGM') {
+            effectivePermission = 'manager';
+          }
         }
       }
 
