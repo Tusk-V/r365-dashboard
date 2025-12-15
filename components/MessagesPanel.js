@@ -509,7 +509,7 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
                 >
                   {/* Message Header */}
                   <div 
-                    className="p-3 cursor-pointer hover:bg-slate-700/30 transition-colors"
+                    className={`px-3 pt-3 ${expandedMessages.has(message._id) ? 'pb-1' : 'pb-3'} cursor-pointer hover:bg-slate-700/30 transition-colors`}
                     onClick={() => toggleExpanded(message._id)}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -556,28 +556,27 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
 
                   {/* Expanded Content */}
                   {expandedMessages.has(message._id) && (
-                    <div className="border-t border-slate-700/50">
-                      <div className="p-3 bg-slate-900/30">
-                        <p className="text-slate-300 text-sm whitespace-pre-wrap">{message.content}</p>
-                        
-                        {message.targetType !== 'all' && (
-                          <div className="mt-2 text-[10px] text-slate-500">
-                            To: {message.targetLocations?.join(', ') || message.targetMarkets?.join(', ')}
-                          </div>
-                        )}
+                    <div className="px-3 pt-1 pb-3">
+                      <p className="text-slate-300 text-sm whitespace-pre-wrap">{message.content}</p>
+                      
+                      {message.targetType !== 'all' && (
+                        <div className="mt-2 text-[10px] text-slate-500">
+                          To: {message.targetLocations?.join(', ') || message.targetMarkets?.join(', ')}
+                        </div>
+                      )}
 
-                        <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-700/30">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReplyingTo(message._id);
+                          }}
+                          className="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
+                        >
+                          Reply
+                        </button>
+                        {(canDelete || message.authorEmail === userEmail) && (
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setReplyingTo(message._id);
-                            }}
-                            className="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
-                          >
-                            Reply
-                          </button>
-                          {(canDelete || message.authorEmail === userEmail) && (
-                            <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 startEditing(message);
@@ -638,11 +637,10 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
                             </button>
                           )}
                         </div>
-                      </div>
 
                       {/* Replies */}
                       {message.replies?.length > 0 && (
-                        <div className="bg-slate-900/50">
+                        <div className="mt-2 bg-slate-900/50 rounded-b">
                           {message.replies.map(reply => (
                             <div key={reply._id} className="px-3 py-2 border-t border-slate-700/30">
                               {editingReply?.replyId === reply._id ? (
