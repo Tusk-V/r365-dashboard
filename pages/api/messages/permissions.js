@@ -74,5 +74,39 @@ export default async function handler(req, res) {
     }
   }
 
+  // DELETE - Remove user from dashboard
+  if (req.method === 'DELETE') {
+    try {
+      const { userId } = req.query;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID is required' });
+      }
+
+      // Get user to check email
+      const user = await db.collection('users').findOne({ _id: new ObjectId(userId) });
+      
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Prevent deleting admin
+      if (user.email === ADMIN_EMAIL) {
+        return res.status(403).json({ error: 'Cannot delete admin user' });
+      }
+
+      // Delete user
+      await db.collection('users').deleteOne({ _id: new ObjectId(userId) });
+
+      // Clean up message reads
+      await db.collection('message_reads').deleteMany({ userEmail: user.email });
+
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      return res.status(500).json({ error: 'Failed to delete user' });
+    }
+  }
+
   return res.status(405).json({ error: 'Method not allowed' });
 }
