@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   }
 
   const client = await clientPromise;
-  const db = client.db("andys_dashboard");
+  const db = client.db("andysdashboard");
 
   // GET - Get all users with their messaging permissions
   if (req.method === 'GET') {
