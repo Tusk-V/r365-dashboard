@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Users, Shield, Save, X, ChevronDown } from 'lucide-react';
+import { Users, Shield, Save, X, ChevronDown, Trash2 } from 'lucide-react';
+
+const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 export default function MessagingPermissions({ onClose }) {
   const [users, setUsers] = useState([]);
@@ -46,6 +48,29 @@ export default function MessagingPermissions({ onClose }) {
       }
     } catch (err) {
       alert('Failed to update role');
+    }
+    setSaving(null);
+  };
+
+  const deleteUser = async (userId, userName) => {
+    if (!confirm(`Delete ${userName}? This will remove their dashboard access and message history.`)) {
+      return;
+    }
+
+    setSaving(userId);
+    try {
+      const res = await fetch(`/api/messages/permissions?userId=${userId}`, {
+        method: 'DELETE'
+      });
+
+      if (res.ok) {
+        await loadUsers();
+      } else {
+        const data = await res.json();
+        alert(data.error);
+      }
+    } catch (err) {
+      alert('Failed to delete user');
     }
     setSaving(null);
   };
@@ -159,8 +184,20 @@ export default function MessagingPermissions({ onClose }) {
                       <option value="Admin">Admin</option>
                     </select>
 
+                    {/* Don't show delete for admin user */}
+                    {user.email !== ADMIN_EMAIL && (
+                      <button
+                        onClick={() => deleteUser(user._id, user.name || user.email)}
+                        disabled={saving === user._id}
+                        className="p-1 text-slate-400 hover:text-red-400 transition-colors disabled:opacity-50"
+                        title="Delete user"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+
                     {saving === user._id && (
-                      <span className="text-xs text-blue-400">Saving...</span>
+                      <span className="text-xs text-blue-400">...</span>
                     )}
                   </div>
                 </div>
