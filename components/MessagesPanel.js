@@ -640,9 +640,9 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
 
                       {/* Replies */}
                       {message.replies?.length > 0 && (
-                        <div className="mt-2 bg-slate-900/50 rounded-b">
+                        <div className="mt-2 ml-4 bg-slate-900/50 rounded border-l-2 border-slate-600">
                           {message.replies.map(reply => (
-                            <div key={reply._id} className="px-3 py-2 border-t border-slate-700/30">
+                            <div key={reply._id} className="px-3 py-2 border-t border-slate-700/30 first:border-t-0">
                               {editingReply?.replyId === reply._id ? (
                                 <div className="space-y-2">
                                   <textarea
