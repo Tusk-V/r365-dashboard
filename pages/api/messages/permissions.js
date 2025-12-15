@@ -23,6 +23,7 @@ export default async function handler(req, res) {
   // GET - Get all users with their messaging permissions
   if (req.method === 'GET') {
     try {
+      // Get users from the users collection
       const users = await db.collection('users')
         .find({})
         .project({ 
@@ -32,8 +33,30 @@ export default async function handler(req, res) {
           employeeTitle: 1,
           dashboardAccess: 1 
         })
-        .sort({ name: 1 })
+        .sort({ name: 1, email: 1 })
         .toArray();
+
+      // If no users found in users collection, try to get from NextAuth accounts
+      if (users.length === 0) {
+        // Check if there's an accounts or sessions collection from NextAuth
+        const accounts = await db.collection('accounts')
+          .find({})
+          .toArray();
+        
+        // Get unique user IDs from accounts
+        const userIds = [...new Set(accounts.map(a => a.userId?.toString()).filter(Boolean))];
+        
+        // Try to get user info from NextAuth users collection
+        const nextAuthUsers = await db.collection('users')
+          .find({ _id: { $in: userIds.map(id => {
+            try { return new ObjectId(id); } catch { return null; }
+          }).filter(Boolean) }})
+          .toArray();
+        
+        if (nextAuthUsers.length > 0) {
+          users.push(...nextAuthUsers);
+        }
+      }
 
       // Add effective permission (considering title-based defaults)
       const usersWithEffective = users.map(user => {
@@ -44,6 +67,11 @@ export default async function handler(req, res) {
           if (user.employeeTitle === 'GM' || user.employeeTitle === 'AGM') {
             effectivePermission = 'manager';
           }
+        }
+
+        // Admin email always gets admin permission
+        if (user.email === ADMIN_EMAIL) {
+          effectivePermission = 'admin';
         }
 
         return {
