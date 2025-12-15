@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, MessageSquare, Send, Pin, ChevronDown, ChevronUp, Trash2, Plus, Settings, Filter } from 'lucide-react';
+import { X, MessageSquare, Send, Pin, ChevronDown, ChevronUp, Trash2, Plus, Settings, CheckCheck } from 'lucide-react';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -12,7 +12,21 @@ const LOCATIONS = [
 
 const MARKETS = ['Tulsa', 'Oklahoma City', 'Dallas', 'Orlando'];
 
-export default function MessagesPanel({ isOpen, onClose, userEmail, userTitle, onUnreadCountChange, onOpenPermissions }) {
+// Role badge component
+const RoleBadge = ({ role }) => {
+  if (role === 'Admin') {
+    return <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-red-600 text-white rounded ml-1">Admin</span>;
+  }
+  if (role === 'FOM') {
+    return <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-blue-600 text-white rounded ml-1">FOM</span>;
+  }
+  if (role === 'Manager') {
+    return <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-green-600 text-white rounded ml-1">Manager</span>;
+  }
+  return null; // No badge for User
+};
+
+export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, onUnreadCountChange, onOpenPermissions }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,7 +37,8 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userTitle, o
   const [filter, setFilter] = useState('all');
 
   const isAdmin = userEmail === ADMIN_EMAIL;
-  const canPost = isAdmin || userTitle === 'GM' || userTitle === 'AGM';
+  const canDelete = userRole === 'Admin' || userRole === 'FOM';
+  const canPin = userRole === 'Admin' || userRole === 'FOM';
 
   const [newMessage, setNewMessage] = useState({
     title: '',
@@ -59,6 +74,25 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userTitle, o
       setError('Failed to load messages');
     }
     setLoading(false);
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const res = await fetch('/api/messages/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAll: true })
+      });
+      
+      if (res.ok) {
+        setMessages(prev => prev.map(m => ({ ...m, isRead: true })));
+        if (onUnreadCountChange) {
+          onUnreadCountChange(0);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
   };
 
   const markAsRead = async (messageId) => {
@@ -292,13 +326,21 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userTitle, o
             <option value="mine">My Posts</option>
           </select>
 
-          {canPost && (
+          <button
+            onClick={() => setShowComposer(true)}
+            className="flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+          >
+            <Plus size={14} />
+            New
+          </button>
+
+          {messages.filter(m => !m.isRead).length > 0 && (
             <button
-              onClick={() => setShowComposer(true)}
-              className="flex items-center gap-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+              onClick={markAllAsRead}
+              className="p-1.5 text-slate-400 hover:text-green-400 transition-colors"
+              title="Mark all as read"
             >
-              <Plus size={14} />
-              New
+              <CheckCheck size={16} />
             </button>
           )}
 
@@ -356,7 +398,10 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userTitle, o
                           {getPriorityBadge(message.priority)}
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400">
-                          <span>{message.authorName}</span>
+                          <span className="flex items-center">
+                            {message.authorName}
+                            <RoleBadge role={message.authorRole} />
+                          </span>
                           <span>•</span>
                           <span>{formatDate(message.createdAt)}</span>
                           {message.replyCount > 0 && (
@@ -399,7 +444,7 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userTitle, o
                           >
                             Reply
                           </button>
-                          {(isAdmin || message.authorEmail === userEmail) && (
+                          {(canDelete || message.authorEmail === userEmail) && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -421,13 +466,16 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userTitle, o
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
                                   <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                                    <span className="font-medium text-slate-300">{reply.authorName}</span>
+                                    <span className="font-medium text-slate-300 flex items-center">
+                                      {reply.authorName}
+                                      <RoleBadge role={reply.authorRole} />
+                                    </span>
                                     <span>•</span>
                                     <span>{formatDate(reply.createdAt)}</span>
                                   </div>
                                   <p className="text-slate-300 text-xs mt-0.5">{reply.content}</p>
                                 </div>
-                                {(isAdmin || reply.authorEmail === userEmail) && (
+                                {(canDelete || reply.authorEmail === userEmail) && (
                                   <button
                                     onClick={() => handleDeleteReply(message._id, reply._id)}
                                     className="p-0.5 text-red-400 hover:text-red-300 transition-colors"
@@ -609,8 +657,8 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userTitle, o
                 )}
               </div>
 
-              {/* Pin Option (Admin only) */}
-              {isAdmin && (
+              {/* Pin Option (Admin/FOM only) */}
+              {canPin && (
                 <div>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
