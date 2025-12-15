@@ -17,13 +17,18 @@ export default async function handler(req, res) {
   const userEmail = session.user.email;
   const isAdmin = userEmail === ADMIN_EMAIL;
 
+  // Get user's role
+  const user = await db.collection('users').findOne({ email: userEmail });
+  const userRole = isAdmin ? 'Admin' : (user?.role || 'User');
+  const canDelete = userRole === 'Admin' || userRole === 'FOM';
+  const canPin = userRole === 'Admin' || userRole === 'FOM';
+
   // GET - List messages
   if (req.method === 'GET') {
     try {
       const { location, market, unreadOnly } = req.query;
       
       // Get user's access permissions
-      const user = await db.collection('users').findOne({ email: userEmail });
       const userLocations = isAdmin ? null : (user?.dashboardAccess?.locations || []);
       const accessType = isAdmin ? 'all' : (user?.dashboardAccess?.type || 'none');
       
@@ -95,8 +100,8 @@ export default async function handler(req, res) {
       const { 
         title, 
         content, 
-        priority = 'normal',  // normal, important, urgent
-        targetType = 'all',   // all, markets, locations
+        priority = 'normal',
+        targetType = 'all',
         targetMarkets = [],
         targetLocations = [],
         pinned = false
@@ -106,40 +111,9 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Title and content are required' });
       }
 
-      // Admin can always post
-      let effectivePermission = isAdmin ? 'admin' : 'user';
-      
-      if (!isAdmin) {
-        // Check user's messaging permission
-        const user = await db.collection('users').findOne({ email: userEmail });
-        const messagingPermission = user?.messagingPermission || 'user';
-        
-        // Determine effective permission (title-based default with override)
-        effectivePermission = messagingPermission;
-        if (messagingPermission === 'user') {
-          // Check if user has a title that grants higher permission
-          const employeeTitle = user?.employeeTitle;
-          if (employeeTitle === 'GM' || employeeTitle === 'AGM') {
-            effectivePermission = 'manager';
-          }
-        }
-      }
-
-      // Permission checks
-      if (effectivePermission === 'user') {
-        return res.status(403).json({ error: 'You do not have permission to post messages' });
-      }
-      
-      if (priority === 'urgent' && !isAdmin) {
-        return res.status(403).json({ error: 'Only admin can post urgent messages' });
-      }
-      
-      if (priority === 'important' && effectivePermission !== 'manager' && !isAdmin) {
-        return res.status(403).json({ error: 'You do not have permission to post important messages' });
-      }
-
-      if (pinned && !isAdmin) {
-        return res.status(403).json({ error: 'Only admin can pin messages' });
+      // Only Admin/FOM can pin
+      if (pinned && !canPin) {
+        return res.status(403).json({ error: 'Only Admin and FOM can pin messages' });
       }
 
       const message = {
@@ -149,9 +123,10 @@ export default async function handler(req, res) {
         targetType,
         targetMarkets,
         targetLocations,
-        pinned: isAdmin ? pinned : false,
+        pinned: canPin ? pinned : false,
         authorEmail: userEmail,
         authorName: session.user.name || userEmail,
+        authorRole: userRole,
         replies: [],
         createdAt: new Date(),
         updatedAt: new Date()
@@ -170,7 +145,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // PUT - Update message (admin only, or author for own message)
+  // PUT - Update message
   if (req.method === 'PUT') {
     try {
       const { messageId, title, content, pinned, priority } = req.body;
@@ -187,16 +162,16 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Message not found' });
       }
 
-      // Only admin or author can edit
-      if (!isAdmin && message.authorEmail !== userEmail) {
+      // Only Admin/FOM or author can edit
+      if (!canDelete && message.authorEmail !== userEmail) {
         return res.status(403).json({ error: 'You can only edit your own messages' });
       }
 
       const updates = { updatedAt: new Date() };
       if (title) updates.title = title;
       if (content) updates.content = content;
-      if (isAdmin && typeof pinned === 'boolean') updates.pinned = pinned;
-      if (isAdmin && priority) updates.priority = priority;
+      if (canPin && typeof pinned === 'boolean') updates.pinned = pinned;
+      if (priority) updates.priority = priority;
 
       await db.collection('messages').updateOne(
         { _id: new ObjectId(messageId) },
@@ -210,7 +185,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // DELETE - Delete message (admin only, or author for own message)
+  // DELETE - Delete message
   if (req.method === 'DELETE') {
     try {
       const { messageId } = req.query;
@@ -227,8 +202,8 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Message not found' });
       }
 
-      // Only admin or author can delete
-      if (!isAdmin && message.authorEmail !== userEmail) {
+      // Only Admin/FOM can delete anyone's, others can only delete own
+      if (!canDelete && message.authorEmail !== userEmail) {
         return res.status(403).json({ error: 'You can only delete your own messages' });
       }
 
