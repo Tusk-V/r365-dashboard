@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, MessageSquare, Send, Pin, ChevronDown, ChevronUp, Trash2, Plus, Settings, CheckCheck, Archive, Pencil } from 'lucide-react';
+import { X, MessageSquare, Send, Pin, ChevronDown, ChevronUp, Trash2, Plus, Settings, CheckCheck, Archive, Pencil, Smile } from 'lucide-react';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -11,6 +11,8 @@ const LOCATIONS = [
 ];
 
 const MARKETS = ['Tulsa', 'Oklahoma City', 'Dallas', 'Orlando'];
+
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '🎉', '👀', '🔥'];
 
 // Role badge component
 const RoleBadge = ({ role }) => {
@@ -37,6 +39,7 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
   const [filter, setFilter] = useState('all');
   const [editingMessage, setEditingMessage] = useState(null);
   const [editingReply, setEditingReply] = useState(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(null); // messageId or null
 
   const isAdmin = userEmail === ADMIN_EMAIL;
   const canDelete = userRole === 'Admin' || userRole === 'FOM';
@@ -215,6 +218,26 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
     } catch (err) {
       alert('Failed to save reply');
     }
+  };
+
+  const toggleReaction = async (messageId, emoji) => {
+    try {
+      const res = await fetch('/api/messages/react', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId, emoji })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(prev => prev.map(m => 
+          m._id === messageId ? { ...m, reactions: data.reactions } : m
+        ));
+      }
+    } catch (err) {
+      console.error('Failed to toggle reaction:', err);
+    }
+    setShowEmojiPicker(null);
   };
 
   const markAsRead = async (messageId) => {
@@ -656,6 +679,63 @@ export default function MessagesPanel({ isOpen, onClose, userEmail, userRole, on
                             </button>
                           )}
                         </div>
+
+                      {/* Reactions */}
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        {/* Existing reactions */}
+                        {message.reactions && Object.entries(message.reactions).map(([emoji, users]) => (
+                          users.length > 0 && (
+                            <button
+                              key={emoji}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleReaction(message._id, emoji);
+                              }}
+                              className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors ${
+                                users.includes(userEmail) 
+                                  ? 'bg-blue-600/30 border border-blue-500' 
+                                  : 'bg-slate-700 border border-slate-600 hover:border-slate-500'
+                              }`}
+                              title={users.join(', ')}
+                            >
+                              <span>{emoji}</span>
+                              <span className="text-slate-300">{users.length}</span>
+                            </button>
+                          )
+                        ))}
+                        
+                        {/* Add reaction button */}
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowEmojiPicker(showEmojiPicker === message._id ? null : message._id);
+                            }}
+                            className="p-1 text-slate-400 hover:text-slate-300 transition-colors"
+                            title="Add reaction"
+                          >
+                            <Smile size={14} />
+                          </button>
+                          
+                          {/* Emoji picker popup */}
+                          {showEmojiPicker === message._id && (
+                            <div className="absolute bottom-full left-0 mb-1 bg-slate-700 border border-slate-600 rounded-lg p-1 flex gap-1 shadow-lg z-10">
+                              {QUICK_EMOJIS.map(emoji => (
+                                <button
+                                  key={emoji}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleReaction(message._id, emoji);
+                                  }}
+                                  className="w-7 h-7 flex items-center justify-center hover:bg-slate-600 rounded transition-colors text-base"
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
 
                       {/* Replies */}
                       {message.replies?.length > 0 && (
