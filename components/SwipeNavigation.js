@@ -9,6 +9,7 @@ const DASHBOARD_ORDER = [
   { id: 'call-offs', label: 'Call-Offs' },
   { id: 'overtime', label: 'OT Warnings' },
   { id: 'logbook', label: 'Logbook' },
+  { id: 'paid-outs', label: 'Paid Outs' },
   { id: 'scheduled-today', label: 'Scheduled' },
 ];
 
