@@ -2298,7 +2298,7 @@ export default function Home() {
                               <div className="flex justify-between items-center">
                                 <span className="text-slate-500 text-xs">Forecast</span>
                                 <span className={`font-semibold text-xs ${loc.salesVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                  {loc.salesVariance >= 0 ? '+' : ''}${Math.abs(loc.salesVariance).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                                  {loc.salesVariance >= 0 ? '+' : '-'}${Math.abs(loc.salesVariance).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
                                 </span>
                               </div>
                               <div className="flex justify-between items-center">
