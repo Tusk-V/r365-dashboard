@@ -2483,7 +2483,7 @@ export default function Home() {
                                       {pyVarPercent >= 0 ? '+' : ''}{pyVarPercent.toFixed(1)}%
                                     </td>
                                     <td className={`text-right p-2 font-semibold ${day.forecastVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                      {day.forecastVariance >= 0 ? '+' : ''}${Math.abs(day.forecastVariance).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                                      {day.forecastVariance >= 0 ? '+' : '-'}${Math.abs(day.forecastVariance).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
                                     </td>
                                     <td className="text-right p-2 text-white">{day.guestCount.toLocaleString('en-US')}</td>
                                     <td className="text-right p-2 text-slate-300">{day.payGuestCount.toLocaleString('en-US')}</td>
@@ -2540,7 +2540,7 @@ export default function Home() {
                                   
                                   {/* Forecast Var */}
                                   <div className={`font-semibold text-right w-14 ${day.forecastVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {day.forecastVariance >= 0 ? '+' : ''}{Math.round(day.forecastVariance)}
+                                    {day.forecastVariance >= 0 ? '+' : '-'}{Math.abs(Math.round(day.forecastVariance))}
                                   </div>
                                   
                                   {/* Separator */}
