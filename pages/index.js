@@ -722,9 +722,9 @@ export default function Home() {
           sales: parseFloat(row[2]) || 0,
           paySales: parseFloat(row[3]) || 0,
           salesVariance: parseFloat(row[4]) || 0,
-          guestCount: parseFloat(row[5]) || 0,
-          payGuestCount: parseFloat(row[6]) || 0,
-          guestVariance: parseFloat(row[7]) || 0,
+          forecastVariance: parseFloat(row[5]) || 0,
+          guestCount: parseFloat(row[6]) || 0,
+          payGuestCount: parseFloat(row[7]) || 0,
           laborPercent: parseFloat(row[8]) || 0
         });
       });
@@ -2465,28 +2465,28 @@ export default function Home() {
                                 <th className="text-left p-2 text-slate-400 font-semibold">Date</th>
                                 <th className="text-right p-2 text-slate-400 font-semibold">Sales</th>
                                 <th className="text-right p-2 text-slate-400 font-semibold">PY Sales</th>
-                                <th className="text-right p-2 text-slate-400 font-semibold">Sales Var %</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">PY Var</th>
+                                <th className="text-right p-2 text-slate-400 font-semibold">Fcst Var</th>
                                 <th className="text-right p-2 text-slate-400 font-semibold">Guests</th>
                                 <th className="text-right p-2 text-slate-400 font-semibold">PY Guests</th>
-                                <th className="text-right p-2 text-slate-400 font-semibold">Guest Var</th>
                               </tr>
                             </thead>
                             <tbody>
                               {locationData.map((day, idx) => {
-                                const salesVarPercent = day.paySales > 0 ? ((day.salesVariance / day.paySales) * 100) : 0;
+                                const pyVarPercent = day.paySales > 0 ? (((day.sales - day.paySales) / day.paySales) * 100) : 0;
                                 return (
                                   <tr key={idx} className="border-t border-slate-700">
                                     <td className="p-2 text-slate-300">{day.date}</td>
                                     <td className="text-right p-2 text-white font-semibold">${day.sales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
                                     <td className="text-right p-2 text-slate-300">${day.paySales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                                    <td className={`text-right p-2 font-semibold ${salesVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                      {salesVarPercent >= 0 ? '+' : ''}{salesVarPercent.toFixed(1)}%
+                                    <td className={`text-right p-2 font-semibold ${pyVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {pyVarPercent >= 0 ? '+' : ''}{pyVarPercent.toFixed(1)}%
+                                    </td>
+                                    <td className={`text-right p-2 font-semibold ${day.forecastVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                      {day.forecastVariance >= 0 ? '+' : ''}${Math.abs(day.forecastVariance).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
                                     </td>
                                     <td className="text-right p-2 text-white">{day.guestCount.toLocaleString('en-US')}</td>
                                     <td className="text-right p-2 text-slate-300">{day.payGuestCount.toLocaleString('en-US')}</td>
-                                    <td className={`text-right p-2 ${day.guestVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                      {day.guestVariance >= 0 ? '+' : ''}{day.guestVariance}
-                                    </td>
                                   </tr>
                                 );
                               })}
@@ -2500,16 +2500,16 @@ export default function Home() {
                               <div className="text-slate-400 font-semibold w-9">Day</div>
                               <div className="text-slate-400 font-semibold text-right flex-1">Sales</div>
                               <div className="text-slate-400 font-semibold text-right flex-1">PY</div>
-                              <div className="text-slate-400 font-semibold text-right w-12">Var</div>
+                              <div className="text-slate-400 font-semibold text-right w-12">PY%</div>
+                              <div className="text-slate-400 font-semibold text-right w-14">Fcst</div>
                               <div className="text-slate-600 text-center w-4">|</div>
-                              <div className="text-slate-400 font-semibold text-right w-12">Gst</div>
-                              <div className="text-slate-400 font-semibold text-right w-12">PY</div>
-                              <div className="text-slate-400 font-semibold text-right w-11">Var</div>
+                              <div className="text-slate-400 font-semibold text-right w-10">Gst</div>
+                              <div className="text-slate-400 font-semibold text-right w-10">PY</div>
                             </div>
                             
                             {/* Data rows */}
                             {locationData.map((day, idx) => {
-                              const salesVarPercent = day.paySales > 0 ? ((day.salesVariance / day.paySales) * 100) : 0;
+                              const pyVarPercent = day.paySales > 0 ? (((day.sales - day.paySales) / day.paySales) * 100) : 0;
                               
                               // Get day of week abbreviation
                               const dayOfWeek = (() => {
@@ -2533,24 +2533,24 @@ export default function Home() {
                                   {/* PY Sales */}
                                   <div className="text-slate-400 text-right flex-1">${day.paySales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
                                   
-                                  {/* Var % */}
-                                  <div className={`font-semibold text-right w-12 ${salesVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {salesVarPercent >= 0 ? '+' : ''}{salesVarPercent.toFixed(0)}%
+                                  {/* PY Var % */}
+                                  <div className={`font-semibold text-right w-12 ${pyVarPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {pyVarPercent >= 0 ? '+' : ''}{pyVarPercent.toFixed(0)}%
+                                  </div>
+                                  
+                                  {/* Forecast Var */}
+                                  <div className={`font-semibold text-right w-14 ${day.forecastVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {day.forecastVariance >= 0 ? '+' : ''}{Math.round(day.forecastVariance)}
                                   </div>
                                   
                                   {/* Separator */}
                                   <div className="text-slate-600 text-center w-4">|</div>
                                   
                                   {/* Guests */}
-                                  <div className="text-white text-right w-12">{day.guestCount}</div>
+                                  <div className="text-white text-right w-10">{day.guestCount}</div>
                                   
                                   {/* PY Guests */}
-                                  <div className="text-slate-400 text-right w-12">{day.payGuestCount}</div>
-                                  
-                                  {/* Guest Var */}
-                                  <div className={`text-right w-11 ${day.guestVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {day.guestVariance >= 0 ? '+' : ''}{day.guestVariance}
-                                  </div>
+                                  <div className="text-slate-400 text-right w-10">{day.payGuestCount}</div>
                                 </div>
                               );
                             })}
