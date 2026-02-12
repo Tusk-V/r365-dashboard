@@ -978,30 +978,36 @@ export default function Home() {
       const targetDate = new Date(monday);
       targetDate.setDate(monday.getDate() + i);
       const targetKey = formatForecastDate(targetDate);
-      const dayOfWeek = dayNames[i];
 
       // Get weather for target date
       const targetWeather = forecastData.find(d => d.location === locationName && d.date === targetKey);
       const highTemp = targetWeather?.highTemp;
       const conditions = targetWeather?.conditions || '';
 
-      // Actual sales for this date (if it exists and has sales)
+      // Actual sales for this date
       const actualEntry = locData.find(d => d.date === targetKey);
       const actualSales = actualEntry?.sales || null;
 
-      // 4-week weighted average for this day-of-week
+      // Prior week data (PRIMARY basis for forecast)
+      const pwDate = new Date(targetDate);
+      pwDate.setDate(targetDate.getDate() - 7);
+      const pwKey = formatForecastDate(pwDate);
+      const pwEntry = locData.find(d => d.date === pwKey);
+      const pwSales = pwEntry?.sales || null;
+      const pwWeatherEntry = forecastData.find(d => d.location === locationName && d.date === pwKey);
+      const pwTemp = pwWeatherEntry?.highTemp;
+      const pwConditions = pwWeatherEntry?.conditions || '';
+
+      // 4-week average as fallback
       const weeklyData = [];
       for (let w = 1; w <= 6; w++) {
         const pastDate = new Date(targetDate);
         pastDate.setDate(targetDate.getDate() - (w * 7));
         const pastKey = formatForecastDate(pastDate);
         const pastEntry = locData.find(d => d.date === pastKey);
-        if (pastEntry && pastEntry.sales > 0) {
-          weeklyData.push(pastEntry.sales);
-        }
+        if (pastEntry && pastEntry.sales > 0) weeklyData.push(pastEntry.sales);
         if (weeklyData.length >= 4) break;
       }
-
       let weightedAvg = 0;
       if (weeklyData.length >= 4) {
         weightedAvg = weeklyData[0] * 0.4 + weeklyData[1] * 0.3 + weeklyData[2] * 0.2 + weeklyData[3] * 0.1;
@@ -1018,43 +1024,59 @@ export default function Home() {
       const pyWeather = pyEntry?.highTemp;
       const pyConditions = pyEntry?.conditions || '';
 
-      // Weather adjustment
+      // === FORECAST MODEL: PW Sales as baseline ===
+      let forecast = 0;
+      let forecastMethod = 'none'; // 'pw' or 'avg'
       let weatherAdj = 0;
-      if (highTemp !== null) {
-        const idealTemp = 75;
-        const tempDiff = highTemp - idealTemp;
-        if (tempDiff < -20) weatherAdj = -0.15;
-        else if (tempDiff < -10) weatherAdj = -0.08;
-        else if (tempDiff < 0) weatherAdj = -0.03;
-        else if (tempDiff <= 10) weatherAdj = 0.05;
-        else weatherAdj = 0.02;
-        if (conditions.toLowerCase().includes('rain') || conditions.toLowerCase().includes('storm')) {
-          weatherAdj -= 0.10;
+
+      if (pwSales && pwSales > 0) {
+        // PRIMARY: Use PW sales as baseline
+        forecastMethod = 'pw';
+
+        // Weather adjustment based on difference from PW weather
+        if (highTemp !== null && pwTemp !== null) {
+          const tempDiff = highTemp - pwTemp;
+          // Warmer = better for frozen custard, cooler = worse
+          if (tempDiff >= 15) weatherAdj = 0.08;
+          else if (tempDiff >= 10) weatherAdj = 0.06;
+          else if (tempDiff >= 5) weatherAdj = 0.04;
+          else if (tempDiff >= 3) weatherAdj = 0.02;
+          else if (tempDiff <= -15) weatherAdj = -0.08;
+          else if (tempDiff <= -10) weatherAdj = -0.06;
+          else if (tempDiff <= -5) weatherAdj = -0.04;
+          else if (tempDiff <= -3) weatherAdj = -0.02;
+          // Within ±3° = similar weather, no adjustment
         }
+
+        // Rain/storm penalty relative to PW
+        const thisRain = conditions.toLowerCase().includes('rain') || conditions.toLowerCase().includes('storm') || conditions.toLowerCase().includes('shower');
+        const pwRain = pwConditions.toLowerCase().includes('rain') || pwConditions.toLowerCase().includes('storm') || pwConditions.toLowerCase().includes('shower');
+        if (thisRain && !pwRain) weatherAdj -= 0.08;  // Rain this week, clear last week
+        else if (!thisRain && pwRain) weatherAdj += 0.08; // Clear this week, rain last week
+
+        forecast = pwSales * (1 + weatherAdj);
+      } else if (weightedAvg > 0) {
+        // FALLBACK: No PW data, use 4-week average with absolute weather adj
+        forecastMethod = 'avg';
+        if (highTemp !== null) {
+          const idealTemp = 75;
+          const tempDiff = highTemp - idealTemp;
+          if (tempDiff < -20) weatherAdj = -0.12;
+          else if (tempDiff < -10) weatherAdj = -0.06;
+          else if (tempDiff < 0) weatherAdj = -0.02;
+          else if (tempDiff <= 10) weatherAdj = 0.04;
+          else weatherAdj = 0.02;
+          if (conditions.toLowerCase().includes('rain') || conditions.toLowerCase().includes('storm')) {
+            weatherAdj -= 0.08;
+          }
+        }
+        forecast = weightedAvg * (1 + weatherAdj);
       }
 
-      // Forecast
-      const forecast = weightedAvg > 0 ? weightedAvg * (1 + weatherAdj) : 0;
-
-      // Confidence
+      // Confidence based on method
       let confidence = 'high';
-      if (weeklyData.length < 3) confidence = 'low';
-      else if (weeklyData.length >= 4) {
-        const variance = weeklyData.reduce((sum, v) => sum + Math.pow(v - weightedAvg, 2), 0) / weeklyData.length;
-        const cv = Math.sqrt(variance) / weightedAvg;
-        if (cv > 0.20) confidence = 'low';
-        else if (cv > 0.10) confidence = 'med';
-      }
-
-      // Prior week
-      const pwDate = new Date(targetDate);
-      pwDate.setDate(targetDate.getDate() - 7);
-      const pwKey = formatForecastDate(pwDate);
-      const pwEntry = locData.find(d => d.date === pwKey);
-      const pwSales = pwEntry?.sales || null;
-      const pwWeather = forecastData.find(d => d.location === locationName && d.date === pwKey);
-      const pwTemp = pwWeather?.highTemp;
-      const pwConditions = pwWeather?.conditions || '';
+      if (forecastMethod === 'none') confidence = 'low';
+      else if (forecastMethod === 'avg') confidence = 'med';
 
       // Temp comparison vs prior week
       let tempDelta = null;
@@ -1102,7 +1124,7 @@ export default function Home() {
         highTemp, conditions,
         weightedAvg: Math.round(weightedAvg),
         weatherAdj: Math.round(weatherAdj * 100),
-        confidence,
+        confidence, forecastMethod,
         pwSales: pwSales ? Math.round(pwSales) : null,
         pwTemp, pwConditions,
         pySales: pySales ? Math.round(pySales) : null,
@@ -3523,9 +3545,8 @@ export default function Home() {
                                 <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-slate-700 text-slate-400 text-[9px] font-bold ml-1 cursor-help relative group">
                                   ℹ
                                   <span className="hidden group-hover:block absolute top-5 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-600 rounded-md p-2 w-56 text-[10px] text-slate-300 font-normal normal-case tracking-normal z-50 shadow-xl whitespace-normal leading-relaxed">
-                                    Forecast = Weighted 4-Wk Avg × Weather Factor<br/><br/>
-                                    • Weighted avg: 40/30/20/10<br/>
-                                    • 🟢 High · 🟡 Med · 🟠 Low confidence<br/><br/>
+                                    Forecast = Prior Week Sales × Weather Adjustment<br/><br/>
+                                    • 🟢 PW-based · 🟡 4-Wk Avg fallback · 🟠 No data<br/><br/>
                                     Hover forecast values for details.
                                   </span>
                                 </span>
@@ -3549,7 +3570,6 @@ export default function Home() {
                                       {day.holiday}
                                     </span>
                                   )}
-                                  {day.confidence === 'low' && <span className="ml-1 text-[11px] align-middle">⚠️</span>}
                                 </td>
                                 <td className="text-right px-1.5 py-1.5">
                                   <div className="relative inline-block group cursor-default">
@@ -3558,11 +3578,12 @@ export default function Home() {
                                     }`} />
                                     <span className="font-bold text-white">${day.forecast.toLocaleString()}</span>
                                     {/* Hover tooltip */}
-                                    <div className="hidden group-hover:block absolute top-full right-0 mt-1.5 bg-slate-900 border border-slate-600 rounded-md p-2 min-w-[170px] z-50 shadow-xl whitespace-normal">
-                                      <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Base (Wtd Avg)</span><span className="text-slate-300 font-semibold">${day.weightedAvg.toLocaleString()}</span></div>
+                                    <div className="hidden group-hover:block absolute top-full right-0 mt-1.5 bg-slate-900 border border-slate-600 rounded-md p-2 min-w-[180px] z-50 shadow-xl whitespace-normal">
+                                      <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Method</span><span className="text-slate-300 font-semibold">{day.forecastMethod === 'pw' ? 'Prior Week' : '4-Wk Avg'}</span></div>
+                                      <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">{day.forecastMethod === 'pw' ? 'PW Sales' : '4-Wk Avg'}</span><span className="text-slate-300 font-semibold">${day.forecastMethod === 'pw' ? (day.pwSales || 0).toLocaleString() : day.weightedAvg.toLocaleString()}</span></div>
                                       <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Weather Adj</span><span className={`font-semibold ${day.weatherAdj > 0 ? 'text-orange-400' : day.weatherAdj < 0 ? 'text-blue-400' : 'text-slate-300'}`}>{day.weatherAdj > 0 ? '+' : ''}{day.weatherAdj}%</span></div>
                                       <div className="border-t border-slate-700 my-1" />
-                                      <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Forecast</span><span className="text-slate-300 font-semibold">${day.forecast.toLocaleString()}</span></div>
+                                      <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Forecast</span><span className="text-white font-bold">${day.forecast.toLocaleString()}</span></div>
                                     </div>
                                   </div>
                                 </td>
