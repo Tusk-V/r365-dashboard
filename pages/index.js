@@ -1033,26 +1033,25 @@ export default function Home() {
         // PRIMARY: Use PW sales as baseline
         forecastMethod = 'pw';
 
-        // Weather adjustment based on difference from PW weather
+        // OPTIMIZED weather adjustment (from 13,063 data points, 2/12/2026)
         if (highTemp !== null && pwTemp !== null) {
           const tempDiff = highTemp - pwTemp;
-          // Warmer = better for frozen custard, cooler = worse
-          if (tempDiff >= 15) weatherAdj = 0.08;
-          else if (tempDiff >= 10) weatherAdj = 0.06;
-          else if (tempDiff >= 5) weatherAdj = 0.04;
-          else if (tempDiff >= 3) weatherAdj = 0.02;
-          else if (tempDiff <= -15) weatherAdj = -0.08;
-          else if (tempDiff <= -10) weatherAdj = -0.06;
-          else if (tempDiff <= -5) weatherAdj = -0.04;
-          else if (tempDiff <= -3) weatherAdj = -0.02;
-          // Within ±3° = similar weather, no adjustment
+          if (tempDiff >= 15) weatherAdj = 0.199;       // ≥15° warmer (n=1116)
+          else if (tempDiff >= 10) weatherAdj = 0.087;   // 10-14° warmer (n=1024)
+          else if (tempDiff >= 5) weatherAdj = 0.024;    // 5-9° warmer (n=1944)
+          else if (tempDiff >= 3) weatherAdj = 0.007;    // 3-4° warmer (n=943)
+          else if (tempDiff <= -15) weatherAdj = -0.151;  // ≥15° cooler (n=1137)
+          else if (tempDiff <= -10) weatherAdj = -0.059;  // 10-14° cooler (n=996)
+          else if (tempDiff <= -5) weatherAdj = -0.043;   // 5-9° cooler (n=1808)
+          else if (tempDiff <= -3) weatherAdj = -0.020;   // 3-4° cooler (n=1001)
+          else weatherAdj = 0.040;                       // Similar ±3° - aim up (n=3094)
         }
 
-        // Rain/storm penalty relative to PW
+        // Rain adjustments (data-driven)
         const thisRain = conditions.toLowerCase().includes('rain') || conditions.toLowerCase().includes('storm') || conditions.toLowerCase().includes('shower');
         const pwRain = pwConditions.toLowerCase().includes('rain') || pwConditions.toLowerCase().includes('storm') || pwConditions.toLowerCase().includes('shower');
-        if (thisRain && !pwRain) weatherAdj -= 0.08;  // Rain this week, clear last week
-        else if (!thisRain && pwRain) weatherAdj += 0.08; // Clear this week, rain last week
+        if (thisRain && !pwRain) weatherAdj -= 0.133;     // Clear→Rain penalty (n=1917)
+        else if (!thisRain && pwRain) weatherAdj += 0.133; // Rain→Clear bonus (n=1915)
 
         forecast = pwSales * (1 + weatherAdj);
       } else if (weightedAvg > 0) {
