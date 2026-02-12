@@ -1028,10 +1028,22 @@ export default function Home() {
       let forecast = 0;
       let forecastMethod = 'none'; // 'pw' or 'avg'
       let weatherAdj = 0;
+      let pwOutlier = false;
+
+      // Outlier detection: if PW deviates >30% from 4-wk avg, it may have been anomalous
+      let useBaseline = pwSales;
+      if (pwSales && pwSales > 0 && weightedAvg > 0) {
+        const pwDeviation = Math.abs(pwSales - weightedAvg) / weightedAvg;
+        if (pwDeviation > 0.30) {
+          // Blend: 60% PW + 40% avg to dampen the outlier
+          useBaseline = pwSales * 0.6 + weightedAvg * 0.4;
+          pwOutlier = true;
+        }
+      }
 
       if (pwSales && pwSales > 0) {
-        // PRIMARY: Use PW sales as baseline
-        forecastMethod = 'pw';
+        // PRIMARY: Use PW sales (or blended baseline) 
+        forecastMethod = pwOutlier ? 'blend' : 'pw';
 
         // OPTIMIZED weather adjustment (from 13,063 data points, 2/12/2026)
         if (highTemp !== null && pwTemp !== null) {
@@ -1053,7 +1065,7 @@ export default function Home() {
         if (thisRain && !pwRain) weatherAdj -= 0.133;     // Clear→Rain penalty (n=1917)
         else if (!thisRain && pwRain) weatherAdj += 0.133; // Rain→Clear bonus (n=1915)
 
-        forecast = pwSales * (1 + weatherAdj);
+        forecast = useBaseline * (1 + weatherAdj);
       } else if (weightedAvg > 0) {
         // FALLBACK: No PW data, use 4-week average with absolute weather adj
         forecastMethod = 'avg';
@@ -1123,7 +1135,7 @@ export default function Home() {
         highTemp, conditions,
         weightedAvg: Math.round(weightedAvg),
         weatherAdj: Math.round(weatherAdj * 100),
-        confidence, forecastMethod,
+        confidence, forecastMethod, pwOutlier,
         pwSales: pwSales ? Math.round(pwSales) : null,
         pwTemp, pwConditions,
         pySales: pySales ? Math.round(pySales) : null,
@@ -3421,68 +3433,89 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Accuracy Scorecard (show for past weeks) */}
-              {forecastWeekOffset <= 0 && !forecastLoading && forecastData.length > 0 && (() => {
+              {/* Rolling Accuracy Tracker */}
+              {!forecastLoading && forecastData.length > 0 && (() => {
                 const allLocs = [...new Set(forecastData.map(d => d.location))].sort();
                 const filteredLocs = forecastMarketFilter === 'all' ? allLocs : allLocs.filter(l => getMarket(l) === forecastMarketFilter);
-                
-                // Filter by user access
                 const accessLocs = isAdmin ? filteredLocs : 
                   dashboardAccess?.type === 'specific' ? filteredLocs.filter(l => dashboardAccess.locations?.includes(l)) :
                   dashboardAccess?.type === 'all' ? filteredLocs : [];
 
-                const scorecards = accessLocs.map(loc => {
-                  const days = computeForecastForLocation(loc, forecastWeekOffset);
-                  const daysWithBoth = days.filter(d => d.forecast > 0 && d.actual !== null && d.actual > 0);
-                  if (daysWithBoth.length === 0) return null;
-                  const totalForecast = daysWithBoth.reduce((s, d) => s + d.forecast, 0);
-                  const totalActual = daysWithBoth.reduce((s, d) => s + d.actual, 0);
-                  const accuracy = totalActual > 0 ? (1 - Math.abs(totalForecast - totalActual) / totalActual) * 100 : 0;
-                  return { location: loc, forecast: totalForecast, actual: totalActual, accuracy: Math.round(accuracy * 10) / 10 };
+                // Calculate accuracy for last 4 weeks per location
+                const locAccuracy = accessLocs.map(loc => {
+                  const weekResults = [];
+                  for (let w = -1; w >= -4; w--) {
+                    const days = computeForecastForLocation(loc, w);
+                    const withBoth = days.filter(d => d.forecast > 0 && d.actual !== null && d.actual > 0);
+                    if (withBoth.length === 0) continue;
+                    const totalF = withBoth.reduce((s, d) => s + d.forecast, 0);
+                    const totalA = withBoth.reduce((s, d) => s + d.actual, 0);
+                    const acc = totalA > 0 ? (1 - Math.abs(totalF - totalA) / totalA) * 100 : 0;
+                    const mon = getWeekMonday(w);
+                    weekResults.push({ week: w, accuracy: Math.round(acc * 10) / 10, forecast: totalF, actual: totalA, label: `${mon.getMonth()+1}/${mon.getDate()}` });
+                  }
+                  if (weekResults.length === 0) return null;
+                  const avgAccuracy = weekResults.reduce((s, w) => s + w.accuracy, 0) / weekResults.length;
+                  // Trend: compare most recent 2 weeks vs older 2 weeks
+                  let trend = 'flat';
+                  if (weekResults.length >= 3) {
+                    const recent = weekResults.slice(0, Math.ceil(weekResults.length / 2));
+                    const older = weekResults.slice(Math.ceil(weekResults.length / 2));
+                    const recentAvg = recent.reduce((s, w) => s + w.accuracy, 0) / recent.length;
+                    const olderAvg = older.reduce((s, w) => s + w.accuracy, 0) / older.length;
+                    if (recentAvg - olderAvg > 2) trend = 'improving';
+                    else if (olderAvg - recentAvg > 2) trend = 'declining';
+                  }
+                  return { location: loc, weeks: weekResults, avgAccuracy: Math.round(avgAccuracy * 10) / 10, trend };
                 }).filter(Boolean);
 
-                if (scorecards.length === 0) return null;
+                if (locAccuracy.length === 0) return null;
+
+                const overallAvg = locAccuracy.reduce((s, l) => s + l.avgAccuracy, 0) / locAccuracy.length;
 
                 return (
                   <div className="bg-slate-800 border border-slate-700 rounded-lg mb-3 overflow-hidden shadow-lg">
-                    <div className="px-4 py-2.5 border-b border-slate-700">
-                      <div className="text-sm font-semibold text-white">Last Week's Accuracy</div>
-                      <div className="text-xs text-slate-400">
-                        {(() => {
-                          const mon = getWeekMonday(forecastWeekOffset);
-                          const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-                          return `Mon ${mon.getMonth()+1}/${mon.getDate()} – Sun ${sun.getMonth()+1}/${sun.getDate()} · Forecast vs Actual`;
-                        })()}
+                    <div className="px-4 py-2.5 border-b border-slate-700 flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-white">Forecast Accuracy — Rolling 4 Weeks</div>
+                        <div className="text-xs text-slate-400">How well the model predicted actual sales</div>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-xl font-bold ${overallAvg >= 95 ? 'text-green-400' : overallAvg >= 90 ? 'text-yellow-400' : 'text-orange-400'}`}>{overallAvg.toFixed(1)}%</span>
+                        <div className="text-[10px] text-slate-500">Overall Avg</div>
                       </div>
                     </div>
-                    <div className="p-3">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                        {scorecards.map(sc => (
-                          <div key={sc.location} className="bg-slate-900 border border-slate-700 rounded-md p-2.5">
-                            <div className="text-xs font-semibold text-slate-300 mb-1">{sc.location}</div>
-                            <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
-                              <span>Forecast</span>
-                              <span className="text-slate-300 font-medium">${sc.forecast.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
-                              <span>Actual</span>
-                              <span className="text-slate-300 font-medium">${sc.actual.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-                              <span>Accuracy</span>
-                              <span className={`font-bold text-sm ${sc.accuracy >= 96 ? 'text-green-400' : sc.accuracy >= 92 ? 'text-yellow-400' : 'text-orange-400'}`}>
-                                {sc.accuracy}%
-                              </span>
-                            </div>
-                            <div className="h-1 bg-slate-700 rounded overflow-hidden">
-                              <div
-                                className={`h-full rounded ${sc.accuracy >= 96 ? 'bg-green-400' : sc.accuracy >= 92 ? 'bg-yellow-400' : 'bg-orange-400'}`}
-                                style={{ width: `${Math.min(sc.accuracy, 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs" style={{ fontSize: '0.78rem' }}>
+                        <thead>
+                          <tr className="text-slate-400 uppercase" style={{ fontSize: '0.68rem' }}>
+                            <th className="text-left pl-3 py-1.5 font-semibold">Location</th>
+                            {locAccuracy[0]?.weeks.map((w, i) => (
+                              <th key={i} className="text-right px-2 py-1.5 font-semibold">Wk {w.label}</th>
+                            ))}
+                            <th className="text-right px-2 py-1.5 font-semibold">Avg</th>
+                            <th className="text-right pr-3 py-1.5 font-semibold">Trend</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {locAccuracy.sort((a, b) => b.avgAccuracy - a.avgAccuracy).map(loc => (
+                            <tr key={loc.location} className="border-b border-slate-700/40">
+                              <td className="text-left pl-3 py-1.5 font-medium text-slate-200">{loc.location}</td>
+                              {loc.weeks.map((w, i) => (
+                                <td key={i} className={`text-right px-2 py-1.5 font-semibold ${w.accuracy >= 96 ? 'text-green-400' : w.accuracy >= 92 ? 'text-yellow-400' : w.accuracy >= 85 ? 'text-orange-400' : 'text-red-400'}`}>
+                                  {w.accuracy}%
+                                </td>
+                              ))}
+                              <td className={`text-right px-2 py-1.5 font-bold ${loc.avgAccuracy >= 95 ? 'text-green-400' : loc.avgAccuracy >= 90 ? 'text-yellow-400' : 'text-orange-400'}`}>
+                                {loc.avgAccuracy}%
+                              </td>
+                              <td className="text-right pr-3 py-1.5">
+                                {loc.trend === 'improving' ? <span className="text-green-400">↑</span> : loc.trend === 'declining' ? <span className="text-red-400">↓</span> : <span className="text-slate-500">→</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 );
@@ -3526,15 +3559,16 @@ export default function Home() {
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs whitespace-nowrap table-fixed" style={{ fontSize: '0.78rem' }}>
                           <colgroup>
-                            <col style={{ width: '13%' }} />
                             <col style={{ width: '12%' }} />
+                            <col style={{ width: '10%' }} />
+                            {forecastWeekOffset <= 0 && <col style={{ width: '12%' }} />}
+                            <col style={{ width: '8%' }} />
+                            <col style={{ width: '12%' }} />
+                            <col style={{ width: '10%' }} />
                             <col style={{ width: '9%' }} />
-                            <col style={{ width: '14%' }} />
-                            <col style={{ width: '11%' }} />
-                            <col style={{ width: '10%' }} />
-                            <col style={{ width: '8%' }} />
-                            <col style={{ width: '10%' }} />
-                            <col style={{ width: '8%' }} />
+                            <col style={{ width: '7%' }} />
+                            <col style={{ width: '9%' }} />
+                            <col style={{ width: '7%' }} />
                           </colgroup>
                           <thead>
                             <tr className="text-slate-400 uppercase" style={{ fontSize: '0.68rem' }}>
@@ -3550,6 +3584,7 @@ export default function Home() {
                                   </span>
                                 </span>
                               </th>
+                              {forecastWeekOffset <= 0 && <th className="text-right px-1.5 py-1.5 font-semibold">Actual / Var</th>}
                               <th className="text-right px-1.5 py-1.5 font-semibold">Weather</th>
                               <th className="text-right px-1.5 py-1.5 font-semibold">vs Prior Wk</th>
                               <th className="text-right px-1.5 py-1.5 font-semibold">4-Wk Avg</th>
@@ -3578,7 +3613,8 @@ export default function Home() {
                                     <span className="font-bold text-white">${day.forecast.toLocaleString()}</span>
                                     {/* Hover tooltip */}
                                     <div className="hidden group-hover:block absolute top-full right-0 mt-1.5 bg-slate-900 border border-slate-600 rounded-md p-2 min-w-[180px] z-50 shadow-xl whitespace-normal">
-                                      <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Method</span><span className="text-slate-300 font-semibold">{day.forecastMethod === 'pw' ? 'Prior Week' : '4-Wk Avg'}</span></div>
+                                      <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Method</span><span className="text-slate-300 font-semibold">{day.forecastMethod === 'pw' ? 'Prior Week' : day.forecastMethod === 'blend' ? 'PW+Avg Blend' : '4-Wk Avg'}</span></div>
+                                      {day.pwOutlier && <div className="text-[9px] text-amber-400 py-px">⚠ PW was &gt;30% off avg — blended 60/40</div>}
                                       <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">{day.forecastMethod === 'pw' ? 'PW Sales' : '4-Wk Avg'}</span><span className="text-slate-300 font-semibold">${day.forecastMethod === 'pw' ? (day.pwSales || 0).toLocaleString() : day.weightedAvg.toLocaleString()}</span></div>
                                       <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Weather Adj</span><span className={`font-semibold ${day.weatherAdj > 0 ? 'text-orange-400' : day.weatherAdj < 0 ? 'text-blue-400' : 'text-slate-300'}`}>{day.weatherAdj > 0 ? '+' : ''}{day.weatherAdj}%</span></div>
                                       <div className="border-t border-slate-700 my-1" />
@@ -3586,6 +3622,20 @@ export default function Home() {
                                     </div>
                                   </div>
                                 </td>
+                                {forecastWeekOffset <= 0 && (
+                                  <td className="text-right px-1.5 py-1.5">
+                                    {day.actual !== null ? (
+                                      <div className="flex flex-col items-end">
+                                        <span className="font-bold text-white">${day.actual.toLocaleString()}</span>
+                                        {day.forecast > 0 && (
+                                          <span className={`text-[10px] font-semibold ${day.actual >= day.forecast ? 'text-green-400' : 'text-red-400'}`}>
+                                            {day.actual >= day.forecast ? '+' : ''}{Math.round(((day.actual - day.forecast) / day.forecast) * 100)}%
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : <span className="text-slate-600">—</span>}
+                                  </td>
+                                )}
                                 <td className="text-right px-1.5 py-1.5">
                                   <div className="flex items-center justify-end gap-1">
                                     <span>{getWeatherEmoji(day.conditions)}</span>
@@ -3627,6 +3677,20 @@ export default function Home() {
                             <tr className="bg-slate-900/50">
                               <td className="text-left pl-3 py-2 font-bold text-slate-300 border-t border-slate-600">Total</td>
                               <td className="text-right px-1.5 py-2 font-bold text-white border-t border-slate-600">${totalForecast.toLocaleString()}</td>
+                              {forecastWeekOffset <= 0 && (
+                                <td className="text-right px-1.5 py-2 font-bold border-t border-slate-600">
+                                  {totalActual > 0 ? (
+                                    <div className="flex flex-col items-end">
+                                      <span className="text-white">${totalActual.toLocaleString()}</span>
+                                      {totalForecast > 0 && (
+                                        <span className={`text-[10px] font-semibold ${totalActual >= totalForecast ? 'text-green-400' : 'text-red-400'}`}>
+                                          {totalActual >= totalForecast ? '+' : ''}{Math.round(((totalActual - totalForecast) / totalForecast) * 100)}%
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : ''}
+                                </td>
+                              )}
                               <td className="border-t border-slate-600" />
                               <td className="border-t border-slate-600" />
                               <td className="text-right px-1.5 py-2 font-bold text-white border-t border-slate-600">${totalAvg.toLocaleString()}</td>
