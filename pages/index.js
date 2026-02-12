@@ -145,6 +145,7 @@ export default function Home() {
   const [forecastData, setForecastData] = useState([]);
   const [forecastLoading, setForecastLoading] = useState(false);
   const [forecastWeekOffset, setForecastWeekOffset] = useState(1); // 1 = next week
+  const [forecastAccuracyExpanded, setForecastAccuracyExpanded] = useState(false);
   const [forecastMarketFilter, setForecastMarketFilter] = useState('all');
 
   // Messages state
@@ -3475,16 +3476,20 @@ export default function Home() {
 
                 return (
                   <div className="bg-slate-800 border border-slate-700 rounded-lg mb-3 overflow-hidden shadow-lg">
-                    <div className="px-4 py-2.5 border-b border-slate-700 flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-semibold text-white">Forecast Accuracy — Rolling 4 Weeks</div>
-                        <div className="text-xs text-slate-400">How well the model predicted actual sales</div>
+                    <div className="px-4 py-2.5 border-b border-slate-700 flex items-center justify-between cursor-pointer select-none" onClick={() => setForecastAccuracyExpanded(!forecastAccuracyExpanded)}>
+                      <div className="flex items-center gap-2">
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${forecastAccuracyExpanded ? '' : '-rotate-90'}`} />
+                        <div>
+                          <div className="text-sm font-semibold text-white">Forecast Accuracy — Rolling 4 Weeks</div>
+                          <div className="text-xs text-slate-400">How well the model predicted actual sales</div>
+                        </div>
                       </div>
                       <div className="text-right">
                         <span className={`text-xl font-bold ${overallAvg >= 95 ? 'text-green-400' : overallAvg >= 90 ? 'text-yellow-400' : 'text-orange-400'}`}>{overallAvg.toFixed(1)}%</span>
                         <div className="text-[10px] text-slate-500">Overall Avg</div>
                       </div>
                     </div>
+                    {forecastAccuracyExpanded && (
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs" style={{ fontSize: '0.78rem' }}>
                         <thead>
@@ -3517,6 +3522,8 @@ export default function Home() {
                         </tbody>
                       </table>
                     </div>
+                    )}
+                  </div>
                   </div>
                 );
               })()}
@@ -3551,7 +3558,7 @@ export default function Home() {
                   const totalPY = days.filter(d => d.pySales !== null).reduce((s, d) => s + d.pySales, 0);
 
                   return (
-                    <div key={loc} className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden mb-3 shadow-lg">
+                    <div key={loc} className="bg-slate-800 border border-slate-700 rounded-lg mb-3 shadow-lg">
                       <div className="px-4 py-2 border-b border-slate-700 flex items-center justify-between">
                         <span className="font-bold text-sm text-white">{loc}</span>
                         <span className="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-slate-300">{getMarket(loc)}</span>
@@ -3612,7 +3619,7 @@ export default function Home() {
                                     }`} />
                                     <span className="font-bold text-white">${day.forecast.toLocaleString()}</span>
                                     {/* Hover tooltip */}
-                                    <div className="hidden group-hover:block absolute top-full right-0 mt-1.5 bg-slate-900 border border-slate-600 rounded-md p-2 min-w-[180px] z-50 shadow-xl whitespace-normal">
+                                    <div className="hidden group-hover:block absolute bottom-full right-0 mb-1.5 bg-slate-900 border border-slate-600 rounded-md p-2 min-w-[180px] z-50 shadow-xl whitespace-normal">
                                       <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Method</span><span className="text-slate-300 font-semibold">{day.forecastMethod === 'pw' ? 'Prior Week' : day.forecastMethod === 'blend' ? 'PW+Avg Blend' : '4-Wk Avg'}</span></div>
                                       {day.pwOutlier && <div className="text-[9px] text-amber-400 py-px">⚠ PW was &gt;30% off avg — blended 60/40</div>}
                                       <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">{day.forecastMethod === 'pw' ? 'PW Sales' : '4-Wk Avg'}</span><span className="text-slate-300 font-semibold">${day.forecastMethod === 'pw' ? (day.pwSales || 0).toLocaleString() : day.weightedAvg.toLocaleString()}</span></div>
