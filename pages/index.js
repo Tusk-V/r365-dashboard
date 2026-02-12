@@ -1009,7 +1009,7 @@ export default function Home() {
         weightedAvg = weeklyData.reduce((a, b) => a + b, 0) / weeklyData.length;
       }
 
-      // YoY growth
+      // Prior year data (for PY columns)
       const pyDate = new Date(targetDate);
       pyDate.setFullYear(pyDate.getFullYear() - 1);
       const pyKey = formatForecastDate(pyDate);
@@ -1017,12 +1017,6 @@ export default function Home() {
       const pySales = pyEntry?.sales || null;
       const pyWeather = pyEntry?.highTemp;
       const pyConditions = pyEntry?.conditions || '';
-
-      let yoyGrowth = 0;
-      if (pySales && pySales > 0 && weightedAvg > 0) {
-        yoyGrowth = ((weightedAvg - pySales) / pySales);
-        yoyGrowth = Math.max(-0.3, Math.min(0.3, yoyGrowth));
-      }
 
       // Weather adjustment
       let weatherAdj = 0;
@@ -1040,7 +1034,7 @@ export default function Home() {
       }
 
       // Forecast
-      const forecast = weightedAvg > 0 ? weightedAvg * (1 + yoyGrowth) * (1 + weatherAdj) : 0;
+      const forecast = weightedAvg > 0 ? weightedAvg * (1 + weatherAdj) : 0;
 
       // Confidence
       let confidence = 'high';
@@ -1107,7 +1101,6 @@ export default function Home() {
         actual: actualSales ? Math.round(actualSales) : null,
         highTemp, conditions,
         weightedAvg: Math.round(weightedAvg),
-        yoyGrowth: Math.round(yoyGrowth * 100),
         weatherAdj: Math.round(weatherAdj * 100),
         confidence,
         pwSales: pwSales ? Math.round(pwSales) : null,
@@ -3510,7 +3503,18 @@ export default function Home() {
                         <span className="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-slate-300">{getMarket(loc)}</span>
                       </div>
                       <div className="overflow-x-auto">
-                        <table className="w-full text-xs whitespace-nowrap" style={{ fontSize: '0.78rem' }}>
+                        <table className="w-full text-xs whitespace-nowrap table-fixed" style={{ fontSize: '0.78rem' }}>
+                          <colgroup>
+                            <col style={{ width: '13%' }} />
+                            <col style={{ width: '12%' }} />
+                            <col style={{ width: '9%' }} />
+                            <col style={{ width: '14%' }} />
+                            <col style={{ width: '11%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '8%' }} />
+                            <col style={{ width: '10%' }} />
+                            <col style={{ width: '8%' }} />
+                          </colgroup>
                           <thead>
                             <tr className="text-slate-400 uppercase" style={{ fontSize: '0.68rem' }}>
                               <th className="text-left pl-3 py-1.5 font-semibold">Day</th>
@@ -3519,7 +3523,7 @@ export default function Home() {
                                 <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-slate-700 text-slate-400 text-[9px] font-bold ml-1 cursor-help relative group">
                                   ℹ
                                   <span className="hidden group-hover:block absolute top-5 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-600 rounded-md p-2 w-56 text-[10px] text-slate-300 font-normal normal-case tracking-normal z-50 shadow-xl whitespace-normal leading-relaxed">
-                                    Forecast = Weighted 4-Wk Avg × YoY Growth × Weather Factor<br/><br/>
+                                    Forecast = Weighted 4-Wk Avg × Weather Factor<br/><br/>
                                     • Weighted avg: 40/30/20/10<br/>
                                     • 🟢 High · 🟡 Med · 🟠 Low confidence<br/><br/>
                                     Hover forecast values for details.
@@ -3556,7 +3560,6 @@ export default function Home() {
                                     {/* Hover tooltip */}
                                     <div className="hidden group-hover:block absolute top-full right-0 mt-1.5 bg-slate-900 border border-slate-600 rounded-md p-2 min-w-[170px] z-50 shadow-xl whitespace-normal">
                                       <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Base (Wtd Avg)</span><span className="text-slate-300 font-semibold">${day.weightedAvg.toLocaleString()}</span></div>
-                                      <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">YoY Growth</span><span className={`font-semibold ${day.yoyGrowth > 0 ? 'text-orange-400' : day.yoyGrowth < 0 ? 'text-blue-400' : 'text-slate-300'}`}>{day.yoyGrowth > 0 ? '+' : ''}{day.yoyGrowth}%</span></div>
                                       <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Weather Adj</span><span className={`font-semibold ${day.weatherAdj > 0 ? 'text-orange-400' : day.weatherAdj < 0 ? 'text-blue-400' : 'text-slate-300'}`}>{day.weatherAdj > 0 ? '+' : ''}{day.weatherAdj}%</span></div>
                                       <div className="border-t border-slate-700 my-1" />
                                       <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Forecast</span><span className="text-slate-300 font-semibold">${day.forecast.toLocaleString()}</span></div>
