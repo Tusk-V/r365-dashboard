@@ -22,6 +22,7 @@ const SCHEDULED_TODAY_SHEET = 'Scheduled Today';
 const EMPLOYEE_TITLES_SHEET = 'Employee Titles';
 const LOGBOOK_ENTRIES_SHEET = 'Logbook Entries';
 const PAID_OUTS_SHEET = 'Paid Outs';
+const FORECAST_DATA_SHEET = 'Forecast Data';
 
 const TitleBadge = ({ title }) => {
   if (!title) return null;
@@ -140,6 +141,12 @@ export default function Home() {
   });
   const [isPaidOutsFiltersOpen, setIsPaidOutsFiltersOpen] = useState(false);
 
+  // Forecast state
+  const [forecastData, setForecastData] = useState([]);
+  const [forecastLoading, setForecastLoading] = useState(false);
+  const [forecastWeekOffset, setForecastWeekOffset] = useState(1); // 1 = next week
+  const [forecastMarketFilter, setForecastMarketFilter] = useState('all');
+
   // Messages state
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [showMessagesPanel, setShowMessagesPanel] = useState(false);
@@ -189,40 +196,6 @@ export default function Home() {
       if (match) return match[1];
     }
     return null;
-  };
-
-  const extractMood = (comment) => {
-    if (!comment) return null;
-    const lowerComment = comment.toLowerCase();
-    if (/\b(hectic|crazy|insane|nightmare)\b/.test(lowerComment)) return 'Hectic';
-    if (/\b(tough|hard|struggled|difficult|short[- ]?staffed)\b/.test(lowerComment)) return 'Tough';
-    if (/\b(busy|rush|crowds|packed|slammed)\b/.test(lowerComment)) return 'Busy';
-    if (/\b(great|excellent|perfect|flawless|amazing|awesome)\b/.test(lowerComment)) return 'Great';
-    if (/\b(good|solid|nice)\b/.test(lowerComment)) return 'Good';
-    if (/\b(slow|quiet|light|dead)\b/.test(lowerComment)) return 'Slow';
-    if (/\b(smooth|steady|normal|standard|typical)\b/.test(lowerComment)) return 'Normal';
-    return null;
-  };
-
-  const getMoodColor = (mood) => {
-    switch (mood) {
-      case 'Great':
-      case 'Good':
-        return 'bg-green-500';
-      case 'Normal':
-      case 'Smooth':
-      case 'Steady':
-        return 'bg-slate-500';
-      case 'Slow':
-        return 'bg-yellow-500';
-      case 'Busy':
-      case 'Tough':
-        return 'bg-orange-500';
-      case 'Hectic':
-        return 'bg-red-500';
-      default:
-        return 'bg-slate-500';
-    }
   };
 
   const generateSummary = (comment) => {
@@ -941,6 +914,213 @@ export default function Home() {
     setFilteredPaidOuts(filtered);
   };
 
+  // ===== FORECAST DATA LOADING =====
+  const loadForecastData = async () => {
+    setForecastLoading(true);
+    try {
+      const range = `${FORECAST_DATA_SHEET}!A2:E`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to load forecast data');
+      const data = await response.json();
+      if (!data.values) { setForecastData([]); return; }
+      
+      const parsed = data.values.map(row => ({
+        date: row[0] || '',
+        location: row[1] || '',
+        sales: parseFloat((row[2] || '').toString().replace(/[$,]/g, '')) || 0,
+        highTemp: parseFloat(row[3]) || null,
+        conditions: row[4] || ''
+      }));
+      setForecastData(parsed);
+    } catch (err) {
+      console.error('Error loading forecast data:', err);
+      setForecastData([]);
+    } finally {
+      setForecastLoading(false);
+    }
+  };
+
+  // Forecast calculation helpers
+  const getWeekMonday = (offset) => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diff + (offset * 7));
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  };
+
+  const formatForecastDate = (d) => `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+
+  const getWeatherEmoji = (conditions) => {
+    if (!conditions) return '—';
+    const c = conditions.toLowerCase();
+    if (c.includes('rain') || c.includes('storm') || c.includes('drizzle') || c.includes('thunder')) return '🌧️';
+    if (c.includes('snow') || c.includes('sleet') || c.includes('ice') || c.includes('freezing')) return '🌨️';
+    if (c.includes('overcast') || c.includes('cloudy')) return '☁️';
+    if (c.includes('partly') || c.includes('partial')) return '⛅';
+    if (c.includes('clear') || c.includes('sunny')) return '☀️';
+    if (c.includes('fog') || c.includes('mist') || c.includes('haze')) return '🌫️';
+    return '⛅';
+  };
+
+  const computeForecastForLocation = (locationName, weekOffset) => {
+    const locData = forecastData.filter(d => d.location === locationName && d.sales > 0);
+    if (locData.length === 0) return [];
+
+    const monday = getWeekMonday(weekOffset);
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const result = [];
+
+    for (let i = 0; i < 7; i++) {
+      const targetDate = new Date(monday);
+      targetDate.setDate(monday.getDate() + i);
+      const targetKey = formatForecastDate(targetDate);
+      const dayOfWeek = dayNames[i];
+
+      // Get weather for target date
+      const targetWeather = forecastData.find(d => d.location === locationName && d.date === targetKey);
+      const highTemp = targetWeather?.highTemp;
+      const conditions = targetWeather?.conditions || '';
+
+      // Actual sales for this date (if it exists and has sales)
+      const actualEntry = locData.find(d => d.date === targetKey);
+      const actualSales = actualEntry?.sales || null;
+
+      // 4-week weighted average for this day-of-week
+      const weeklyData = [];
+      for (let w = 1; w <= 6; w++) {
+        const pastDate = new Date(targetDate);
+        pastDate.setDate(targetDate.getDate() - (w * 7));
+        const pastKey = formatForecastDate(pastDate);
+        const pastEntry = locData.find(d => d.date === pastKey);
+        if (pastEntry && pastEntry.sales > 0) {
+          weeklyData.push(pastEntry.sales);
+        }
+        if (weeklyData.length >= 4) break;
+      }
+
+      let weightedAvg = 0;
+      if (weeklyData.length >= 4) {
+        weightedAvg = weeklyData[0] * 0.4 + weeklyData[1] * 0.3 + weeklyData[2] * 0.2 + weeklyData[3] * 0.1;
+      } else if (weeklyData.length > 0) {
+        weightedAvg = weeklyData.reduce((a, b) => a + b, 0) / weeklyData.length;
+      }
+
+      // YoY growth
+      const pyDate = new Date(targetDate);
+      pyDate.setFullYear(pyDate.getFullYear() - 1);
+      const pyKey = formatForecastDate(pyDate);
+      const pyEntry = locData.find(d => d.date === pyKey);
+      const pySales = pyEntry?.sales || null;
+      const pyWeather = pyEntry?.highTemp;
+      const pyConditions = pyEntry?.conditions || '';
+
+      let yoyGrowth = 0;
+      if (pySales && pySales > 0 && weightedAvg > 0) {
+        yoyGrowth = ((weightedAvg - pySales) / pySales);
+        yoyGrowth = Math.max(-0.3, Math.min(0.3, yoyGrowth));
+      }
+
+      // Weather adjustment
+      let weatherAdj = 0;
+      if (highTemp !== null) {
+        const idealTemp = 75;
+        const tempDiff = highTemp - idealTemp;
+        if (tempDiff < -20) weatherAdj = -0.15;
+        else if (tempDiff < -10) weatherAdj = -0.08;
+        else if (tempDiff < 0) weatherAdj = -0.03;
+        else if (tempDiff <= 10) weatherAdj = 0.05;
+        else weatherAdj = 0.02;
+        if (conditions.toLowerCase().includes('rain') || conditions.toLowerCase().includes('storm')) {
+          weatherAdj -= 0.10;
+        }
+      }
+
+      // Forecast
+      const forecast = weightedAvg > 0 ? weightedAvg * (1 + yoyGrowth) * (1 + weatherAdj) : 0;
+
+      // Confidence
+      let confidence = 'high';
+      if (weeklyData.length < 3) confidence = 'low';
+      else if (weeklyData.length >= 4) {
+        const variance = weeklyData.reduce((sum, v) => sum + Math.pow(v - weightedAvg, 2), 0) / weeklyData.length;
+        const cv = Math.sqrt(variance) / weightedAvg;
+        if (cv > 0.20) confidence = 'low';
+        else if (cv > 0.10) confidence = 'med';
+      }
+
+      // Prior week
+      const pwDate = new Date(targetDate);
+      pwDate.setDate(targetDate.getDate() - 7);
+      const pwKey = formatForecastDate(pwDate);
+      const pwEntry = locData.find(d => d.date === pwKey);
+      const pwSales = pwEntry?.sales || null;
+      const pwWeather = forecastData.find(d => d.location === locationName && d.date === pwKey);
+      const pwTemp = pwWeather?.highTemp;
+      const pwConditions = pwWeather?.conditions || '';
+
+      // Temp comparison vs prior week
+      let tempDelta = null;
+      let tempCompare = 'same';
+      if (highTemp !== null && pwTemp !== null) {
+        tempDelta = highTemp - pwTemp;
+        if (tempDelta >= 3) tempCompare = 'warmer';
+        else if (tempDelta <= -3) tempCompare = 'cooler';
+      }
+
+      // Condition change
+      let conditionChange = '';
+      if (pwConditions && conditions && pwConditions !== conditions) {
+        const shortCond = (c) => {
+          if (c.toLowerCase().includes('rain')) return 'Rain';
+          if (c.toLowerCase().includes('overcast')) return 'Overcast';
+          if (c.toLowerCase().includes('partly')) return 'Ptly Cloudy';
+          if (c.toLowerCase().includes('clear') || c.toLowerCase().includes('sunny')) return 'Clear';
+          if (c.toLowerCase().includes('cloud')) return 'Cloudy';
+          return c.split(',')[0].substring(0, 12);
+        };
+        const from = shortCond(pwConditions);
+        const to = shortCond(conditions);
+        if (from !== to) conditionChange = `${from} → ${to}`;
+      }
+
+      // Holiday detection
+      const month = targetDate.getMonth() + 1;
+      const date = targetDate.getDate();
+      let holiday = null;
+      if (month === 2 && date === 14) holiday = "Valentine's Day";
+      if (month === 7 && date === 4) holiday = "4th of July";
+      if (month === 12 && date === 25) holiday = "Christmas";
+      if (month === 12 && date === 24) holiday = "Christmas Eve";
+      if (month === 10 && date === 31) holiday = "Halloween";
+
+      const isToday = targetKey === formatForecastDate(new Date());
+      const isPast = targetDate < new Date() && !isToday;
+
+      result.push({
+        dayLabel: `${dayNames[i]} ${targetDate.getMonth() + 1}/${targetDate.getDate()}`,
+        date: targetKey,
+        forecast: Math.round(forecast),
+        actual: actualSales ? Math.round(actualSales) : null,
+        highTemp, conditions,
+        weightedAvg: Math.round(weightedAvg),
+        yoyGrowth: Math.round(yoyGrowth * 100),
+        weatherAdj: Math.round(weatherAdj * 100),
+        confidence,
+        pwSales: pwSales ? Math.round(pwSales) : null,
+        pwTemp, pwConditions,
+        pySales: pySales ? Math.round(pySales) : null,
+        pyWeather: pyWeather, pyConditions,
+        tempDelta, tempCompare, conditionChange,
+        holiday, isToday, isPast
+      });
+    }
+    return result;
+  };
+
   const toggleLogbookExpanded = (id) => {
     setExpandedLogbookIds(prev => {
       const newSet = new Set(prev);
@@ -1470,6 +1650,12 @@ export default function Home() {
     applyPaidOutsFilters();
   }, [paidOuts, paidOutsFilters, dashboardAccess]);
 
+  useEffect(() => {
+    if (activeTab === 'forecast' && forecastData.length === 0 && !forecastLoading) {
+      loadForecastData();
+    }
+  }, [activeTab]);
+
   if (status === "loading" || accessLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -1538,6 +1724,7 @@ export default function Home() {
                   <option value="logbook">Logbook</option>
                   <option value="paid-outs">Paid Outs</option>
                   <option value="scheduled-today">Scheduled Today</option>
+                  <option value="forecast">Forecasting</option>
                   <option value="pl">Profit & Loss</option>
                 </select>
                 
@@ -1565,6 +1752,8 @@ export default function Home() {
                       loadLogbookEntries();
                     } else if (activeTab === 'paid-outs') {
                       loadPaidOuts();
+                    } else if (activeTab === 'forecast') {
+                      loadForecastData();
                     }
                   }}
                   className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -1648,6 +1837,7 @@ export default function Home() {
                 <option value="logbook">Logbook</option>
                 <option value="paid-outs">Paid Outs</option>
                 <option value="scheduled-today">Scheduled Today</option>
+                <option value="forecast">Forecasting</option>
                 <option value="pl">Profit & Loss</option>
               </select>
               
@@ -1675,6 +1865,8 @@ export default function Home() {
                     loadLogbookEntries();
                   } else if (activeTab === 'paid-outs') {
                     loadPaidOuts();
+                  } else if (activeTab === 'forecast') {
+                    loadForecastData();
                   }
                 }}
                 className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -1798,7 +1990,6 @@ export default function Home() {
                               const isExpanded = expandedLogbookIds.has(entry.id);
                               const summary = entry.summary || generateSummary(entry.comment);
                               const driveTime = extractDriveTime(entry.comment) || extractDriveTime(summary);
-                              const mood = extractMood(entry.comment) || extractMood(summary);
                               
                               return (
                                 <div 
@@ -1813,11 +2004,6 @@ export default function Home() {
                                         {driveTime && (
                                           <span className="bg-slate-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">
                                             Drive Time {driveTime}
-                                          </span>
-                                        )}
-                                        {mood && (
-                                          <span className={`${getMoodColor(mood)} text-white text-[10px] px-1.5 py-0.5 rounded font-semibold`}>
-                                            {mood}
                                           </span>
                                         )}
                                       </div>
@@ -1851,19 +2037,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Legend */}
-              <div className="mt-4 bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
-                <p className="text-xs text-slate-400 mb-2 font-semibold">Shift Status:</p>
-                <div className="flex flex-wrap gap-2">
-                  <span className="bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Great</span>
-                  <span className="bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Good</span>
-                  <span className="bg-slate-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Normal</span>
-                  <span className="bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Slow</span>
-                  <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Busy</span>
-                  <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Tough</span>
-                  <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Hectic</span>
-                </div>
-              </div>
             </>
           )}
 
@@ -3179,6 +3352,284 @@ export default function Home() {
               )}
             </>
           )}
+
+          {/* ===== FORECASTING TAB ===== */}
+          {activeTab === 'forecast' && (
+            <>
+              {/* Filters Bar */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h2 className="text-base font-bold text-white flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-green-400" />
+                      Sales Forecasting
+                    </h2>
+                    <p className="text-xs text-slate-400">Predicted sales with weather & historical context</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex bg-slate-700 rounded-lg overflow-hidden">
+                    {[
+                      { val: -1, label: 'Last Week' },
+                      { val: 0, label: 'This Week' },
+                      { val: 1, label: 'Next Week' }
+                    ].map(w => (
+                      <button
+                        key={w.val}
+                        onClick={() => setForecastWeekOffset(w.val)}
+                        className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                          forecastWeekOffset === w.val ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-600'
+                        }`}
+                      >
+                        {w.label}
+                      </button>
+                    ))}
+                  </div>
+                  <select
+                    value={forecastMarketFilter}
+                    onChange={(e) => setForecastMarketFilter(e.target.value)}
+                    className="px-3 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white"
+                  >
+                    <option value="all">All Markets</option>
+                    <option value="Tulsa">Tulsa</option>
+                    <option value="Oklahoma City">Oklahoma City</option>
+                    <option value="Dallas">Dallas</option>
+                    <option value="Orlando">Orlando</option>
+                  </select>
+                </div>
+                <div className="text-xs text-slate-500 mt-1.5">
+                  {(() => {
+                    const mon = getWeekMonday(forecastWeekOffset);
+                    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+                    const label = forecastWeekOffset === -1 ? 'Last Week' : forecastWeekOffset === 0 ? 'This Week' : 'Next Week';
+                    return `${label}: Mon ${mon.getMonth()+1}/${mon.getDate()} – Sun ${sun.getMonth()+1}/${sun.getDate()}`;
+                  })()}
+                </div>
+              </div>
+
+              {/* Accuracy Scorecard (show for past weeks) */}
+              {forecastWeekOffset <= 0 && !forecastLoading && forecastData.length > 0 && (() => {
+                const allLocs = [...new Set(forecastData.map(d => d.location))].sort();
+                const filteredLocs = forecastMarketFilter === 'all' ? allLocs : allLocs.filter(l => getMarket(l) === forecastMarketFilter);
+                
+                // Filter by user access
+                const accessLocs = isAdmin ? filteredLocs : 
+                  dashboardAccess?.type === 'specific' ? filteredLocs.filter(l => dashboardAccess.locations?.includes(l)) :
+                  dashboardAccess?.type === 'all' ? filteredLocs : [];
+
+                const scorecards = accessLocs.map(loc => {
+                  const days = computeForecastForLocation(loc, forecastWeekOffset);
+                  const daysWithBoth = days.filter(d => d.forecast > 0 && d.actual !== null && d.actual > 0);
+                  if (daysWithBoth.length === 0) return null;
+                  const totalForecast = daysWithBoth.reduce((s, d) => s + d.forecast, 0);
+                  const totalActual = daysWithBoth.reduce((s, d) => s + d.actual, 0);
+                  const accuracy = totalActual > 0 ? (1 - Math.abs(totalForecast - totalActual) / totalActual) * 100 : 0;
+                  return { location: loc, forecast: totalForecast, actual: totalActual, accuracy: Math.round(accuracy * 10) / 10 };
+                }).filter(Boolean);
+
+                if (scorecards.length === 0) return null;
+
+                return (
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg mb-3 overflow-hidden shadow-lg">
+                    <div className="px-4 py-2.5 border-b border-slate-700">
+                      <div className="text-sm font-semibold text-white">Last Week's Accuracy</div>
+                      <div className="text-xs text-slate-400">
+                        {(() => {
+                          const mon = getWeekMonday(forecastWeekOffset);
+                          const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+                          return `Mon ${mon.getMonth()+1}/${mon.getDate()} – Sun ${sun.getMonth()+1}/${sun.getDate()} · Forecast vs Actual`;
+                        })()}
+                      </div>
+                    </div>
+                    <div className="p-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                        {scorecards.map(sc => (
+                          <div key={sc.location} className="bg-slate-900 border border-slate-700 rounded-md p-2.5">
+                            <div className="text-xs font-semibold text-slate-300 mb-1">{sc.location}</div>
+                            <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
+                              <span>Forecast</span>
+                              <span className="text-slate-300 font-medium">${sc.forecast.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
+                              <span>Actual</span>
+                              <span className="text-slate-300 font-medium">${sc.actual.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                              <span>Accuracy</span>
+                              <span className={`font-bold text-sm ${sc.accuracy >= 96 ? 'text-green-400' : sc.accuracy >= 92 ? 'text-yellow-400' : 'text-orange-400'}`}>
+                                {sc.accuracy}%
+                              </span>
+                            </div>
+                            <div className="h-1 bg-slate-700 rounded overflow-hidden">
+                              <div
+                                className={`h-full rounded ${sc.accuracy >= 96 ? 'bg-green-400' : sc.accuracy >= 92 ? 'bg-yellow-400' : 'bg-orange-400'}`}
+                                style={{ width: `${Math.min(sc.accuracy, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Loading */}
+              {forecastLoading && (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                  <RefreshCw className="w-6 h-6 text-blue-400 animate-spin mx-auto mb-2" />
+                  <p className="text-slate-400 text-sm">Loading forecast data...</p>
+                </div>
+              )}
+
+              {/* Location Cards */}
+              {!forecastLoading && forecastData.length > 0 && (() => {
+                const allLocs = [...new Set(forecastData.map(d => d.location))].sort();
+                const filteredLocs = forecastMarketFilter === 'all' ? allLocs : allLocs.filter(l => getMarket(l) === forecastMarketFilter);
+                
+                const accessLocs = isAdmin ? filteredLocs : 
+                  dashboardAccess?.type === 'specific' ? filteredLocs.filter(l => dashboardAccess.locations?.includes(l)) :
+                  dashboardAccess?.type === 'all' ? filteredLocs : [];
+
+                if (accessLocs.length === 0) return <div className="text-center text-slate-400 py-8 text-sm">No locations available</div>;
+
+                return accessLocs.map(loc => {
+                  const days = computeForecastForLocation(loc, forecastWeekOffset);
+                  if (days.length === 0) return null;
+
+                  const totalForecast = days.reduce((s, d) => s + d.forecast, 0);
+                  const totalActual = days.filter(d => d.actual !== null).reduce((s, d) => s + d.actual, 0);
+                  const totalAvg = days.reduce((s, d) => s + d.weightedAvg, 0);
+                  const totalPW = days.filter(d => d.pwSales !== null).reduce((s, d) => s + d.pwSales, 0);
+                  const totalPY = days.filter(d => d.pySales !== null).reduce((s, d) => s + d.pySales, 0);
+
+                  return (
+                    <div key={loc} className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden mb-3 shadow-lg">
+                      <div className="px-4 py-2 border-b border-slate-700 flex items-center justify-between">
+                        <span className="font-bold text-sm text-white">{loc}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-slate-300">{getMarket(loc)}</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs whitespace-nowrap" style={{ fontSize: '0.78rem' }}>
+                          <thead>
+                            <tr className="text-slate-400 uppercase" style={{ fontSize: '0.68rem' }}>
+                              <th className="text-left pl-3 py-1.5 font-semibold">Day</th>
+                              <th className="text-right px-1.5 py-1.5 font-semibold">
+                                Forecast
+                                <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-slate-700 text-slate-400 text-[9px] font-bold ml-1 cursor-help relative group">
+                                  ℹ
+                                  <span className="hidden group-hover:block absolute top-5 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-600 rounded-md p-2 w-56 text-[10px] text-slate-300 font-normal normal-case tracking-normal z-50 shadow-xl whitespace-normal leading-relaxed">
+                                    Forecast = Weighted 4-Wk Avg × YoY Growth × Weather Factor<br/><br/>
+                                    • Weighted avg: 40/30/20/10<br/>
+                                    • 🟢 High · 🟡 Med · 🟠 Low confidence<br/><br/>
+                                    Hover forecast values for details.
+                                  </span>
+                                </span>
+                              </th>
+                              <th className="text-right px-1.5 py-1.5 font-semibold">Weather</th>
+                              <th className="text-right px-1.5 py-1.5 font-semibold">vs Prior Wk</th>
+                              <th className="text-right px-1.5 py-1.5 font-semibold">4-Wk Avg</th>
+                              <th className="text-right pl-1.5 pr-1 py-1.5 font-semibold border-l border-slate-600">PW Sales</th>
+                              <th className="text-right px-1 py-1.5 font-semibold">PW Wthr</th>
+                              <th className="text-right pl-1.5 pr-1 py-1.5 font-semibold border-l border-slate-600">PY Sales</th>
+                              <th className="text-right px-1 pr-1.5 py-1.5 font-semibold border-r border-slate-600">PY Wthr</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {days.map((day, idx) => (
+                              <tr key={idx} className={`border-b border-slate-700/40 ${day.isToday ? 'bg-blue-900/10' : ''}`}>
+                                <td className="text-left pl-3 py-1.5">
+                                  <span className="font-medium text-slate-200">{day.dayLabel}</span>
+                                  {day.holiday && (
+                                    <span className="ml-1.5 text-[9px] font-semibold bg-purple-600 text-white px-1.5 py-px rounded align-middle">
+                                      {day.holiday}
+                                    </span>
+                                  )}
+                                  {day.confidence === 'low' && <span className="ml-1 text-[11px] align-middle">⚠️</span>}
+                                </td>
+                                <td className="text-right px-1.5 py-1.5">
+                                  <div className="relative inline-block group cursor-default">
+                                    <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle ${
+                                      day.confidence === 'high' ? 'bg-green-400' : day.confidence === 'med' ? 'bg-yellow-400' : 'bg-orange-400'
+                                    }`} />
+                                    <span className="font-bold text-white">${day.forecast.toLocaleString()}</span>
+                                    {/* Hover tooltip */}
+                                    <div className="hidden group-hover:block absolute top-full right-0 mt-1.5 bg-slate-900 border border-slate-600 rounded-md p-2 min-w-[170px] z-50 shadow-xl whitespace-normal">
+                                      <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Base (Wtd Avg)</span><span className="text-slate-300 font-semibold">${day.weightedAvg.toLocaleString()}</span></div>
+                                      <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">YoY Growth</span><span className={`font-semibold ${day.yoyGrowth > 0 ? 'text-orange-400' : day.yoyGrowth < 0 ? 'text-blue-400' : 'text-slate-300'}`}>{day.yoyGrowth > 0 ? '+' : ''}{day.yoyGrowth}%</span></div>
+                                      <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Weather Adj</span><span className={`font-semibold ${day.weatherAdj > 0 ? 'text-orange-400' : day.weatherAdj < 0 ? 'text-blue-400' : 'text-slate-300'}`}>{day.weatherAdj > 0 ? '+' : ''}{day.weatherAdj}%</span></div>
+                                      <div className="border-t border-slate-700 my-1" />
+                                      <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Forecast</span><span className="text-slate-300 font-semibold">${day.forecast.toLocaleString()}</span></div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="text-right px-1.5 py-1.5">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <span>{getWeatherEmoji(day.conditions)}</span>
+                                    <span className="font-semibold text-white">{day.highTemp !== null ? `${Math.round(day.highTemp)}°` : '—'}</span>
+                                  </div>
+                                </td>
+                                <td className="text-right px-1.5 py-1.5">
+                                  <div className="flex flex-col items-end gap-px">
+                                    {day.tempDelta !== null ? (
+                                      <span className={`font-semibold ${day.tempCompare === 'warmer' ? 'text-orange-400' : day.tempCompare === 'cooler' ? 'text-sky-400' : 'text-slate-400'}`}>
+                                        {day.tempCompare === 'warmer' ? `${Math.abs(Math.round(day.tempDelta))}° warmer` : day.tempCompare === 'cooler' ? `${Math.abs(Math.round(day.tempDelta))}° cooler` : 'Similar'}
+                                      </span>
+                                    ) : <span className="text-slate-500">—</span>}
+                                    {day.conditionChange && <span className="text-purple-400 font-medium" style={{ fontSize: '0.62rem' }}>{day.conditionChange}</span>}
+                                  </div>
+                                </td>
+                                <td className="text-right px-1.5 py-1.5 font-semibold text-white">${day.weightedAvg.toLocaleString()}</td>
+                                <td className="text-right pl-1.5 pr-1 py-1.5 text-slate-400 border-l border-slate-600">{day.pwSales !== null ? `$${day.pwSales.toLocaleString()}` : <span className="text-slate-600">—</span>}</td>
+                                <td className="text-right px-1 py-1.5">
+                                  {day.pwTemp !== null ? (
+                                    <div className="flex items-center justify-end gap-px">
+                                      <span style={{ fontSize: '0.78rem' }}>{getWeatherEmoji(day.pwConditions)}</span>
+                                      <span className="text-slate-500 font-medium">{Math.round(day.pwTemp)}°</span>
+                                    </div>
+                                  ) : <span className="text-slate-600">—</span>}
+                                </td>
+                                <td className="text-right pl-1.5 pr-1 py-1.5 text-slate-400 border-l border-slate-600">{day.pySales !== null ? `$${day.pySales.toLocaleString()}` : <span className="text-slate-600">—</span>}</td>
+                                <td className="text-right px-1 pr-1.5 py-1.5 border-r border-slate-600">
+                                  {day.pyWeather ? (
+                                    <div className="flex items-center justify-end gap-px">
+                                      <span style={{ fontSize: '0.78rem' }}>{getWeatherEmoji(day.pyConditions)}</span>
+                                      <span className="text-slate-500 font-medium">{day.pyWeather ? `${Math.round(day.pyWeather)}°` : ''}</span>
+                                    </div>
+                                  ) : <span className="text-slate-600">—</span>}
+                                </td>
+                              </tr>
+                            ))}
+                            {/* Total row */}
+                            <tr className="bg-slate-900/50">
+                              <td className="text-left pl-3 py-2 font-bold text-slate-300 border-t border-slate-600">Total</td>
+                              <td className="text-right px-1.5 py-2 font-bold text-white border-t border-slate-600">${totalForecast.toLocaleString()}</td>
+                              <td className="border-t border-slate-600" />
+                              <td className="border-t border-slate-600" />
+                              <td className="text-right px-1.5 py-2 font-bold text-white border-t border-slate-600">${totalAvg.toLocaleString()}</td>
+                              <td className="text-right pl-1.5 pr-1 py-2 text-slate-400 font-bold border-t border-slate-600 border-l border-slate-600">{totalPW > 0 ? `$${totalPW.toLocaleString()}` : ''}</td>
+                              <td className="border-t border-slate-600" />
+                              <td className="text-right pl-1.5 pr-1 py-2 text-slate-400 font-bold border-t border-slate-600 border-l border-slate-600">{totalPY > 0 ? `$${totalPY.toLocaleString()}` : ''}</td>
+                              <td className="border-t border-slate-600 border-r border-slate-600" />
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+
+              {!forecastLoading && forecastData.length === 0 && (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                  <TrendingUp className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="text-slate-400 text-sm">No forecast data available</p>
+                  <p className="text-slate-500 text-xs mt-1">Make sure the Forecast Data sheet has been populated</p>
+                </div>
+              )}
+            </>
+          )}
+
           </SwipeNavigation>
         </div>
 
