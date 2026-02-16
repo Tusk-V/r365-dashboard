@@ -3682,7 +3682,7 @@ loadModelCoefficients();
                           <td className={`text-right px-1 py-1.5 font-bold ${loc.avgAccuracy >= 95 ? 'text-green-400' : loc.avgAccuracy >= 90 ? 'text-yellow-400' : 'text-orange-400'}`}>{loc.avgAccuracy}%</td>
                           <td className={`text-right px-1 py-1.5 font-bold ${loc.avgR365 !== null ? (loc.avgR365 >= 95 ? 'text-green-400' : loc.avgR365 >= 90 ? 'text-yellow-400' : 'text-orange-400') : 'text-slate-600'}`}>{loc.avgR365 !== null ? `${loc.avgR365}%` : '--'}</td>
                           <td className="text-right pr-3 py-1.5">
-                            {loc.trend === 'improving' ? <span className="text-green-400">↑</span> : loc.trend === 'declining' ? <span className="text-red-400">↓</span> : <span className="text-slate-500">-></span>}
+                            {loc.trend === 'improving' ? <span className="text-green-400">↑</span> : loc.trend === 'declining' ? <span className="text-red-400">↓</span> : <span className="text-slate-500">&rarr;</span>}
                           </td>
                         </tr>
                       ))}
