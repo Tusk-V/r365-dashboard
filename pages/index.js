@@ -62,7 +62,7 @@ market: 'all'
 const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
 const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
 const [isLoading, setIsLoading] = useState(false);
-const [reportDate, setReportDate] = useState('Loading…');
+const [reportDate, setReportDate] = useState('Loading...');
 const [error, setError] = useState(null);
 
 const [clockouts, setClockouts] = useState([]);
@@ -245,7 +245,7 @@ let cleaned = comment.replace(/^(Sales:.*?\n|DT:.*?\n|Drive Time:.*?\n)/gim, '')
 const sentences = cleaned.split(/[.!?]+/).filter(s => s.trim().length > 0);
 let summary = sentences.slice(0, 2).join('. ').trim();
 if (summary.length > 150) {
-summary = summary.substring(0, 147) + '…';
+summary = summary.substring(0, 147) + '...';
 }
 return summary || cleaned.substring(0, 150);
 };
@@ -641,7 +641,7 @@ try {
 };
 
 const applyCallOffFilters = () => {
-let filtered = […callOffs];
+let filtered = [...callOffs];
 
 // Apply access control first
 if (!isAdmin && dashboardAccess?.type === 'specific') {
@@ -697,7 +697,7 @@ try {
 };
 
 const applyOvertimeFilters = () => {
-let filtered = […overtimeWarnings];
+let filtered = [...overtimeWarnings];
 
 // Apply access control
 if (!isAdmin && dashboardAccess?.type === 'specific') {
@@ -887,7 +887,7 @@ try {
 };
 
 const applyLogbookFilters = () => {
-let filtered = […logbookEntries];
+let filtered = [...logbookEntries];
 
 if (!isAdmin && dashboardAccess?.type === 'specific') {
   filtered = filtered.filter(e => dashboardAccess.locations?.includes(e.location));
@@ -953,7 +953,7 @@ try {
 };
 
 const applyPaidOutsFilters = () => {
-let filtered = […paidOuts];
+let filtered = [...paidOuts];
 
 if (!isAdmin && dashboardAccess?.type === 'specific') {
   filtered = filtered.filter(e => dashboardAccess.locations?.includes(e.location));
@@ -1101,7 +1101,7 @@ return monday;
 const formatForecastDate = (d) => `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
 
 const getWeatherEmoji = (conditions) => {
-if (!conditions) return '—';
+if (!conditions) return '--';
 const c = conditions.toLowerCase();
 if (c.includes('rain') || c.includes('storm') || c.includes('drizzle') || c.includes('thunder')) return '🌧️';
 if (c.includes('snow') || c.includes('sleet') || c.includes('ice') || c.includes('freezing')) return '🌨️';
@@ -1219,7 +1219,7 @@ const actualSales = actualEntry?.sales || null;
       return c.split(',')[0].substring(0, 12);
     };
     const from = shortCond(pwConditions); const to = shortCond(conditions);
-    if (from !== to) conditionChange = `${from} → ${to}`;
+    if (from !== to) conditionChange = `${from} -> ${to}`;
   }
 
   const month = targetDate.getMonth() + 1; const date = targetDate.getDate();
@@ -1417,7 +1417,7 @@ return employeeTitles[name.toLowerCase()] || null;
 };
 
 const applyScheduledFilters = () => {
-let filtered = […scheduledToday];
+let filtered = [...scheduledToday];
 
 // Apply access control first
 if (!isAdmin && dashboardAccess?.type === 'specific') {
@@ -1439,7 +1439,7 @@ setFilteredScheduled(filtered);
 };
 
 const applyClockoutFilters = () => {
-let filtered = […clockouts];
+let filtered = [...clockouts];
 
 // Apply access control first
 if (!isAdmin && dashboardAccess?.type === 'specific') {
@@ -1461,7 +1461,7 @@ setFilteredClockouts(filtered);
 };
 
 const getUniqueLocations = () => {
-return […new Set(clockouts.map(c => c.location))].sort();
+return [...new Set(clockouts.map(c => c.location))].sort();
 };
 
 // Helper function to get the date range from actual data
@@ -1524,7 +1524,7 @@ return employees;
 };
 
 const applyFilters = () => {
-let filtered = […locations];
+let filtered = [...locations];
 
 // Apply access control first
 if (!isAdmin && dashboardAccess?.type === 'specific') {
@@ -1584,15 +1584,15 @@ setFilteredDailyFlash(filtered);
 const handleLocationToggle = (location) => {
 const newLocations = filters.locations.includes(location)
 ? filters.locations.filter(l => l !== location)
-: […filters.locations, location];
-setFilters({…filters, locations: newLocations});
+: [...filters.locations, location];
+setFilters({...filters, locations: newLocations});
 };
 
 const handleDailyFlashLocationToggle = (location) => {
 const newLocations = dailyFlashFilters.locations.includes(location)
 ? dailyFlashFilters.locations.filter(l => l !== location)
-: […dailyFlashFilters.locations, location];
-setDailyFlashFilters({…dailyFlashFilters, locations: newLocations});
+: [...dailyFlashFilters.locations, location];
+setDailyFlashFilters({...dailyFlashFilters, locations: newLocations});
 };
 
 const applyDailyLaborFilters = () => {
@@ -1622,8 +1622,8 @@ setFilteredDailyLabor(filtered);
 const handleDailyLaborLocationToggle = (location) => {
 const newLocations = dailyLaborFilters.locations.includes(location)
 ? dailyLaborFilters.locations.filter(l => l !== location)
-: […dailyLaborFilters.locations, location];
-setDailyLaborFilters({…dailyLaborFilters, locations: newLocations});
+: [...dailyLaborFilters.locations, location];
+setDailyLaborFilters({...dailyLaborFilters, locations: newLocations});
 };
 
 const calculateTotals = () => {
@@ -1829,7 +1829,7 @@ loadModelCoefficients();
 if (status === "loading" || accessLoading) {
 return (
 <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-<div className="text-white text-lg">Loading…</div>
+<div className="text-white text-lg">Loading...</div>
 </div>
 )
 }
@@ -1842,7 +1842,7 @@ return null
 if (!isAdmin && (!dashboardAccess || dashboardAccess.type === 'none')) {
 return (
 <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-<div className="text-white text-lg">Checking access…</div>
+<div className="text-white text-lg">Checking access...</div>
 </div>
 );
 }
@@ -1866,7 +1866,7 @@ className="h-16"
 />
 <div>
 <h1 className="text-2xl font-bold text-white mb-1">R365 Dashboards</h1>
-{activeTab === 'sales' && reportDate && reportDate !== 'Loading…' && !reportDate.includes('.') && (
+{activeTab === 'sales' && reportDate && reportDate !== 'Loading...' && !reportDate.includes('.') && (
 <p className="text-sm text-slate-400">Week Ending: {reportDate}</p>
 )}
 </div>
@@ -3577,7 +3577,7 @@ loadModelCoefficients();
             <div className="text-xs text-slate-500 mt-1.5">
               {(() => { const mon = getWeekMonday(forecastWeekOffset); const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
                 const label = forecastWeekOffset === -1 ? 'Last Week' : forecastWeekOffset === 0 ? 'This Week' : 'Next Week';
-                return `${label}: Mon ${mon.getMonth()+1}/${mon.getDate()} – Sun ${sun.getMonth()+1}/${sun.getDate()}`; })()}
+                return `${label}: Mon ${mon.getMonth()+1}/${mon.getDate()} - Sun ${sun.getMonth()+1}/${sun.getDate()}`; })()}
             </div>
           </div>
 
@@ -3631,7 +3631,7 @@ loadModelCoefficients();
                   <div className="flex items-center gap-2">
                     <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${forecastAccuracyExpanded ? '' : '-rotate-90'}`} />
                     <div>
-                      <div className="text-sm font-semibold text-white">Forecast Accuracy — Rolling 4 Weeks</div>
+                      <div className="text-sm font-semibold text-white">Forecast Accuracy -- Rolling 4 Weeks</div>
                       <div className="text-xs text-slate-400">Model vs R365 accuracy comparison{modelCoefficients?.version ? ` · Coefficients v${modelCoefficients.version}` : ''}{modelCoefficients?.last_tuned ? ` (tuned ${modelCoefficients.last_tuned})` : ''}</div>
                     </div>
                   </div>
@@ -3676,13 +3676,13 @@ loadModelCoefficients();
                           {loc.weeks.map((w, i) => (
                             <React.Fragment key={i}>
                               <td className={`text-right px-1 py-1.5 font-semibold ${w.accuracy >= 96 ? 'text-green-400' : w.accuracy >= 92 ? 'text-yellow-400' : w.accuracy >= 85 ? 'text-orange-400' : 'text-red-400'}`}>{w.accuracy}%</td>
-                              <td className={`text-right px-1 py-1.5 ${w.r365Accuracy !== null ? (w.r365Accuracy >= 96 ? 'text-green-400' : w.r365Accuracy >= 92 ? 'text-yellow-400' : w.r365Accuracy >= 85 ? 'text-orange-400' : 'text-red-400') : 'text-slate-600'}`}>{w.r365Accuracy !== null ? `${w.r365Accuracy}%` : '—'}</td>
+                              <td className={`text-right px-1 py-1.5 ${w.r365Accuracy !== null ? (w.r365Accuracy >= 96 ? 'text-green-400' : w.r365Accuracy >= 92 ? 'text-yellow-400' : w.r365Accuracy >= 85 ? 'text-orange-400' : 'text-red-400') : 'text-slate-600'}`}>{w.r365Accuracy !== null ? `${w.r365Accuracy}%` : '--'}</td>
                             </React.Fragment>
                           ))}
                           <td className={`text-right px-1 py-1.5 font-bold ${loc.avgAccuracy >= 95 ? 'text-green-400' : loc.avgAccuracy >= 90 ? 'text-yellow-400' : 'text-orange-400'}`}>{loc.avgAccuracy}%</td>
-                          <td className={`text-right px-1 py-1.5 font-bold ${loc.avgR365 !== null ? (loc.avgR365 >= 95 ? 'text-green-400' : loc.avgR365 >= 90 ? 'text-yellow-400' : 'text-orange-400') : 'text-slate-600'}`}>{loc.avgR365 !== null ? `${loc.avgR365}%` : '—'}</td>
+                          <td className={`text-right px-1 py-1.5 font-bold ${loc.avgR365 !== null ? (loc.avgR365 >= 95 ? 'text-green-400' : loc.avgR365 >= 90 ? 'text-yellow-400' : 'text-orange-400') : 'text-slate-600'}`}>{loc.avgR365 !== null ? `${loc.avgR365}%` : '--'}</td>
                           <td className="text-right pr-3 py-1.5">
-                            {loc.trend === 'improving' ? <span className="text-green-400">↑</span> : loc.trend === 'declining' ? <span className="text-red-400">↓</span> : <span className="text-slate-500">→</span>}
+                            {loc.trend === 'improving' ? <span className="text-green-400">↑</span> : loc.trend === 'declining' ? <span className="text-red-400">↓</span> : <span className="text-slate-500">-></span>}
                           </td>
                         </tr>
                       ))}
@@ -3756,7 +3756,7 @@ loadModelCoefficients();
                                   <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Method</span><span className="text-slate-300 font-semibold">{day.forecastMethod === 'pw' ? 'Prior Week' : day.forecastMethod === 'blend' ? 'PW+Avg Blend' : '4-Wk Avg'}</span></div>
                                   {day.modelForecast !== null && <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Source</span><span className="text-emerald-400 font-semibold">Stored Prediction</span></div>}
                                   {day.modelCoeffVer && <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Coeff v{day.modelCoeffVer}</span><span className="text-slate-500">{day.modelGenAt || ''}</span></div>}
-                                  {day.pwOutlier && <div className="text-[9px] text-amber-400 py-px">⚠ PW was &gt;30% off avg — blended 60/40</div>}
+                                  {day.pwOutlier && <div className="text-[9px] text-amber-400 py-px">⚠ PW was &gt;30% off avg -- blended 60/40</div>}
                                   <div className="flex justify-between text-[10px] py-px"><span className="text-slate-400">Weather Adj</span><span className={`font-semibold ${day.weatherAdj > 0 ? 'text-orange-400' : day.weatherAdj < 0 ? 'text-blue-400' : 'text-slate-300'}`}>{day.weatherAdj > 0 ? '+' : ''}{day.weatherAdj}%</span></div>
                                 </div>
                               </div>
@@ -3764,7 +3764,7 @@ loadModelCoefficients();
                             <td className="text-right px-1.5 py-1.5">
                               {day.r365Forecast !== null ? (
                                 <span className="font-semibold text-cyan-300">${day.r365Forecast.toLocaleString()}</span>
-                              ) : <span className="text-slate-600">—</span>}
+                              ) : <span className="text-slate-600">--</span>}
                             </td>
                             {forecastWeekOffset <= 0 && (
                               <td className="text-right px-1.5 py-1.5">
@@ -3784,41 +3784,41 @@ loadModelCoefficients();
                                       )}
                                     </div>
                                   </div>
-                                ) : <span className="text-slate-600">—</span>}
+                                ) : <span className="text-slate-600">--</span>}
                               </td>
                             )}
                             <td className="text-right px-1.5 py-1.5">
                               <div className="flex items-center justify-end gap-1">
                                 <span>{getWeatherEmoji(day.conditions)}</span>
-                                <span className="font-semibold text-white">{day.highTemp !== null ? `${Math.round(day.highTemp)}°` : '—'}</span>
+                                <span className="font-semibold text-white">{day.highTemp !== null ? `${Math.round(day.highTemp)} degrees ` : '--'}</span>
                               </div>
                             </td>
                             <td className="text-right px-1.5 py-1.5">
                               {day.tempDelta !== null ? (
                                 <span className={`font-semibold ${day.tempCompare === 'warmer' ? 'text-orange-400' : day.tempCompare === 'cooler' ? 'text-sky-400' : 'text-slate-400'}`}>
-                                  {day.tempCompare === 'warmer' ? `${Math.abs(Math.round(day.tempDelta))}° warmer` : day.tempCompare === 'cooler' ? `${Math.abs(Math.round(day.tempDelta))}° cooler` : 'Similar'}
+                                  {day.tempCompare === 'warmer' ? `${Math.abs(Math.round(day.tempDelta))} degrees  warmer` : day.tempCompare === 'cooler' ? `${Math.abs(Math.round(day.tempDelta))} degrees  cooler` : 'Similar'}
                                 </span>
-                              ) : <span className="text-slate-500">—</span>}
+                              ) : <span className="text-slate-500">--</span>}
                               {day.conditionChange && <div className="text-purple-400 font-medium" style={{ fontSize: '0.62rem' }}>{day.conditionChange}</div>}
                             </td>
                             <td className="text-right px-1.5 py-1.5 font-semibold text-white">${day.weightedAvg.toLocaleString()}</td>
-                            <td className="text-right pl-1.5 pr-1 py-1.5 text-slate-400 border-l border-slate-600">{day.pwSales !== null ? `$${day.pwSales.toLocaleString()}` : <span className="text-slate-600">—</span>}</td>
+                            <td className="text-right pl-1.5 pr-1 py-1.5 text-slate-400 border-l border-slate-600">{day.pwSales !== null ? `$${day.pwSales.toLocaleString()}` : <span className="text-slate-600">--</span>}</td>
                             <td className="text-right px-1 py-1.5">
                               {day.pwTemp !== null ? (
                                 <div className="flex items-center justify-end gap-px">
                                   <span style={{ fontSize: '0.78rem' }}>{getWeatherEmoji(day.pwConditions)}</span>
-                                  <span className="text-slate-500 font-medium">{Math.round(day.pwTemp)}°</span>
+                                  <span className="text-slate-500 font-medium">{Math.round(day.pwTemp)} degrees </span>
                                 </div>
-                              ) : <span className="text-slate-600">—</span>}
+                              ) : <span className="text-slate-600">--</span>}
                             </td>
-                            <td className="text-right pl-1.5 pr-1 py-1.5 text-slate-400 border-l border-slate-600">{day.pySales !== null ? `$${day.pySales.toLocaleString()}` : <span className="text-slate-600">—</span>}</td>
+                            <td className="text-right pl-1.5 pr-1 py-1.5 text-slate-400 border-l border-slate-600">{day.pySales !== null ? `$${day.pySales.toLocaleString()}` : <span className="text-slate-600">--</span>}</td>
                             <td className="text-right px-1 pr-1.5 py-1.5 border-r border-slate-600">
                               {day.pyWeather ? (
                                 <div className="flex items-center justify-end gap-px">
                                   <span style={{ fontSize: '0.78rem' }}>{getWeatherEmoji(day.pyConditions)}</span>
-                                  <span className="text-slate-500 font-medium">{day.pyWeather ? `${Math.round(day.pyWeather)}°` : ''}</span>
+                                  <span className="text-slate-500 font-medium">{day.pyWeather ? `${Math.round(day.pyWeather)} degrees ` : ''}</span>
                                 </div>
-                              ) : <span className="text-slate-600">—</span>}
+                              ) : <span className="text-slate-600">--</span>}
                             </td>
                           </tr>
                         ))}
