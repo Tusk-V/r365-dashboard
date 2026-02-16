@@ -1767,11 +1767,11 @@ loadDailyFlash();
 loadDailyLabor();
 loadLogbookEntries();
 loadPaidOuts();
-}
 } else if (activeTab === 'forecast') {
 loadForecastData();
 loadModelForecastData();
 loadModelCoefficients();
+}
 }, [status]);
 
 useEffect(() => {
