@@ -171,13 +171,11 @@ const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
 const dallas = ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'Lake Highlands', 'Hillcrest Village', 'The Colony', 'Prosper', 'Allen'];
 const orlando = ['Sanford', 'Lakeland'];
 
-```
 if (tulsa.includes(locationName)) return 'Tulsa';
 if (okc.includes(locationName)) return 'Oklahoma City';
 if (dallas.includes(locationName)) return 'Dallas';
 if (orlando.includes(locationName)) return 'Orlando';
 return 'Other';
-```
 
 };
 
@@ -294,7 +292,6 @@ return { total, byType };
 const parseSheetData = (rows) => {
 const parsedData = [];
 
-```
 const parseNumber = (value) => {
   if (!value) return 0;
   const cleaned = value.toString().replace(/[$,\s]/g, '');
@@ -364,14 +361,12 @@ for (let i = 0; i < rows.length; i++) {
 }
 
 return parsedData;
-```
 
 };
 
 const parseHistoricalData = (rows) => {
 const parsedData = [];
 
-```
 const parseNumber = (value) => {
   if (!value) return 0;
   const cleaned = value.toString().replace(/[$,\s]/g, '');
@@ -430,7 +425,6 @@ for (let i = 0; i < rows.length; i++) {
 }
 
 return parsedData;
-```
 
 };
 
@@ -438,7 +432,6 @@ const loadDataFromGoogleSheets = async () => {
 setIsLoading(true);
 setError(null);
 
-```
 try {
   const range = `${SHEET_NAME}!A2:Z`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
@@ -472,7 +465,6 @@ try {
 } finally {
   setIsLoading(false);
 }
-```
 
 };
 
@@ -481,7 +473,6 @@ try {
 const range = `Historical Data!A2:A`;
 const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
 
-```
   const response = await fetch(url);
   if (!response.ok) return;
   
@@ -493,7 +484,6 @@ const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/val
 } catch (err) {
   console.error('Error loading available weeks:', err);
 }
-```
 
 };
 
@@ -501,7 +491,6 @@ const loadHistoricalWeek = async (weekDate) => {
 setIsLoading(true);
 setError(null);
 
-```
 try {
   const range = `Historical Data!A2:K`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
@@ -533,7 +522,6 @@ try {
 } finally {
   setIsLoading(false);
 }
-```
 
 };
 
@@ -541,7 +529,6 @@ const loadAutoClockouts = async () => {
 setClockoutsLoading(true);
 setClockoutsError(null);
 
-```
 try {
   const range = `${AUTO_CLOCKOUTS_SHEET}!A2:G`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
@@ -577,14 +564,12 @@ try {
 } finally {
   setClockoutsLoading(false);
 }
-```
 
 };
 
 const adjustTimeForTimezone = (timeString) => {
 if (!timeString || !timeString.includes(' - ')) return timeString;
 
-```
 try {
   const parts = timeString.split(' - ');
   const adjustTime = (timeStr) => {
@@ -613,7 +598,6 @@ try {
 } catch (e) {
   return timeString;
 }
-```
 
 };
 
@@ -621,7 +605,6 @@ const loadCallOffs = async () => {
 setCallOffsLoading(true);
 setCallOffsError(null);
 
-```
 try {
   const range = `${CALL_OFFS_SHEET}!A2:D`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
@@ -654,14 +637,12 @@ try {
 } finally {
   setCallOffsLoading(false);
 }
-```
 
 };
 
 const applyCallOffFilters = () => {
 let filtered = […callOffs];
 
-```
 // Apply access control first
 if (!isAdmin && dashboardAccess?.type === 'specific') {
   filtered = filtered.filter(c => dashboardAccess.locations?.includes(c.location));
@@ -674,7 +655,6 @@ if (callOffLocationFilter !== 'all') {
 }
 
 setFilteredCallOffs(filtered);
-```
 
 };
 
@@ -682,7 +662,6 @@ const loadOvertimeWarnings = async () => {
 setOvertimeLoading(true);
 setOvertimeError(null);
 
-```
 try {
   const range = `${OVERTIME_SHEET}!A2:C`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
@@ -714,14 +693,12 @@ try {
 } finally {
   setOvertimeLoading(false);
 }
-```
 
 };
 
 const applyOvertimeFilters = () => {
 let filtered = […overtimeWarnings];
 
-```
 // Apply access control
 if (!isAdmin && dashboardAccess?.type === 'specific') {
   filtered = filtered.filter(o => dashboardAccess.locations?.includes(o.location));
@@ -730,7 +707,6 @@ if (!isAdmin && dashboardAccess?.type === 'specific') {
 }
 
 setFilteredOvertime(filtered);
-```
 
 };
 
@@ -738,7 +714,6 @@ const loadDailyFlash = async () => {
 setDailyFlashLoading(true);
 setDailyFlashError(null);
 
-```
 try {
   const range = `${FLASH_DAILY_SALES_SHEET}!A2:I`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
@@ -795,7 +770,6 @@ try {
 } finally {
   setDailyFlashLoading(false);
 }
-```
 
 };
 
@@ -803,7 +777,6 @@ const loadDailyLabor = async () => {
 setDailyLaborLoading(true);
 setDailyLaborError(null);
 
-```
 try {
   const range = `${FLASH_DAILY_LABOR_SHEET}!A2:J`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
@@ -866,7 +839,6 @@ try {
 } finally {
   setDailyLaborLoading(false);
 }
-```
 
 };
 
@@ -874,7 +846,6 @@ const loadLogbookEntries = async () => {
 setLogbookLoading(true);
 setLogbookError(null);
 
-```
 try {
   const range = `${LOGBOOK_ENTRIES_SHEET}!A2:F`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
@@ -912,14 +883,12 @@ try {
 } finally {
   setLogbookLoading(false);
 }
-```
 
 };
 
 const applyLogbookFilters = () => {
 let filtered = […logbookEntries];
 
-```
 if (!isAdmin && dashboardAccess?.type === 'specific') {
   filtered = filtered.filter(e => dashboardAccess.locations?.includes(e.location));
 } else if (!isAdmin && dashboardAccess?.type === 'none') {
@@ -935,7 +904,6 @@ if (logbookFilters.market !== 'all') {
 }
 
 setFilteredLogbook(filtered);
-```
 
 };
 
@@ -944,7 +912,6 @@ const loadPaidOuts = async () => {
 setPaidOutsLoading(true);
 setPaidOutsError(null);
 
-```
 try {
   const range = `${PAID_OUTS_SHEET}!A2:F`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
@@ -982,14 +949,12 @@ try {
 } finally {
   setPaidOutsLoading(false);
 }
-```
 
 };
 
 const applyPaidOutsFilters = () => {
 let filtered = […paidOuts];
 
-```
 if (!isAdmin && dashboardAccess?.type === 'specific') {
   filtered = filtered.filter(e => dashboardAccess.locations?.includes(e.location));
 } else if (!isAdmin && dashboardAccess?.type === 'none') {
@@ -1009,7 +974,6 @@ if (paidOutsFilters.market !== 'all') {
 }
 
 setFilteredPaidOuts(filtered);
-```
 
 };
 
@@ -1164,7 +1128,6 @@ const conditions = targetWeather?.conditions || '';
 const actualEntry = locData.find(d => d.date === targetKey);
 const actualSales = actualEntry?.sales || null;
 
-```
   // R365 Forecast from Flash Daily Sales
   const r365Forecast = getR365Forecast(targetKey, locationName);
 
@@ -1306,7 +1269,6 @@ const actualSales = actualEntry?.sales || null;
   });
 }
 return result;
-```
 
 };
 
@@ -1325,7 +1287,6 @@ return newSet;
 const adjustSingleTime = (timeString) => {
 if (!timeString) return timeString;
 
-```
 try {
   const match = timeString.match(/(\d+):(\d+)\s*(AM|PM)/i);
   if (!match) return timeString;
@@ -1349,7 +1310,6 @@ try {
 } catch (e) {
   return timeString;
 }
-```
 
 };
 
@@ -1357,7 +1317,6 @@ const loadScheduledToday = async () => {
 setScheduledLoading(true);
 setScheduledError(null);
 
-```
 try {
   const range = `${SCHEDULED_TODAY_SHEET}!A2:E`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
@@ -1391,7 +1350,6 @@ try {
 } finally {
   setScheduledLoading(false);
 }
-```
 
 };
 
@@ -1400,7 +1358,6 @@ try {
 const range = `${EMPLOYEE_TITLES_SHEET}!A2:B`;
 const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
 
-```
   const response = await fetch(url);
   
   if (!response.ok) {
@@ -1427,7 +1384,6 @@ const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/val
 } catch (err) {
   console.error('Error loading employee titles:', err);
 }
-```
 
 };
 
@@ -1463,7 +1419,6 @@ return employeeTitles[name.toLowerCase()] || null;
 const applyScheduledFilters = () => {
 let filtered = […scheduledToday];
 
-```
 // Apply access control first
 if (!isAdmin && dashboardAccess?.type === 'specific') {
   filtered = filtered.filter(emp => dashboardAccess.locations?.includes(emp.location));
@@ -1480,14 +1435,12 @@ if (scheduledMarketFilter !== 'all') {
 }
 
 setFilteredScheduled(filtered);
-```
 
 };
 
 const applyClockoutFilters = () => {
 let filtered = […clockouts];
 
-```
 // Apply access control first
 if (!isAdmin && dashboardAccess?.type === 'specific') {
   filtered = filtered.filter(c => dashboardAccess.locations?.includes(c.location));
@@ -1504,7 +1457,6 @@ if (statusFilter !== 'all') {
 }
 
 setFilteredClockouts(filtered);
-```
 
 };
 
@@ -1516,7 +1468,6 @@ return […new Set(clockouts.map(c => c.location))].sort();
 const getDataDateRange = (dataArray) => {
 if (!dataArray || dataArray.length === 0) return null;
 
-```
 const dates = dataArray
   .map(item => new Date(item.reportDate))
   .filter(date => !isNaN(date.getTime()))
@@ -1536,7 +1487,6 @@ if (minDate.getTime() === maxDate.getTime()) {
 }
 
 return `${formatDate(minDate)} - ${formatDate(maxDate)}`;
-```
 
 };
 
@@ -1569,16 +1519,13 @@ const employees = callOffs
 .filter(c => c.location === locationName)
 .map(c => c.employee);
 
-```
 return employees;
-```
 
 };
 
 const applyFilters = () => {
 let filtered = […locations];
 
-```
 // Apply access control first
 if (!isAdmin && dashboardAccess?.type === 'specific') {
   filtered = filtered.filter(loc => dashboardAccess.locations?.includes(loc.location));
@@ -1607,14 +1554,12 @@ if (filters.salesVariance === 'positive') {
 }
 
 setFilteredLocations(filtered);
-```
 
 };
 
 const applyDailyFlashFilters = () => {
 let allLocations = Object.keys(dailyFlashData);
 
-```
 // Apply access control first
 if (!isAdmin && dashboardAccess?.type === 'specific') {
   allLocations = allLocations.filter(loc => dashboardAccess.locations?.includes(loc));
@@ -1633,7 +1578,6 @@ if (dailyFlashFilters.market !== 'all') {
 }
 
 setFilteredDailyFlash(filtered);
-```
 
 };
 
@@ -1654,7 +1598,6 @@ setDailyFlashFilters({…dailyFlashFilters, locations: newLocations});
 const applyDailyLaborFilters = () => {
 let allLocations = Object.keys(dailyLaborData);
 
-```
 // Apply access control first
 if (!isAdmin && dashboardAccess?.type === 'specific') {
   allLocations = allLocations.filter(loc => dashboardAccess.locations?.includes(loc));
@@ -1673,7 +1616,6 @@ if (dailyLaborFilters.market !== 'all') {
 }
 
 setFilteredDailyLabor(filtered);
-```
 
 };
 
@@ -1697,7 +1639,6 @@ avgProductivity: 0
 };
 }
 
-```
 const totalSales = filteredLocations.reduce((sum, loc) => sum + loc.actualSales, 0);
 const totalForecast = filteredLocations.reduce((sum, loc) => sum + loc.forecastSales, 0);
 const totalPriorYear = filteredLocations.reduce((sum, loc) => sum + loc.priorYearSales, 0);
@@ -1717,7 +1658,6 @@ return {
   totalActVsOpt,
   avgProductivity
 };
-```
 
 };
 
@@ -1753,7 +1693,6 @@ try {
 const res = await fetch('/api/check-access');
 const data = await res.json();
 
-```
   if (res.ok) {
     setDashboardAccess(data.dashboardAccess || { type: 'none', locations: [] });
   } else {
@@ -1765,7 +1704,6 @@ const data = await res.json();
 } finally {
   setAccessLoading(false);
 }
-```
 
 };
 
@@ -1803,7 +1741,6 @@ setIsDailyLaborLocationDropdownOpen(false);
 }
 };
 
-```
 if (isLocationDropdownOpen || isWeekDropdownOpen || isDailyFlashLocationDropdownOpen || isDailyLaborLocationDropdownOpen) {
   document.addEventListener('click', handleClickOutside);
 }
@@ -1811,7 +1748,6 @@ if (isLocationDropdownOpen || isWeekDropdownOpen || isDailyFlashLocationDropdown
 return () => {
   document.removeEventListener('click', handleClickOutside);
 };
-```
 
 }, [isLocationDropdownOpen, isWeekDropdownOpen, isDailyFlashLocationDropdownOpen, isDailyLaborLocationDropdownOpen]);
 
@@ -1936,7 +1872,6 @@ className="h-16"
 </div>
 </div>
 
-```
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
             <select
@@ -4009,7 +3944,6 @@ loadModelCoefficients();
     />
   </div>
 </>
-```
 
 );
 }
