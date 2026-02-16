@@ -1,37 +1,37 @@
-import { useSession, signOut } from “next-auth/react”
-import { useRouter } from “next/router”
-import Head from “next/head”
-import { useState, useEffect } from ‘react’;
-import React from ‘react’;
-import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen, MessageSquare, Settings, Receipt } from ‘lucide-react’;
-import SwipeNavigation from ‘../components/SwipeNavigation’;
-import MessagesPanel from ‘../components/MessagesPanel’;
-import MessagingPermissions from ‘../components/MessagingPermissions’;
+import { useSession, signOut } from "next-auth/react"
+import { useRouter } from "next/router"
+import Head from "next/head"
+import { useState, useEffect } from 'react';
+import React from 'react';
+import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen, MessageSquare, Settings, Receipt } from 'lucide-react';
+import SwipeNavigation from '../components/SwipeNavigation';
+import MessagesPanel from '../components/MessagesPanel';
+import MessagingPermissions from '../components/MessagingPermissions';
 
-const ADMIN_EMAIL = ‘dalton@rancherscustard.com’;
+const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 // Google Sheets API Configuration
-const API_KEY = ‘AIzaSyAbUI3oP_0ofBG9tiAudYLUjZ4MSSaFNDA’;
-const SPREADSHEET_ID = ‘1WsHBn5qLczH8QZ1c-CyVGfCWzMuLg2vmx5R5MZdHY20’;
-const SHEET_NAME = ‘Sheet1’;
-const AUTO_CLOCKOUTS_SHEET = ‘Auto-Clockouts’;
-const CALL_OFFS_SHEET = ‘Call-Offs’;
-const OVERTIME_SHEET = ‘Overtime Warning’;
-const FLASH_DAILY_SALES_SHEET = ‘Flash - Daily Sales’;  // NEW: Sales & Guests  
-const FLASH_DAILY_LABOR_SHEET = ‘Flash - Daily Labor’;  // NEW: Labor hours
-const SCHEDULED_TODAY_SHEET = ‘Scheduled Today’;
-const EMPLOYEE_TITLES_SHEET = ‘Employee Titles’;
-const LOGBOOK_ENTRIES_SHEET = ‘Logbook Entries’;
-const PAID_OUTS_SHEET = ‘Paid Outs’;
-const FORECAST_DATA_SHEET = ‘Forecast Data’;
+const API_KEY = 'AIzaSyAbUI3oP_0ofBG9tiAudYLUjZ4MSSaFNDA';
+const SPREADSHEET_ID = '1WsHBn5qLczH8QZ1c-CyVGfCWzMuLg2vmx5R5MZdHY20';
+const SHEET_NAME = 'Sheet1';
+const AUTO_CLOCKOUTS_SHEET = 'Auto-Clockouts';
+const CALL_OFFS_SHEET = 'Call-Offs';
+const OVERTIME_SHEET = 'Overtime Warning';
+const FLASH_DAILY_SALES_SHEET = 'Flash - Daily Sales';  // NEW: Sales & Guests  
+const FLASH_DAILY_LABOR_SHEET = 'Flash - Daily Labor';  // NEW: Labor hours
+const SCHEDULED_TODAY_SHEET = 'Scheduled Today';
+const EMPLOYEE_TITLES_SHEET = 'Employee Titles';
+const LOGBOOK_ENTRIES_SHEET = 'Logbook Entries';
+const PAID_OUTS_SHEET = 'Paid Outs';
+const FORECAST_DATA_SHEET = 'Forecast Data';
 
 const TitleBadge = ({ title }) => {
 if (!title) return null;
 
 const colors = {
-‘GM’: ‘bg-purple-600 text-white’,
-‘AGM’: ‘bg-blue-600 text-white’,
-‘SL’: ‘bg-green-600 text-white’
+'GM': 'bg-purple-600 text-white',
+'AGM': 'bg-blue-600 text-white',
+'SL': 'bg-green-600 text-white'
 };
 
 return (
@@ -45,40 +45,40 @@ export default function Home() {
 const { data: session, status } = useSession()
 const router = useRouter()
 
-const [activeTab, setActiveTab] = useState(‘sales’);
+const [activeTab, setActiveTab] = useState('sales');
 
 const [locations, setLocations] = useState([]);
 const [filteredLocations, setFilteredLocations] = useState([]);
 const [availableWeeks, setAvailableWeeks] = useState([]);
-const [selectedWeek, setSelectedWeek] = useState(‘current’);
+const [selectedWeek, setSelectedWeek] = useState('current');
 const [filters, setFilters] = useState({
 locations: [],
-actVsOptVariance: ‘all’,
-salesVariance: ‘all’,
-market: ‘all’
+actVsOptVariance: 'all',
+salesVariance: 'all',
+market: 'all'
 });
 const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
 const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
 const [isLoading, setIsLoading] = useState(false);
-const [reportDate, setReportDate] = useState(‘Loading…’);
+const [reportDate, setReportDate] = useState('Loading…');
 const [error, setError] = useState(null);
 
 const [clockouts, setClockouts] = useState([]);
 const [filteredClockouts, setFilteredClockouts] = useState([]);
 const [clockoutsLoading, setClockoutsLoading] = useState(false);
 const [clockoutsError, setClockoutsError] = useState(null);
-const [locationFilter, setLocationFilter] = useState(‘all’);
-const [statusFilter, setStatusFilter] = useState(‘all’);
+const [locationFilter, setLocationFilter] = useState('all');
+const [statusFilter, setStatusFilter] = useState('all');
 const [showClockoutModal, setShowClockoutModal] = useState(false);
-const [clockoutModalData, setClockoutModalData] = useState({ location: ‘’, data: [] });
+const [clockoutModalData, setClockoutModalData] = useState({ location: '', data: [] });
 const [showCallOffModal, setShowCallOffModal] = useState(false);
-const [callOffModalData, setCallOffModalData] = useState({ location: ‘’, employees: [] });
+const [callOffModalData, setCallOffModalData] = useState({ location: '', employees: [] });
 
 const [callOffs, setCallOffs] = useState([]);
 const [filteredCallOffs, setFilteredCallOffs] = useState([]);
 const [callOffsLoading, setCallOffsLoading] = useState(false);
 const [callOffsError, setCallOffsError] = useState(null);
-const [callOffLocationFilter, setCallOffLocationFilter] = useState(‘all’);
+const [callOffLocationFilter, setCallOffLocationFilter] = useState('all');
 
 const [overtimeWarnings, setOvertimeWarnings] = useState([]);
 const [filteredOvertime, setFilteredOvertime] = useState([]);
@@ -89,8 +89,8 @@ const [scheduledToday, setScheduledToday] = useState([]);
 const [filteredScheduled, setFilteredScheduled] = useState([]);
 const [scheduledLoading, setScheduledLoading] = useState(false);
 const [scheduledError, setScheduledError] = useState(null);
-const [scheduledLocationFilter, setScheduledLocationFilter] = useState(‘all’);
-const [scheduledMarketFilter, setScheduledMarketFilter] = useState(‘all’);
+const [scheduledLocationFilter, setScheduledLocationFilter] = useState('all');
+const [scheduledMarketFilter, setScheduledMarketFilter] = useState('all');
 const [employeeTitles, setEmployeeTitles] = useState({});
 
 const [dailyFlashData, setDailyFlashData] = useState({});
@@ -99,7 +99,7 @@ const [dailyFlashError, setDailyFlashError] = useState(null);
 const [filteredDailyFlash, setFilteredDailyFlash] = useState([]);
 const [dailyFlashFilters, setDailyFlashFilters] = useState({
 locations: [],
-market: ‘all’
+market: 'all'
 });
 const [isDailyFlashLocationDropdownOpen, setIsDailyFlashLocationDropdownOpen] = useState(false);
 
@@ -109,7 +109,7 @@ const [dailyLaborError, setDailyLaborError] = useState(null);
 const [filteredDailyLabor, setFilteredDailyLabor] = useState([]);
 const [dailyLaborFilters, setDailyLaborFilters] = useState({
 locations: [],
-market: ‘all’
+market: 'all'
 });
 const [isDailyLaborLocationDropdownOpen, setIsDailyLaborLocationDropdownOpen] = useState(false);
 const [isDailyLaborFiltersOpen, setIsDailyLaborFiltersOpen] = useState(false);
@@ -124,8 +124,8 @@ const [filteredLogbook, setFilteredLogbook] = useState([]);
 const [logbookLoading, setLogbookLoading] = useState(false);
 const [logbookError, setLogbookError] = useState(null);
 const [logbookFilters, setLogbookFilters] = useState({
-location: ‘all’,
-market: ‘all’
+location: 'all',
+market: 'all'
 });
 const [expandedLogbookIds, setExpandedLogbookIds] = useState(new Set());
 const [isLogbookFiltersOpen, setIsLogbookFiltersOpen] = useState(false);
@@ -136,9 +136,9 @@ const [filteredPaidOuts, setFilteredPaidOuts] = useState([]);
 const [paidOutsLoading, setPaidOutsLoading] = useState(false);
 const [paidOutsError, setPaidOutsError] = useState(null);
 const [paidOutsFilters, setPaidOutsFilters] = useState({
-location: ‘all’,
-type: ‘all’,
-market: ‘all’
+location: 'all',
+type: 'all',
+market: 'all'
 });
 const [isPaidOutsFiltersOpen, setIsPaidOutsFiltersOpen] = useState(false);
 
@@ -147,7 +147,7 @@ const [forecastData, setForecastData] = useState([]);
 const [forecastLoading, setForecastLoading] = useState(false);
 const [forecastWeekOffset, setForecastWeekOffset] = useState(1);
 const [forecastAccuracyExpanded, setForecastAccuracyExpanded] = useState(false);
-const [forecastMarketFilter, setForecastMarketFilter] = useState(‘all’);
+const [forecastMarketFilter, setForecastMarketFilter] = useState('all');
 
 // Messages state
 const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
@@ -162,10 +162,10 @@ const [accessLoading, setAccessLoading] = useState(true);
 const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
 const getMarket = (locationName) => {
-const tulsa = [‘Bixby’, ‘Yale’, ‘Broken Arrow’, ‘Owasso’];
-const okc = [‘Warr Acres’, ‘Penn’, ‘Edmond’, ‘Norman’];
-const dallas = [‘Carrollton’, ‘Frisco #1’, ‘Frisco #2’, ‘Frisco #3’, ‘Lake Highlands’, ‘Hillcrest Village’, ‘The Colony’, ‘Prosper’, ‘Allen’];
-const orlando = [‘Sanford’, ‘Lakeland’];
+const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
+const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
+const dallas = ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'Lake Highlands', 'Hillcrest Village', 'The Colony', 'Prosper', 'Allen'];
+const orlando = ['Sanford', 'Lakeland'];
 
 ```
 if (tulsa.includes(locationName)) return 'Tulsa';
@@ -206,44 +206,44 @@ return null;
 const extractMood = (comment) => {
 if (!comment) return null;
 const lowerComment = comment.toLowerCase();
-if (/\b(hectic|crazy|insane|nightmare)\b/.test(lowerComment)) return ‘Hectic’;
-if (/\b(tough|hard|struggled|difficult|short[- ]?staffed)\b/.test(lowerComment)) return ‘Tough’;
-if (/\b(busy|rush|crowds|packed|slammed)\b/.test(lowerComment)) return ‘Busy’;
-if (/\b(great|excellent|perfect|flawless|amazing|awesome)\b/.test(lowerComment)) return ‘Great’;
-if (/\b(good|solid|nice)\b/.test(lowerComment)) return ‘Good’;
-if (/\b(slow|quiet|light|dead)\b/.test(lowerComment)) return ‘Slow’;
-if (/\b(smooth|steady|normal|standard|typical)\b/.test(lowerComment)) return ‘Normal’;
+if (/\b(hectic|crazy|insane|nightmare)\b/.test(lowerComment)) return 'Hectic';
+if (/\b(tough|hard|struggled|difficult|short[- ]?staffed)\b/.test(lowerComment)) return 'Tough';
+if (/\b(busy|rush|crowds|packed|slammed)\b/.test(lowerComment)) return 'Busy';
+if (/\b(great|excellent|perfect|flawless|amazing|awesome)\b/.test(lowerComment)) return 'Great';
+if (/\b(good|solid|nice)\b/.test(lowerComment)) return 'Good';
+if (/\b(slow|quiet|light|dead)\b/.test(lowerComment)) return 'Slow';
+if (/\b(smooth|steady|normal|standard|typical)\b/.test(lowerComment)) return 'Normal';
 return null;
 };
 
 const getMoodColor = (mood) => {
 switch (mood) {
-case ‘Great’:
-case ‘Good’:
-return ‘bg-green-500’;
-case ‘Normal’:
-case ‘Smooth’:
-case ‘Steady’:
-return ‘bg-slate-500’;
-case ‘Slow’:
-return ‘bg-yellow-500’;
-case ‘Busy’:
-case ‘Tough’:
-return ‘bg-orange-500’;
-case ‘Hectic’:
-return ‘bg-red-500’;
+case 'Great':
+case 'Good':
+return 'bg-green-500';
+case 'Normal':
+case 'Smooth':
+case 'Steady':
+return 'bg-slate-500';
+case 'Slow':
+return 'bg-yellow-500';
+case 'Busy':
+case 'Tough':
+return 'bg-orange-500';
+case 'Hectic':
+return 'bg-red-500';
 default:
-return ‘bg-slate-500’;
+return 'bg-slate-500';
 }
 };
 
 const generateSummary = (comment) => {
-if (!comment) return ‘’;
-let cleaned = comment.replace(/^(Sales:.*?\n|DT:.*?\n|Drive Time:.*?\n)/gim, ‘’).trim();
+if (!comment) return '';
+let cleaned = comment.replace(/^(Sales:.*?\n|DT:.*?\n|Drive Time:.*?\n)/gim, '').trim();
 const sentences = cleaned.split(/[.!?]+/).filter(s => s.trim().length > 0);
-let summary = sentences.slice(0, 2).join(’. ’).trim();
+let summary = sentences.slice(0, 2).join('. ').trim();
 if (summary.length > 150) {
-summary = summary.substring(0, 147) + ‘…’;
+summary = summary.substring(0, 147) + '…';
 }
 return summary || cleaned.substring(0, 150);
 };
@@ -280,7 +280,7 @@ return `${formatDate(minDate)} - ${formatDate(maxDate)}`;
 const getPaidOutsTotals = () => {
 const total = filteredPaidOuts.reduce((sum, e) => sum + (e.amount || 0), 0);
 const byType = filteredPaidOuts.reduce((acc, e) => {
-const type = e.type || ‘Unknown’;
+const type = e.type || 'Unknown';
 acc[type] = (acc[type] || 0) + (e.amount || 0);
 return acc;
 }, {});
@@ -578,7 +578,7 @@ try {
 };
 
 const adjustTimeForTimezone = (timeString) => {
-if (!timeString || !timeString.includes(’ - ’)) return timeString;
+if (!timeString || !timeString.includes(' - ')) return timeString;
 
 ```
 try {
@@ -1016,16 +1016,16 @@ try {
 const range = `${FORECAST_DATA_SHEET}!A2:E`;
 const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
 const response = await fetch(url);
-if (!response.ok) throw new Error(‘Failed to load forecast data’);
+if (!response.ok) throw new Error('Failed to load forecast data');
 const data = await response.json();
 if (!data.values) { setForecastData([]); return; }
 const parsed = data.values.map(row => ({
-date: row[0] || ‘’, location: row[1] || ‘’,
-sales: parseFloat((row[2] || ‘’).toString().replace(/[$,]/g, ‘’)) || 0,
-highTemp: parseFloat(row[3]) || null, conditions: row[4] || ‘’
+date: row[0] || '', location: row[1] || '',
+sales: parseFloat((row[2] || '').toString().replace(/[$,]/g, '')) || 0,
+highTemp: parseFloat(row[3]) || null, conditions: row[4] || ''
 }));
 setForecastData(parsed);
-} catch (err) { console.error(‘Error loading forecast data:’, err); setForecastData([]); }
+} catch (err) { console.error('Error loading forecast data:', err); setForecastData([]); }
 finally { setForecastLoading(false); }
 };
 
@@ -1058,22 +1058,22 @@ return monday;
 const formatForecastDate = (d) => `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
 
 const getWeatherEmoji = (conditions) => {
-if (!conditions) return ‘—’;
+if (!conditions) return '—';
 const c = conditions.toLowerCase();
-if (c.includes(‘rain’) || c.includes(‘storm’) || c.includes(‘drizzle’) || c.includes(‘thunder’)) return ‘🌧️’;
-if (c.includes(‘snow’) || c.includes(‘sleet’) || c.includes(‘ice’) || c.includes(‘freezing’)) return ‘🌨️’;
-if (c.includes(‘overcast’) || c.includes(‘cloudy’)) return ‘☁️’;
-if (c.includes(‘partly’) || c.includes(‘partial’)) return ‘⛅’;
-if (c.includes(‘clear’) || c.includes(‘sunny’)) return ‘☀️’;
-if (c.includes(‘fog’) || c.includes(‘mist’) || c.includes(‘haze’)) return ‘🌫️’;
-return ‘⛅’;
+if (c.includes('rain') || c.includes('storm') || c.includes('drizzle') || c.includes('thunder')) return '🌧️';
+if (c.includes('snow') || c.includes('sleet') || c.includes('ice') || c.includes('freezing')) return '🌨️';
+if (c.includes('overcast') || c.includes('cloudy')) return '☁️';
+if (c.includes('partly') || c.includes('partial')) return '⛅';
+if (c.includes('clear') || c.includes('sunny')) return '☀️';
+if (c.includes('fog') || c.includes('mist') || c.includes('haze')) return '🌫️';
+return '⛅';
 };
 
 const computeForecastForLocation = (locationName, weekOffset) => {
 const locData = forecastData.filter(d => d.location === locationName && d.sales > 0);
 if (locData.length === 0) return [];
 const monday = getWeekMonday(weekOffset);
-const dayNames = [‘Mon’, ‘Tue’, ‘Wed’, ‘Thu’, ‘Fri’, ‘Sat’, ‘Sun’];
+const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const result = [];
 for (let i = 0; i < 7; i++) {
 const targetDate = new Date(monday);
@@ -1081,7 +1081,7 @@ targetDate.setDate(monday.getDate() + i);
 const targetKey = formatForecastDate(targetDate);
 const targetWeather = forecastData.find(d => d.location === locationName && d.date === targetKey);
 const highTemp = targetWeather?.highTemp;
-const conditions = targetWeather?.conditions || ‘’;
+const conditions = targetWeather?.conditions || '';
 const actualEntry = locData.find(d => d.date === targetKey);
 const actualSales = actualEntry?.sales || null;
 
@@ -1330,25 +1330,25 @@ const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/val
 
 const loadCurrentUserRole = async () => {
 try {
-const res = await fetch(’/api/check-access’);
+const res = await fetch('/api/check-access');
 const data = await res.json();
 if (res.ok && data.role) {
 setUserRole(data.role);
 }
 } catch (err) {
-console.error(‘Error loading user role:’, err);
+console.error('Error loading user role:', err);
 }
 };
 
 const loadUnreadCount = async () => {
 try {
-const res = await fetch(’/api/messages/read’);
+const res = await fetch('/api/messages/read');
 const data = await res.json();
 if (res.ok) {
 setUnreadMessagesCount(data.unreadCount || 0);
 }
 } catch (err) {
-console.error(‘Error loading unread count:’, err);
+console.error('Error loading unread count:', err);
 }
 };
 
@@ -1457,7 +1457,7 @@ const total = clockouts
 const hrs = parseFloat(c.extraHours);
 return sum + (isNaN(hrs) ? 0 : hrs);
 }, 0);
-return total > 0 ? total.toFixed(1) : ‘’;
+return total > 0 ? total.toFixed(1) : '';
 };
 
 // Get all call-off employees for a location (data is already limited to 7 days by script)
@@ -1619,27 +1619,27 @@ return {
 };
 
 useEffect(() => {
-if (status === “unauthenticated”) {
-router.push(”/auth/signin”)
+if (status === "unauthenticated") {
+router.push("/auth/signin")
 }
 }, [status, router])
 
 // Check for pending tab from P&L page navigation
 useEffect(() => {
-if (typeof window !== ‘undefined’) {
-const pendingTab = sessionStorage.getItem(‘pendingTab’);
+if (typeof window !== 'undefined') {
+const pendingTab = sessionStorage.getItem('pendingTab');
 if (pendingTab) {
 setActiveTab(pendingTab);
-sessionStorage.removeItem(‘pendingTab’);
+sessionStorage.removeItem('pendingTab');
 }
 }
 }, [])
 
 // Redirect to access-pending page if user has no access
 useEffect(() => {
-if (status === “authenticated” && !accessLoading && !isAdmin) {
-if (!dashboardAccess || dashboardAccess.type === ‘none’) {
-router.push(’/auth/access-pending’);
+if (status === "authenticated" && !accessLoading && !isAdmin) {
+if (!dashboardAccess || dashboardAccess.type === 'none') {
+router.push('/auth/access-pending');
 }
 }
 }, [status, accessLoading, isAdmin, dashboardAccess, router])
@@ -1647,7 +1647,7 @@ router.push(’/auth/access-pending’);
 // Load dashboard access permissions
 const loadDashboardAccess = async () => {
 try {
-const res = await fetch(’/api/check-access’);
+const res = await fetch('/api/check-access');
 const data = await res.json();
 
 ```
@@ -1670,17 +1670,17 @@ const data = await res.json();
 const hasLocationAccess = (locationName) => {
 if (isAdmin) return true;
 if (!dashboardAccess) return false;
-if (dashboardAccess.type === ‘all’) return true;
-if (dashboardAccess.type === ‘specific’) {
+if (dashboardAccess.type === 'all') return true;
+if (dashboardAccess.type === 'specific') {
 return dashboardAccess.locations?.includes(locationName);
 }
 return false;
 };
 
 // Filter data based on access
-const filterByAccess = (data, locationKey = ‘location’) => {
-if (isAdmin || dashboardAccess?.type === ‘all’) return data;
-if (!dashboardAccess || dashboardAccess.type === ‘none’) return [];
+const filterByAccess = (data, locationKey = 'location') => {
+if (isAdmin || dashboardAccess?.type === 'all') return data;
+if (!dashboardAccess || dashboardAccess.type === 'none') return [];
 return data.filter(item => dashboardAccess.locations?.includes(item[locationKey]));
 };
 
@@ -1713,7 +1713,7 @@ return () => {
 }, [isLocationDropdownOpen, isWeekDropdownOpen, isDailyFlashLocationDropdownOpen, isDailyLaborLocationDropdownOpen]);
 
 useEffect(() => {
-if (status === “authenticated”) {
+if (status === "authenticated") {
 loadDashboardAccess();
 loadCurrentUserRole();
 loadUnreadCount();
@@ -1729,12 +1729,12 @@ loadDailyLabor();
 loadLogbookEntries();
 loadPaidOuts();
 }
-} else if (activeTab === ‘forecast’) {
+} else if (activeTab === 'forecast') {
 loadForecastData();
 }, [status]);
 
 useEffect(() => {
-if (selectedWeek === ‘current’) {
+if (selectedWeek === 'current') {
 loadDataFromGoogleSheets();
 } else {
 loadHistoricalWeek(selectedWeek);
@@ -1778,12 +1778,12 @@ applyPaidOutsFilters();
 }, [paidOuts, paidOutsFilters, dashboardAccess]);
 
 useEffect(() => {
-if (activeTab === ‘forecast’ && forecastData.length === 0 && !forecastLoading) {
+if (activeTab === 'forecast' && forecastData.length === 0 && !forecastLoading) {
 loadForecastData();
 }
 }, [activeTab]);
 
-if (status === “loading” || accessLoading) {
+if (status === "loading" || accessLoading) {
 return (
 <div className="min-h-screen bg-slate-900 flex items-center justify-center">
 <div className="text-white text-lg">Loading…</div>
@@ -1796,7 +1796,7 @@ return null
 }
 
 // Show loading while redirecting to access-pending (useEffect handles the redirect)
-if (!isAdmin && (!dashboardAccess || dashboardAccess.type === ‘none’)) {
+if (!isAdmin && (!dashboardAccess || dashboardAccess.type === 'none')) {
 return (
 <div className="min-h-screen bg-slate-900 flex items-center justify-center">
 <div className="text-white text-lg">Checking access…</div>
@@ -1809,7 +1809,7 @@ const totals = calculateTotals();
 return (
 <>
 <Head>
-<title>Andy’s Dashboards</title>
+<title>Andy's Dashboards</title>
 </Head>
 <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
 <div className="max-w-[1400px] mx-auto">
@@ -1823,7 +1823,7 @@ className="h-16"
 />
 <div>
 <h1 className="text-2xl font-bold text-white mb-1">R365 Dashboards</h1>
-{activeTab === ‘sales’ && reportDate && reportDate !== ‘Loading…’ && !reportDate.includes(’.’) && (
+{activeTab === 'sales' && reportDate && reportDate !== 'Loading…' && !reportDate.includes('.') && (
 <p className="text-sm text-slate-400">Week Ending: {reportDate}</p>
 )}
 </div>
