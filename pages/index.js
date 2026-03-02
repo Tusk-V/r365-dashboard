@@ -165,8 +165,6 @@ const [accessLoading, setAccessLoading] = useState(true);
 
 const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
-const getMarket = (locationName) => {
-
 // Helper: filter daily data entries to prior 7 days, not including today
 const filterPrior7Days = (entries) => {
   if (!entries || entries.length === 0) return [];
@@ -180,6 +178,8 @@ const filterPrior7Days = (entries) => {
     return d < today && d >= sevenDaysAgo;
   });
 };
+
+const getMarket = (locationName) => {
 const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
 const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
 const dallas = ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'Lake Highlands', 'Hillcrest Village', 'The Colony', 'Prosper', 'Allen'];
