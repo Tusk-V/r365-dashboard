@@ -166,6 +166,20 @@ const [accessLoading, setAccessLoading] = useState(true);
 const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
 const getMarket = (locationName) => {
+
+// Helper: filter daily data entries to prior 7 days, not including today
+const filterPrior7Days = (entries) => {
+  if (!entries || entries.length === 0) return [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  return entries.filter(day => {
+    const d = new Date(day.date);
+    d.setHours(0, 0, 0, 0);
+    return d < today && d >= sevenDaysAgo;
+  });
+};
 const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
 const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
 const dallas = ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'Lake Highlands', 'Hillcrest Village', 'The Colony', 'Prosper', 'Allen'];
@@ -2816,7 +2830,8 @@ loadModelCoefficients();
           ) : (
             <div className="grid grid-cols-1 gap-2 md:gap-3">
               {filteredDailyFlash.map((location) => {
-                const locationData = dailyFlashData[location];
+                const locationData = filterPrior7Days(dailyFlashData[location]);
+                if (locationData.length === 0) return null;
                 return (
                   <div key={location} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
                     <div className="mb-2 md:mb-3">
@@ -3019,7 +3034,8 @@ loadModelCoefficients();
           ) : (
             <div className="space-y-3">
               {filteredDailyLabor.map((location) => {
-                const locationData = dailyLaborData[location];
+                const locationData = filterPrior7Days(dailyLaborData[location]);
+                if (locationData.length === 0) return null;
                 return (
                   <div key={location} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
                     <div className="mb-2 md:mb-3 flex items-center gap-2 flex-wrap">
