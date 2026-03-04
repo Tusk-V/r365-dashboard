@@ -2195,11 +2195,7 @@ loadModelCoefficients();
                                         Drive Time {driveTime}
                                       </span>
                                     )}
-                                    {mood && (
-                                      <span className={`${getMoodColor(mood)} text-white text-[10px] px-1.5 py-0.5 rounded font-semibold`}>
-                                        {mood}
-                                      </span>
-                                    )}
+
                                   </div>
                                   
                                   {!isExpanded && (
@@ -2231,19 +2227,7 @@ loadModelCoefficients();
             </div>
           )}
 
-          {/* Legend */}
-          <div className="mt-4 bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
-            <p className="text-xs text-slate-400 mb-2 font-semibold">Shift Status:</p>
-            <div className="flex flex-wrap gap-2">
-              <span className="bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Great</span>
-              <span className="bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Good</span>
-              <span className="bg-slate-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Normal</span>
-              <span className="bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Slow</span>
-              <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Busy</span>
-              <span className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Tough</span>
-              <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">Hectic</span>
-            </div>
-          </div>
+
         </>
       )}
 
