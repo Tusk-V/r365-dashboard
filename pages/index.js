@@ -825,7 +825,7 @@ try {
     // 2: Sales
     // 3: Actual Hours
     // 4: Optimal Hours
-    // 5: Hours Variance
+    // 5: Scheduled Hours
     // 6: Labor %
     // 7: Optimal Labor %
     // 8: Labor % Variance
@@ -835,7 +835,7 @@ try {
       date: row[0] || '',
       actualHours: parseFloat(row[3]) || 0,
       optimalHours: parseFloat(row[4]) || 0,
-      hoursVariance: parseFloat(row[5]) || 0,
+      scheduledHours: parseFloat(row[5]) || 0,
       actualLaborPercent: parseFloat(row[6]) || 0,
       optimalLaborPercent: parseFloat(row[7]) || 0,
       laborPercentVariance: parseFloat(row[8]) || 0
@@ -3068,8 +3068,8 @@ loadModelCoefficients();
                           <tr>
                             <th className="text-left p-2 text-slate-400 font-semibold">Date</th>
                             <th className="text-right p-2 text-slate-400 font-semibold">Act Hrs</th>
+                            <th className="text-right p-2 text-slate-400 font-semibold">Sch Hrs</th>
                             <th className="text-right p-2 text-slate-400 font-semibold">Opt Hrs</th>
-                            <th className="text-right p-2 text-slate-400 font-semibold">Hrs Var</th>
                             <th className="text-right p-2 text-slate-400 font-semibold">Act %</th>
                             <th className="text-right p-2 text-slate-400 font-semibold">Opt %</th>
                             <th className="text-right p-2 text-slate-400 font-semibold">% Var</th>
@@ -3081,10 +3081,8 @@ loadModelCoefficients();
                               <tr key={idx} className="border-t border-slate-700">
                                 <td className="p-2 text-slate-300">{day.date}</td>
                                 <td className="text-right p-2 text-white font-semibold">{day.actualHours.toFixed(1)}</td>
+                                <td className="text-right p-2 text-slate-300">{day.scheduledHours.toFixed(1)}</td>
                                 <td className="text-right p-2 text-slate-300">{day.optimalHours.toFixed(1)}</td>
-                                <td className={`text-right p-2 font-semibold ${day.hoursVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                                  {day.hoursVariance >= 0 ? '+' : ''}{day.hoursVariance.toFixed(1)}
-                                </td>
                                 <td className="text-right p-2 text-white font-semibold">{day.actualLaborPercent.toFixed(1)}%</td>
                                 <td className="text-right p-2 text-slate-300">{day.optimalLaborPercent.toFixed(1)}%</td>
                                 <td className={`text-right p-2 font-semibold ${day.laborPercentVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
@@ -3102,8 +3100,8 @@ loadModelCoefficients();
                         <div className="border-b border-slate-700 p-2 text-xs flex items-center bg-slate-800 sticky top-0">
                           <div className="text-slate-400 font-semibold w-9">Day</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Act</div>
+                          <div className="text-slate-400 font-semibold text-right flex-1">Sch</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Opt</div>
-                          <div className="text-slate-400 font-semibold text-right w-12">Var</div>
                           <div className="text-slate-600 text-center w-4">|</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Act%</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Opt%</div>
@@ -3131,13 +3129,11 @@ loadModelCoefficients();
                               {/* Act Hours */}
                               <div className="text-white font-semibold text-right flex-1">{day.actualHours.toFixed(1)}</div>
                               
+                              {/* Sch Hours */}
+                              <div className="text-slate-400 text-right flex-1">{day.scheduledHours.toFixed(1)}</div>
+                              
                               {/* Opt Hours */}
                               <div className="text-slate-400 text-right flex-1">{day.optimalHours.toFixed(1)}</div>
-                              
-                              {/* Hours Var */}
-                              <div className={`font-semibold text-right w-12 ${day.hoursVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                                {day.hoursVariance >= 0 ? '+' : ''}{day.hoursVariance.toFixed(1)}
-                              </div>
                               
                               {/* Separator */}
                               <div className="text-slate-600 text-center w-4">|</div>
