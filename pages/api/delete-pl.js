@@ -30,12 +30,14 @@ export default async function handler(req, res) {
 
     const selectedReportType = reportType || 'period-ytd';
     
-    // Build query
+    // Build query based on report type
     let query = { location };
-    if (selectedReportType === 'current-prior') {
-      query.reportType = 'current-prior';
+    if (selectedReportType === 'period-ytd') {
+      // For period-ytd, match documents with reportType='period-ytd' OR no reportType field (legacy)
+      query.$or = [{ reportType: 'period-ytd' }, { reportType: { $exists: false } }];
     } else {
-      query.reportType = { $ne: 'current-prior' };
+      // current-prior and ytd-prior-ytd each have their own reportType
+      query.reportType = selectedReportType;
     }
     
     if (periodEnding) {
