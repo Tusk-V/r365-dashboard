@@ -22,14 +22,15 @@ export default async function handler(req, res) {
     const { reportType } = req.query;
     const selectedReportType = reportType || 'period-ytd';
     
-    // Build query - for period-ytd show everything except current-prior
-    // For current-prior, only show current-prior
+    // Build query based on report type
     let query = {};
     if (selectedReportType === 'current-prior') {
       query.reportType = 'current-prior';
+    } else if (selectedReportType === 'ytd-prior-ytd') {
+      query.reportType = 'ytd-prior-ytd';
     } else {
-      // period-ytd: exclude current-prior (includes legacy data with no reportType)
-      query.reportType = { $ne: 'current-prior' };
+      // period-ytd: exclude current-prior and ytd-prior-ytd (includes legacy data with no reportType)
+      query.reportType = { $nin: ['current-prior', 'ytd-prior-ytd'] };
     }
 
     const client = await clientPromise;
