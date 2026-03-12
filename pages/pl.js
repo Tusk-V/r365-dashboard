@@ -30,9 +30,9 @@ export default function PLDashboard() {
 
   useEffect(() => {
     if (selectedLocation) {
-      loadPeriodsForLocation(selectedLocation);
+      loadPeriodsForLocation(selectedLocation, selectedPeriod);
     }
-  }, [selectedLocation, reportType]);
+  }, [selectedLocation]);
 
   useEffect(() => {
     if (selectedLocation && selectedPeriod) {
@@ -44,8 +44,8 @@ export default function PLDashboard() {
     try {
       setLoading(true);
       setPlData(null);
-      setSelectedPeriod('');
       const currentLocation = selectedLocation; // Remember current selection
+      const currentPeriod = selectedPeriod; // Remember current period
       const res = await fetch(`/api/get-pl?reportType=${reportType}`);
       const data = await res.json();
       
@@ -56,11 +56,14 @@ export default function PLDashboard() {
           // Keep current location if it exists in the new list, otherwise use first
           if (currentLocation && data.availableLocations.includes(currentLocation)) {
             setSelectedLocation(currentLocation);
+            // Location didn't change, so manually reload periods (preserving current period)
+            loadPeriodsForLocation(currentLocation, currentPeriod);
           } else {
             setSelectedLocation(data.availableLocations[0]);
           }
         } else {
           setSelectedLocation('');
+          setSelectedPeriod('');
         }
       } else {
         setError(data.error);
@@ -72,7 +75,7 @@ export default function PLDashboard() {
     }
   };
 
-  const loadPeriodsForLocation = async (location) => {
+  const loadPeriodsForLocation = async (location, preferredPeriod) => {
     try {
       const res = await fetch(`/api/get-pl?location=${encodeURIComponent(location)}&listPeriods=true&reportType=${reportType}`);
       const data = await res.json();
@@ -86,7 +89,14 @@ export default function PLDashboard() {
         });
         setAvailablePeriods(sorted);
         if (sorted.length > 0) {
-          setSelectedPeriod(sorted[0]);
+          // Keep current period if it exists in the new list, otherwise use newest
+          if (preferredPeriod && sorted.includes(preferredPeriod)) {
+            setSelectedPeriod(preferredPeriod);
+          } else {
+            setSelectedPeriod(sorted[0]);
+          }
+        } else {
+          setSelectedPeriod('');
         }
       }
     } catch (err) {
@@ -150,6 +160,16 @@ export default function PLDashboard() {
       maximumFractionDigits: 0
     });
     return num < 0 ? `($${formatted})` : `$${formatted}`;
+  };
+
+  // Normalize period display to "Month YYYY" format
+  const formatPeriodDisplay = (periodStr) => {
+    if (!periodStr) return '';
+    const d = new Date(periodStr);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+    return periodStr;
   };
 
   const formatPercent = (value) => {
@@ -794,7 +814,7 @@ export default function PLDashboard() {
                 alt="Andy's Frozen Custard" 
                 className="h-12"
               />
-              <div className="mt-1 text-sm font-bold">{selectedLocation} — Period Ending {selectedPeriod}</div>
+              <div className="mt-1 text-sm font-bold">{selectedLocation} — Period Ending {formatPeriodDisplay(selectedPeriod)}</div>
             </div>
           </div>
 
@@ -948,7 +968,7 @@ export default function PLDashboard() {
                     className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                   >
                     {availablePeriods.map(period => (
-                      <option key={period} value={period}>{period}</option>
+                      <option key={period} value={period}>{formatPeriodDisplay(period)}</option>
                     ))}
                   </select>
                   <button
@@ -984,7 +1004,7 @@ export default function PLDashboard() {
                     className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
                   >
                     {availablePeriods.map(period => (
-                      <option key={period} value={period}>{period}</option>
+                      <option key={period} value={period}>{formatPeriodDisplay(period)}</option>
                     ))}
                   </select>
                 </div>
