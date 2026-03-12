@@ -20,18 +20,20 @@ export default async function handler(req, res) {
     }
 
     const { reportType } = req.query;
-    const selectedReportType = reportType || 'period-ytd';
     
-    // Build query based on report type
+    // Build query based on report type (if specified)
     let query = {};
-    if (selectedReportType === 'current-prior') {
-      query.reportType = 'current-prior';
-    } else if (selectedReportType === 'ytd-prior-ytd') {
-      query.reportType = 'ytd-prior-ytd';
-    } else {
-      // period-ytd: exclude current-prior and ytd-prior-ytd (includes legacy data with no reportType)
-      query.reportType = { $nin: ['current-prior', 'ytd-prior-ytd'] };
+    if (reportType) {
+      if (reportType === 'current-prior') {
+        query.reportType = 'current-prior';
+      } else if (reportType === 'ytd-prior-ytd') {
+        query.reportType = 'ytd-prior-ytd';
+      } else if (reportType === 'period-ytd') {
+        // period-ytd: exclude current-prior and ytd-prior-ytd (includes legacy data with no reportType)
+        query.reportType = { $nin: ['current-prior', 'ytd-prior-ytd'] };
+      }
     }
+    // If no reportType specified, return all data
 
     const client = await clientPromise;
     const db = client.db('andysdashboard');
