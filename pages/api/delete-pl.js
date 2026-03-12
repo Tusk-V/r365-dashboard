@@ -19,7 +19,7 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const { location, periodEnding, reportType } = req.query;
+    const { location, periodEnding, reportType, all } = req.query;
 
     if (!location) {
       return res.status(400).json({ error: 'Location required' });
@@ -28,20 +28,23 @@ export default async function handler(req, res) {
     const client = await clientPromise;
     const db = client.db('andysdashboard');
 
-    const selectedReportType = reportType || 'period-ytd';
-    
-    // Build query based on report type
+    // Build query
     let query = { location };
-    if (selectedReportType === 'period-ytd') {
-      // For period-ytd, match documents with reportType='period-ytd' OR no reportType field (legacy)
-      query.$or = [{ reportType: 'period-ytd' }, { reportType: { $exists: false } }];
-    } else {
-      // current-prior and ytd-prior-ytd each have their own reportType
-      query.reportType = selectedReportType;
-    }
     
     if (periodEnding) {
       query.periodEnding = periodEnding;
+    }
+
+    // If all=true, delete all report types for this location+period
+    // Otherwise filter by specific report type
+    if (all !== 'true' && reportType) {
+      const selectedReportType = reportType;
+      if (selectedReportType === 'period-ytd') {
+        // For period-ytd, match documents with reportType='period-ytd' OR no reportType field (legacy)
+        query.$or = [{ reportType: 'period-ytd' }, { reportType: { $exists: false } }];
+      } else {
+        query.reportType = selectedReportType;
+      }
     }
 
     const result = await db.collection('pl_data').deleteMany(query);
