@@ -321,6 +321,16 @@ export default function PLUpload() {
               >
                 Period/YTD
               </button>
+              <button
+                onClick={() => setReportType('ytd-prior-ytd')}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  reportType === 'ytd-prior-ytd'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                YTD/Prior YTD
+              </button>
             </div>
             <p className="text-xs text-slate-500 mt-2">
               Toggle to view/manage different report types. Upload auto-detects report type from Excel headers.
@@ -409,13 +419,13 @@ export default function PLUpload() {
           <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-700">
               <h2 className="font-semibold text-white">
-                {reportType === 'period-ytd' ? 'Period/YTD' : 'Current/Prior Year Period'} Data ({existingData.length} records)
+                {reportType === 'period-ytd' ? 'Period/YTD' : reportType === 'ytd-prior-ytd' ? 'YTD/Prior YTD' : 'Current/Prior Year Period'} Data ({existingData.length} records)
               </h2>
             </div>
             
             {existingData.length === 0 ? (
               <div className="p-8 text-center text-slate-400">
-                No {reportType === 'period-ytd' ? 'Period/YTD' : 'Current/Prior Year Period'} data uploaded yet
+                No {reportType === 'period-ytd' ? 'Period/YTD' : reportType === 'ytd-prior-ytd' ? 'YTD/Prior YTD' : 'Current/Prior Year Period'} data uploaded yet
               </div>
             ) : (
               <div className="divide-y divide-slate-700 max-h-[500px] overflow-y-auto">
