@@ -1020,6 +1020,16 @@ export default function PLDashboard() {
                 >
                   Period/YTD
                 </button>
+                <button
+                  onClick={() => setReportType('ytd-prior-ytd')}
+                  className={`flex-1 px-3 py-1.5 text-xs md:text-sm font-medium rounded-lg transition-colors ${
+                    reportType === 'ytd-prior-ytd'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  YTD/Prior YTD
+                </button>
               </div>
             </div>
           )}
@@ -1032,8 +1042,8 @@ export default function PLDashboard() {
                 periodValue={kpis.sales?.period} 
                 ytdValue={kpis.sales?.ytd}
                 color="blue"
-                periodLabel={reportType === 'period-ytd' ? 'Period' : 'Current'}
-                ytdLabel={reportType === 'period-ytd' ? 'YTD' : 'Prior'}
+                periodLabel={reportType === 'period-ytd' ? 'Period' : reportType === 'ytd-prior-ytd' ? 'YTD' : 'Current'}
+                ytdLabel={reportType === 'period-ytd' ? 'YTD' : reportType === 'ytd-prior-ytd' ? 'Prior YTD' : 'Prior'}
               />
               <KPICard 
                 label="COGS %" 
@@ -1041,8 +1051,8 @@ export default function PLDashboard() {
                 ytdValue={kpis.cogsPercentYtd}
                 isPercent={true} 
                 color="orange"
-                periodLabel={reportType === 'period-ytd' ? 'Period' : 'Current'}
-                ytdLabel={reportType === 'period-ytd' ? 'YTD' : 'Prior'}
+                periodLabel={reportType === 'period-ytd' ? 'Period' : reportType === 'ytd-prior-ytd' ? 'YTD' : 'Current'}
+                ytdLabel={reportType === 'period-ytd' ? 'YTD' : reportType === 'ytd-prior-ytd' ? 'Prior YTD' : 'Prior'}
               />
               <KPICard 
                 label="Labor %" 
@@ -1050,16 +1060,16 @@ export default function PLDashboard() {
                 ytdValue={kpis.laborPercentYtd}
                 isPercent={true} 
                 color="purple"
-                periodLabel={reportType === 'period-ytd' ? 'Period' : 'Current'}
-                ytdLabel={reportType === 'period-ytd' ? 'YTD' : 'Prior'}
+                periodLabel={reportType === 'period-ytd' ? 'Period' : reportType === 'ytd-prior-ytd' ? 'YTD' : 'Current'}
+                ytdLabel={reportType === 'period-ytd' ? 'YTD' : reportType === 'ytd-prior-ytd' ? 'Prior YTD' : 'Prior'}
               />
               <KPICard 
                 label="Net Income" 
                 periodValue={kpis.netIncome?.period}
                 ytdValue={kpis.netIncome?.ytd}
                 color={kpis.netIncome?.period >= 0 ? 'green' : 'red'}
-                periodLabel={reportType === 'period-ytd' ? 'Period' : 'Current'}
-                ytdLabel={reportType === 'period-ytd' ? 'YTD' : 'Prior'}
+                periodLabel={reportType === 'period-ytd' ? 'Period' : reportType === 'ytd-prior-ytd' ? 'YTD' : 'Current'}
+                ytdLabel={reportType === 'period-ytd' ? 'YTD' : reportType === 'ytd-prior-ytd' ? 'Prior YTD' : 'Prior'}
               />
             </div>
           )}
@@ -1095,11 +1105,11 @@ export default function PLDashboard() {
                       </div>
                     </th>
                     <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">
-                      {reportType === 'period-ytd' ? 'Period' : 'Current'}
+                      {reportType === 'period-ytd' ? 'Period' : reportType === 'ytd-prior-ytd' ? 'YTD' : 'Current'}
                     </th>
                     <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">%</th>
                     <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">
-                      {reportType === 'period-ytd' ? 'YTD' : 'Prior'}
+                      {reportType === 'period-ytd' ? 'YTD' : reportType === 'ytd-prior-ytd' ? 'Prior YTD' : 'Prior'}
                     </th>
                     <th className="py-1.5 px-1 text-right text-xs md:text-sm font-semibold text-slate-300">%</th>
                   </tr>
