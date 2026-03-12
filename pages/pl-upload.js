@@ -14,7 +14,6 @@ export default function PLUpload() {
   const [existingData, setExistingData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dragActive, setDragActive] = useState(false);
-  const [reportType, setReportType] = useState('current-prior');
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -24,12 +23,12 @@ export default function PLUpload() {
         loadExistingData();
       }
     }
-  }, [status, session, reportType]);
+  }, [status, session]);
 
   const loadExistingData = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/get-pl-summary?reportType=${reportType}`);
+      const res = await fetch('/api/get-pl-summary');
       const data = await res.json();
       if (res.ok) {
         setExistingData(data.data || []);
@@ -105,12 +104,12 @@ export default function PLUpload() {
   };
 
   const handleDelete = async (location, periodEnding) => {
-    if (!confirm(`Delete P&L data for ${location} (${periodEnding})?`)) {
+    if (!confirm(`Delete all P&L data for ${location} (${periodEnding})? This removes all report types.`)) {
       return;
     }
 
     try {
-      const res = await fetch(`/api/delete-pl?location=${encodeURIComponent(location)}&periodEnding=${encodeURIComponent(periodEnding)}&reportType=${reportType}`, {
+      const res = await fetch(`/api/delete-pl?location=${encodeURIComponent(location)}&periodEnding=${encodeURIComponent(periodEnding)}&all=true`, {
         method: 'DELETE'
       });
 
@@ -147,14 +146,21 @@ export default function PLUpload() {
     return null;
   }
 
-  // Group data by location
+  // Group data by location, then by period
   const groupedData = existingData.reduce((acc, item) => {
     if (!acc[item.location]) {
-      acc[item.location] = [];
+      acc[item.location] = {};
     }
-    acc[item.location].push(item);
+    const period = item.periodEnding;
+    if (!acc[item.location][period]) {
+      acc[item.location][period] = [];
+    }
+    acc[item.location][period].push(item.reportType || 'period-ytd');
     return acc;
   }, {});
+
+  const uniquePeriods = [...new Set(existingData.map(d => d.periodEnding))];
+  const totalLocations = Object.keys(groupedData).length;
 
   return (
     <>
@@ -297,46 +303,6 @@ export default function PLUpload() {
             </div>
           </div>
 
-          {/* Report Type Selection */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-4">
-            <label className="block text-sm font-medium text-slate-400 mb-2">Report Type</label>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setReportType('current-prior')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                  reportType === 'current-prior'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                Current/Prior Year Period
-              </button>
-              <button
-                onClick={() => setReportType('period-ytd')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                  reportType === 'period-ytd'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                Period/YTD
-              </button>
-              <button
-                onClick={() => setReportType('ytd-prior-ytd')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                  reportType === 'ytd-prior-ytd'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                YTD/Prior YTD
-              </button>
-            </div>
-            <p className="text-xs text-slate-500 mt-2">
-              Toggle to view/manage different report types. Upload auto-detects report type from Excel headers.
-            </p>
-          </div>
-
           {/* Upload Area */}
           <div
             className={`bg-slate-800 border-2 border-dashed rounded-xl p-8 text-center mb-4 transition-colors ${
@@ -372,7 +338,7 @@ export default function PLUpload() {
                   </span>
                 </label>
                 <p className="text-sm text-slate-500 mt-4">
-                  Each sheet in the Excel file will be processed as a separate location
+                  One upload populates all report types automatically
                 </p>
               </>
             )}
@@ -419,30 +385,41 @@ export default function PLUpload() {
           <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-700">
               <h2 className="font-semibold text-white">
-                {reportType === 'period-ytd' ? 'Period/YTD' : reportType === 'ytd-prior-ytd' ? 'YTD/Prior YTD' : 'Current/Prior Year Period'} Data ({existingData.length} records)
+                Uploaded P&L Data ({totalLocations} locations, {uniquePeriods.length} periods)
               </h2>
             </div>
             
-            {existingData.length === 0 ? (
+            {Object.keys(groupedData).length === 0 ? (
               <div className="p-8 text-center text-slate-400">
-                No {reportType === 'period-ytd' ? 'Period/YTD' : reportType === 'ytd-prior-ytd' ? 'YTD/Prior YTD' : 'Current/Prior Year Period'} data uploaded yet
+                No P&L data uploaded yet
               </div>
             ) : (
               <div className="divide-y divide-slate-700 max-h-[500px] overflow-y-auto">
-                {Object.entries(groupedData).sort().map(([location, items]) => (
+                {Object.entries(groupedData).sort().map(([location, periods]) => (
                   <div key={location} className="p-3">
                     <div className="font-medium text-white mb-2">{location}</div>
                     <div className="flex flex-wrap gap-2">
-                      {items.map((item, idx) => (
+                      {Object.entries(periods).sort((a, b) => new Date(b[0]) - new Date(a[0])).map(([period, reportTypes]) => (
                         <div
-                          key={idx}
-                          className="flex items-center gap-2 px-2 py-1 bg-slate-700 rounded text-sm"
+                          key={period}
+                          className="flex items-center gap-2 px-2 py-1.5 bg-slate-700 rounded text-sm"
                         >
-                          <span className="text-slate-300">{item.periodEnding}</span>
+                          <span className="text-slate-300">{period}</span>
+                          <div className="flex gap-1">
+                            {reportTypes.includes('current-prior') && (
+                              <span className="px-1.5 py-0.5 bg-blue-600/30 text-blue-400 text-[10px] rounded">CP</span>
+                            )}
+                            {reportTypes.includes('period-ytd') && (
+                              <span className="px-1.5 py-0.5 bg-green-600/30 text-green-400 text-[10px] rounded">PY</span>
+                            )}
+                            {reportTypes.includes('ytd-prior-ytd') && (
+                              <span className="px-1.5 py-0.5 bg-purple-600/30 text-purple-400 text-[10px] rounded">YTD</span>
+                            )}
+                          </div>
                           <button
-                            onClick={() => handleDelete(item.location, item.periodEnding)}
+                            onClick={() => handleDelete(location, period)}
                             className="text-red-400 hover:text-red-300"
-                            title="Delete"
+                            title="Delete all report types for this period"
                           >
                             <Trash2 size={14} />
                           </button>
