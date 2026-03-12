@@ -38,13 +38,16 @@ export default async function handler(req, res) {
     const selectedReportType = reportType || 'period-ytd';
 
     // Get all available locations from database
-    // For period-ytd: exclude current-prior (includes legacy data)
+    // For period-ytd: exclude current-prior and ytd-prior-ytd (includes legacy data)
     // For current-prior: only current-prior
+    // For ytd-prior-ytd: only ytd-prior-ytd
     let locationQuery = {};
     if (selectedReportType === 'current-prior') {
       locationQuery = { reportType: 'current-prior' };
+    } else if (selectedReportType === 'ytd-prior-ytd') {
+      locationQuery = { reportType: 'ytd-prior-ytd' };
     } else {
-      locationQuery = { reportType: { $ne: 'current-prior' } };
+      locationQuery = { reportType: { $nin: ['current-prior', 'ytd-prior-ytd'] } };
     }
     
     const allLocations = await db.collection('pl_data').distinct('location', locationQuery);
@@ -79,8 +82,10 @@ export default async function handler(req, res) {
       let periodQuery = { location };
       if (selectedReportType === 'current-prior') {
         periodQuery.reportType = 'current-prior';
+      } else if (selectedReportType === 'ytd-prior-ytd') {
+        periodQuery.reportType = 'ytd-prior-ytd';
       } else {
-        periodQuery.reportType = { $ne: 'current-prior' };
+        periodQuery.reportType = { $nin: ['current-prior', 'ytd-prior-ytd'] };
       }
       
       const periods = await db.collection('pl_data')
@@ -100,8 +105,10 @@ export default async function handler(req, res) {
     let query = { location };
     if (selectedReportType === 'current-prior') {
       query.reportType = 'current-prior';
+    } else if (selectedReportType === 'ytd-prior-ytd') {
+      query.reportType = 'ytd-prior-ytd';
     } else {
-      query.reportType = { $ne: 'current-prior' };
+      query.reportType = { $nin: ['current-prior', 'ytd-prior-ytd'] };
     }
     if (period) {
       query.periodEnding = period;
