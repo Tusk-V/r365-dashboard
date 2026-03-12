@@ -187,24 +187,18 @@ function parseSheet(sheet, sheetName) {
     const rows = [];
     let totalSales = { period: 0, ytd: 0 };
 
-    // Find Total Sales first
+    // Find Total Sales - need actual numeric values, not formula cells
     for (let rowNum = 6; rowNum <= 150; rowNum++) {
       const label = getCellValue(`A${rowNum}`);
       if (label === 'Total Sales') {
         const periodVal = getCellValue(`${col1}${rowNum}`);
-        const ytdVal = getCellValue(`${col2}${rowNum}`);
-        if (periodVal && periodVal !== 0) {
+        if (periodVal !== null && periodVal !== 0 && typeof periodVal === 'number') {
           totalSales.period = parseFloat(periodVal) || 0;
-          totalSales.ytd = parseFloat(ytdVal) || 0;
+          totalSales.ytd = parseFloat(getCellValue(`${col2}${rowNum}`)) || 0;
           break;
         }
+        // If values are null (formula cells), keep looking for another Total Sales row
       }
-    }
-
-    // Check footer row 143 as fallback
-    if (totalSales.period === 0) {
-      totalSales.period = parseFloat(getCellValue(`${col1}143`)) || 0;
-      totalSales.ytd = parseFloat(getCellValue(`${col2}143`)) || 0;
     }
 
     // Parse all rows
