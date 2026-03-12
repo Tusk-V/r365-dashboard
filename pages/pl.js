@@ -78,9 +78,15 @@ export default function PLDashboard() {
       const data = await res.json();
       
       if (res.ok && data.periods) {
-        setAvailablePeriods(data.periods);
-        if (data.periods.length > 0) {
-          setSelectedPeriod(data.periods[0]);
+        // Sort periods newest first to ensure most recent is always default
+        const sorted = [...data.periods].sort((a, b) => {
+          const dateA = new Date(a);
+          const dateB = new Date(b);
+          return dateB - dateA;
+        });
+        setAvailablePeriods(sorted);
+        if (sorted.length > 0) {
+          setSelectedPeriod(sorted[0]);
         }
       }
     } catch (err) {
