@@ -52,13 +52,13 @@ export default async function handler(req, res) {
     for (const sheetName of workbook.SheetNames) {
       try {
         const sheet = workbook.Sheets[sheetName];
-        const plData = parseSheet(sheet, sheetName);
+        const plDocs = parseSheet(sheet, sheetName);
         
-        if (plData) {
+        for (const plData of plDocs) {
           // Build query to find existing document
-          // For period-ytd: also match legacy data without reportType field
           let findQuery;
           if (plData.reportType === 'period-ytd') {
+            // For period-ytd: also match legacy data without reportType field
             findQuery = {
               location: plData.location,
               periodEnding: plData.periodEnding,
@@ -68,7 +68,6 @@ export default async function handler(req, res) {
               ]
             };
           } else {
-            // current-prior and ytd-prior-ytd each have their own reportType
             findQuery = {
               location: plData.location,
               periodEnding: plData.periodEnding,
@@ -84,11 +83,13 @@ export default async function handler(req, res) {
             uploadedAt: new Date(),
             uploadedBy: session.user.email
           });
-          
+        }
+        
+        if (plDocs.length > 0) {
           results.push({
-            location: plData.location,
-            periodEnding: plData.periodEnding,
-            reportType: plData.reportType,
+            location: plDocs[0].location,
+            periodEnding: plDocs[0].periodEnding,
+            reportTypes: plDocs.map(d => d.reportType),
             status: 'success'
           });
         }
@@ -123,7 +124,7 @@ function parseSheet(sheet, sheetName) {
 
   // Row 2: Location name
   const locationCell = getCellValue('A2');
-  if (!locationCell) return null;
+  if (!locationCell) return [];
   
   const locationMatch = locationCell.match(/^\d+\s*-\s*(.+)$/);
   const location = locationMatch ? locationMatch[1].trim() : locationCell;
@@ -140,90 +141,118 @@ function parseSheet(sheet, sheetName) {
     }
   }
 
-  // Auto-detect report type from row 6 column headers
+  // Detect which columns exist by reading row 6 headers
   const colBHeader = String(getCellValue('B6') || '').toLowerCase();
   const colDHeader = String(getCellValue('D6') || '').toLowerCase();
   const colEHeader = String(getCellValue('E6') || '').toLowerCase();
-  
-  let reportType = 'period-ytd'; // default
-  // YTD/Prior YTD: both columns say "Period Ending" with different years, data in B and E
-  if (colBHeader.includes('period ending') && colEHeader.includes('period ending')) {
-    reportType = 'ytd-prior-ytd';
+  const colIHeader = String(getCellValue('I6') || '').toLowerCase();
+  const colLHeader = String(getCellValue('L6') || '').toLowerCase();
+
+  // Determine which column pairs exist in this file
+  // New format: B=Current Period, E=Prior Period, I=YTD, L=Prior YTD
+  // Legacy format: B + D (period-ytd)
+  const columnSets = [];
+
+  const hasNewFormat = colBHeader.includes('period ending') && colEHeader.includes('period ending');
+  const hasYTD = colIHeader.includes('ytd');
+  const hasPriorYTD = colLHeader.includes('ytd');
+
+  if (hasNewFormat) {
+    // Current/Prior Year Period: B + E
+    columnSets.push({ reportType: 'current-prior', col1: 'B', col2: 'E' });
+    
+    if (hasYTD) {
+      // Period/YTD: B (current period) + I (current YTD)
+      columnSets.push({ reportType: 'period-ytd', col1: 'B', col2: 'I' });
+    }
+    
+    if (hasYTD && hasPriorYTD) {
+      // YTD/Prior YTD: I + L
+      columnSets.push({ reportType: 'ytd-prior-ytd', col1: 'I', col2: 'L' });
+    }
   } else if (colBHeader.includes('current') || colDHeader.includes('prior')) {
-    reportType = 'current-prior';
+    // Older current-prior format with B + D
+    columnSets.push({ reportType: 'current-prior', col1: 'B', col2: 'D' });
   }
 
-  // Determine which column holds the second data set
-  // ytd-prior-ytd uses columns B and E; others use B and D
-  const secondCol = reportType === 'ytd-prior-ytd' ? 'E' : 'D';
+  // If no specific patterns matched, fall back to period-ytd with B + D (legacy)
+  if (columnSets.length === 0) {
+    columnSets.push({ reportType: 'period-ytd', col1: 'B', col2: 'D' });
+  }
 
-  // Parse all rows
-  const rows = [];
-  let totalSales = { period: 0, ytd: 0 };
-  
-  // Find Total Sales first
-  for (let rowNum = 6; rowNum <= 150; rowNum++) {
-    const label = getCellValue(`A${rowNum}`);
-    if (label === 'Total Sales') {
-      const periodVal = getCellValue(`B${rowNum}`);
-      const ytdVal = getCellValue(`${secondCol}${rowNum}`);
-      if (periodVal && periodVal !== 0) {
-        totalSales.period = parseFloat(periodVal) || 0;
-        totalSales.ytd = parseFloat(ytdVal) || 0;
-        break;
+  // Parse rows for each column set
+  const results = [];
+
+  for (const { reportType, col1, col2 } of columnSets) {
+    const rows = [];
+    let totalSales = { period: 0, ytd: 0 };
+
+    // Find Total Sales first
+    for (let rowNum = 6; rowNum <= 150; rowNum++) {
+      const label = getCellValue(`A${rowNum}`);
+      if (label === 'Total Sales') {
+        const periodVal = getCellValue(`${col1}${rowNum}`);
+        const ytdVal = getCellValue(`${col2}${rowNum}`);
+        if (periodVal && periodVal !== 0) {
+          totalSales.period = parseFloat(periodVal) || 0;
+          totalSales.ytd = parseFloat(ytdVal) || 0;
+          break;
+        }
       }
     }
-  }
 
-  // Check footer row 143 as fallback
-  if (totalSales.period === 0) {
-    totalSales.period = parseFloat(getCellValue('B143')) || 0;
-    totalSales.ytd = parseFloat(getCellValue(`${secondCol}143`)) || 0;
-  }
-
-  // Parse all rows
-  for (let rowNum = 6; rowNum <= 142; rowNum++) {
-    const label = getCellValue(`A${rowNum}`);
-    if (!label) continue;
-
-    const periodValue = getCellValue(`B${rowNum}`);
-    const ytdValue = getCellValue(`${secondCol}${rowNum}`);
-    
-    const isSection = isSectionHeader(label);
-    const isTotal = label.startsWith('Total ');
-    const isSubHeader = isSubHeaderRow(label);
-    
-    let periodPercent = null;
-    let ytdPercent = null;
-    
-    if (periodValue !== null && periodValue !== 0 && totalSales.period !== 0) {
-      periodPercent = (parseFloat(periodValue) / totalSales.period) * 100;
-    }
-    if (ytdValue !== null && ytdValue !== 0 && totalSales.ytd !== 0) {
-      ytdPercent = (parseFloat(ytdValue) / totalSales.ytd) * 100;
+    // Check footer row 143 as fallback
+    if (totalSales.period === 0) {
+      totalSales.period = parseFloat(getCellValue(`${col1}143`)) || 0;
+      totalSales.ytd = parseFloat(getCellValue(`${col2}143`)) || 0;
     }
 
-    rows.push({
-      rowNum,
-      label: label.trim(),
-      period: periodValue !== null ? parseFloat(periodValue) : null,
-      periodPercent,
-      ytd: ytdValue !== null ? parseFloat(ytdValue) : null,
-      ytdPercent,
-      isSection,
-      isTotal,
-      isSubHeader,
-      indent: getIndentLevel(label, isSection, isTotal, isSubHeader)
+    // Parse all rows
+    for (let rowNum = 6; rowNum <= 142; rowNum++) {
+      const label = getCellValue(`A${rowNum}`);
+      if (!label) continue;
+
+      const periodValue = getCellValue(`${col1}${rowNum}`);
+      const ytdValue = getCellValue(`${col2}${rowNum}`);
+      
+      const isSection = isSectionHeader(label);
+      const isTotal = label.startsWith('Total ');
+      const isSubHeader = isSubHeaderRow(label);
+      
+      let periodPercent = null;
+      let ytdPercent = null;
+      
+      if (periodValue !== null && periodValue !== 0 && totalSales.period !== 0) {
+        periodPercent = (parseFloat(periodValue) / totalSales.period) * 100;
+      }
+      if (ytdValue !== null && ytdValue !== 0 && totalSales.ytd !== 0) {
+        ytdPercent = (parseFloat(ytdValue) / totalSales.ytd) * 100;
+      }
+
+      rows.push({
+        rowNum,
+        label: label.trim(),
+        period: periodValue !== null ? parseFloat(periodValue) : null,
+        periodPercent,
+        ytd: ytdValue !== null ? parseFloat(ytdValue) : null,
+        ytdPercent,
+        isSection,
+        isTotal,
+        isSubHeader,
+        indent: getIndentLevel(label, isSection, isTotal, isSubHeader)
+      });
+    }
+
+    results.push({
+      location,
+      periodEnding,
+      reportType,
+      totalSales,
+      rows
     });
   }
 
-  return {
-    location,
-    periodEnding,
-    reportType,
-    totalSales,
-    rows
-  };
+  return results;
 }
 
 function isSectionHeader(label) {
