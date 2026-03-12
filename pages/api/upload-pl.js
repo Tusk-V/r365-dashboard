@@ -68,6 +68,7 @@ export default async function handler(req, res) {
               ]
             };
           } else {
+            // current-prior and ytd-prior-ytd each have their own reportType
             findQuery = {
               location: plData.location,
               periodEnding: plData.periodEnding,
@@ -142,11 +143,19 @@ function parseSheet(sheet, sheetName) {
   // Auto-detect report type from row 6 column headers
   const colBHeader = String(getCellValue('B6') || '').toLowerCase();
   const colDHeader = String(getCellValue('D6') || '').toLowerCase();
+  const colEHeader = String(getCellValue('E6') || '').toLowerCase();
   
   let reportType = 'period-ytd'; // default
-  if (colBHeader.includes('current') || colDHeader.includes('prior')) {
+  // YTD/Prior YTD: both columns say "Period Ending" with different years, data in B and E
+  if (colBHeader.includes('period ending') && colEHeader.includes('period ending')) {
+    reportType = 'ytd-prior-ytd';
+  } else if (colBHeader.includes('current') || colDHeader.includes('prior')) {
     reportType = 'current-prior';
   }
+
+  // Determine which column holds the second data set
+  // ytd-prior-ytd uses columns B and E; others use B and D
+  const secondCol = reportType === 'ytd-prior-ytd' ? 'E' : 'D';
 
   // Parse all rows
   const rows = [];
@@ -157,7 +166,7 @@ function parseSheet(sheet, sheetName) {
     const label = getCellValue(`A${rowNum}`);
     if (label === 'Total Sales') {
       const periodVal = getCellValue(`B${rowNum}`);
-      const ytdVal = getCellValue(`D${rowNum}`);
+      const ytdVal = getCellValue(`${secondCol}${rowNum}`);
       if (periodVal && periodVal !== 0) {
         totalSales.period = parseFloat(periodVal) || 0;
         totalSales.ytd = parseFloat(ytdVal) || 0;
@@ -169,7 +178,7 @@ function parseSheet(sheet, sheetName) {
   // Check footer row 143 as fallback
   if (totalSales.period === 0) {
     totalSales.period = parseFloat(getCellValue('B143')) || 0;
-    totalSales.ytd = parseFloat(getCellValue('D143')) || 0;
+    totalSales.ytd = parseFloat(getCellValue(`${secondCol}143`)) || 0;
   }
 
   // Parse all rows
@@ -178,7 +187,7 @@ function parseSheet(sheet, sheetName) {
     if (!label) continue;
 
     const periodValue = getCellValue(`B${rowNum}`);
-    const ytdValue = getCellValue(`D${rowNum}`);
+    const ytdValue = getCellValue(`${secondCol}${rowNum}`);
     
     const isSection = isSectionHeader(label);
     const isTotal = label.startsWith('Total ');
