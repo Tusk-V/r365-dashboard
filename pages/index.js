@@ -71,53 +71,53 @@ const getDailyLaborGrade = (day, forecastVariance) => {
 
   // --- 1. Hours Variance Score (0-100) ---
   // How close are actual hours to optimal hours?
-  // Within 5% = perfect zone. Beyond that, gradual penalty.
+  // Within 2% = comfort zone. Beyond that, gradual penalty.
   const hoursVariance = day.actualHours - day.optimalHours;
   const hoursVariancePct = Math.abs((hoursVariance / day.optimalHours) * 100);
   let hoursScore = 100;
-  if (hoursVariancePct > 5) {
-    const excessPct = hoursVariancePct - 5; // Only penalize beyond the 5% comfort zone
+  if (hoursVariancePct > 2) {
+    const excessPct = hoursVariancePct - 2; // Only penalize beyond the 2% comfort zone
     if (hoursVariance > 0) {
-      // Over optimal: lose 5 points per 1% beyond comfort zone
-      hoursScore = Math.max(0, 100 - (excessPct * 5));
+      // Over optimal: lose 6 points per 1% beyond comfort zone
+      hoursScore = Math.max(0, 100 - (excessPct * 6));
     } else {
-      // Under optimal: lose 3 points per 1% beyond comfort zone
-      hoursScore = Math.max(0, 100 - (excessPct * 3));
+      // Under optimal: lose 4 points per 1% beyond comfort zone
+      hoursScore = Math.max(0, 100 - (excessPct * 4));
     }
   }
 
   // --- 2. Labor % Variance Score (0-100) ---
   // How close is actual labor % to optimal labor %?
-  // Within 5% of optimal = comfort zone.
+  // Within 2% of optimal = comfort zone.
   const laborPctVar = day.laborPercentVariance; // Act% - Opt%
   const laborPctVarAbs = Math.abs(laborPctVar);
   let laborPctScore = 100;
-  if (laborPctVarAbs > 5) {
-    const excessPct = laborPctVarAbs - 5;
+  if (laborPctVarAbs > 2) {
+    const excessPct = laborPctVarAbs - 2;
     if (laborPctVar > 0) {
-      // Over optimal %: lose 8 points per 1% beyond comfort zone
-      laborPctScore = Math.max(0, 100 - (excessPct * 8));
+      // Over optimal %: lose 10 points per 1% beyond comfort zone
+      laborPctScore = Math.max(0, 100 - (excessPct * 10));
     } else {
-      // Under optimal %: lose 4 points per 1% beyond comfort zone
-      laborPctScore = Math.max(0, 100 - (excessPct * 4));
+      // Under optimal %: lose 5 points per 1% beyond comfort zone
+      laborPctScore = Math.max(0, 100 - (excessPct * 5));
     }
   }
 
   // --- 3. Scheduled Adherence Score (0-100) ---
   // How close are actual hours to scheduled hours?
-  // Within 5% = fine. Beyond that, penalty.
+  // Within 2% = fine. Beyond that, penalty.
   let schedScore = 100;
   if (day.scheduledHours > 0) {
     const schVariance = day.actualHours - day.scheduledHours;
     const schVariancePct = Math.abs((schVariance / day.scheduledHours) * 100);
-    if (schVariancePct > 5) {
-      const excessPct = schVariancePct - 5;
+    if (schVariancePct > 2) {
+      const excessPct = schVariancePct - 2;
       if (schVariance > 0) {
-        // Over scheduled: lose 4 points per 1% beyond comfort zone
-        schedScore = Math.max(0, 100 - (excessPct * 4));
+        // Over scheduled: lose 5 points per 1% beyond comfort zone
+        schedScore = Math.max(0, 100 - (excessPct * 5));
       } else {
-        // Under scheduled: lose 2 points per 1% beyond comfort zone
-        schedScore = Math.max(0, 100 - (excessPct * 2));
+        // Under scheduled: lose 3 points per 1% beyond comfort zone
+        schedScore = Math.max(0, 100 - (excessPct * 3));
       }
     }
   }
