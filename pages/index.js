@@ -3265,7 +3265,7 @@ loadModelCoefficients();
                             <div key={idx} className="border-b border-slate-700 last:border-b-0">
                               <div className="px-1.5 py-1.5 text-[11px] flex items-center">
                               {/* Grade */}
-                              <div className="w-5 text-center flex-shrink-0">
+                              <div className="w-5 text-center flex-shrink-0 mr-1">
                                 {grade ? (
                                   <span className={`inline-block w-5 py-0.5 rounded text-[10px] font-bold border ${grade.bg} ${grade.color}`}>
                                     {grade.letter}
@@ -3295,20 +3295,22 @@ loadModelCoefficients();
                               
                               {/* Opt % */}
                               <div className="text-slate-400 text-right flex-1">{day.optimalLaborPercent.toFixed(1)}%</div>
-                              </div>
-                              {dayClockouts.length > 0 && (
-                                <div className="px-1.5 pb-1 -mt-0.5">
-                                  <button
-                                    onClick={() => {
-                                      setClockoutModalData({ location: location, data: dayClockouts });
-                                      setShowClockoutModal(true);
-                                    }}
-                                    className="bg-red-600 text-white text-[9px] px-1 py-0.5 rounded font-semibold cursor-pointer hover:bg-red-700 transition-colors ml-5"
-                                  >
-                                    AC{dayClockouts.length > 1 ? `×${dayClockouts.length}` : ''} {dayExtraHrs > 0 ? `${dayExtraHrs.toFixed(1)}h` : ''}
-                                  </button>
-                                </div>
+
+                              {/* AC badge inline */}
+                              {dayClockouts.length > 0 ? (
+                                <button
+                                  onClick={() => {
+                                    setClockoutModalData({ location: location, data: dayClockouts });
+                                    setShowClockoutModal(true);
+                                  }}
+                                  className="bg-red-600 text-white text-[8px] leading-tight px-1 py-0.5 rounded font-bold cursor-pointer hover:bg-red-700 transition-colors ml-1 flex-shrink-0"
+                                >
+                                  AC
+                                </button>
+                              ) : (
+                                <div className="w-5 flex-shrink-0"></div>
                               )}
+                              </div>
                             </div>
                           );
                         })}
