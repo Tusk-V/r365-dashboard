@@ -46,61 +46,98 @@ return (
 // ============================================================================
 // DAILY LABOR GRADE CALCULATION
 // Grades each day A-F based on how well labor was managed relative to optimal.
-// The sweet spot is AT optimal — deviations in either direction are penalized.
+// The sweet spot is AT optimal — deviations in either direction are penalized,
+// but there's a 5% "comfort zone" around optimal where you're still doing great.
 // Being over optimal is weighted more heavily (direct cost waste) than being
 // under (potential lost sales from understaffing).
+//
+// AUTO-F RULE: If the store was under forecasted sales AND over scheduled hours,
+// that's an automatic F — you overstaffed and still missed sales.
+//
+// forecastVariance comes from Flash - Daily Sales (cross-referenced by location+date).
+// A negative forecastVariance means actual sales were BELOW forecast.
 // ============================================================================
-const getDailyLaborGrade = (day) => {
+const getDailyLaborGrade = (day, forecastVariance) => {
   // Need at least optimal hours to grade meaningfully
   if (!day.optimalHours || day.optimalHours === 0) return null;
 
+  // --- AUTO-F: Under forecast sales AND over scheduled hours ---
+  // forecastVariance < 0 means actual < forecast (missed sales)
+  // actualHours > scheduledHours means went over schedule
+  if (forecastVariance !== null && forecastVariance !== undefined && forecastVariance < 0 
+      && day.scheduledHours > 0 && day.actualHours > day.scheduledHours) {
+    return { letter: 'F', color: 'text-red-400', bg: 'bg-red-900/40 border-red-700', score: 0, autoF: true };
+  }
+
   // --- 1. Hours Variance Score (0-100) ---
   // How close are actual hours to optimal hours?
-  // Perfect = 0 variance. Penalize both directions.
+  // Within 5% = perfect zone. Beyond that, gradual penalty.
   const hoursVariance = day.actualHours - day.optimalHours;
-  const hoursVariancePct = (hoursVariance / day.optimalHours) * 100;
-  // Over optimal: lose 8 points per 1% over (harsh — direct cost)
-  // Under optimal: lose 5 points per 1% under (still bad — lost sales)
+  const hoursVariancePct = Math.abs((hoursVariance / day.optimalHours) * 100);
   let hoursScore = 100;
-  if (hoursVariancePct > 0) {
-    hoursScore = Math.max(0, 100 - (hoursVariancePct * 8));
-  } else {
-    hoursScore = Math.max(0, 100 - (Math.abs(hoursVariancePct) * 5));
+  if (hoursVariancePct > 5) {
+    const excessPct = hoursVariancePct - 5; // Only penalize beyond the 5% comfort zone
+    if (hoursVariance > 0) {
+      // Over optimal: lose 5 points per 1% beyond comfort zone
+      hoursScore = Math.max(0, 100 - (excessPct * 5));
+    } else {
+      // Under optimal: lose 3 points per 1% beyond comfort zone
+      hoursScore = Math.max(0, 100 - (excessPct * 3));
+    }
   }
 
   // --- 2. Labor % Variance Score (0-100) ---
   // How close is actual labor % to optimal labor %?
+  // Within 5% of optimal = comfort zone.
   const laborPctVar = day.laborPercentVariance; // Act% - Opt%
+  const laborPctVarAbs = Math.abs(laborPctVar);
   let laborPctScore = 100;
-  if (laborPctVar > 0) {
-    // Over optimal %: lose 12 points per 1% over
-    laborPctScore = Math.max(0, 100 - (laborPctVar * 12));
-  } else {
-    // Under optimal %: lose 6 points per 1% under
-    laborPctScore = Math.max(0, 100 - (Math.abs(laborPctVar) * 6));
+  if (laborPctVarAbs > 5) {
+    const excessPct = laborPctVarAbs - 5;
+    if (laborPctVar > 0) {
+      // Over optimal %: lose 8 points per 1% beyond comfort zone
+      laborPctScore = Math.max(0, 100 - (excessPct * 8));
+    } else {
+      // Under optimal %: lose 4 points per 1% beyond comfort zone
+      laborPctScore = Math.max(0, 100 - (excessPct * 4));
+    }
   }
 
   // --- 3. Scheduled Adherence Score (0-100) ---
   // How close are actual hours to scheduled hours?
-  // Over scheduled = lost control. Way under = call-offs or poor planning.
+  // Within 5% = fine. Beyond that, penalty.
   let schedScore = 100;
   if (day.scheduledHours > 0) {
     const schVariance = day.actualHours - day.scheduledHours;
-    const schVariancePct = (schVariance / day.scheduledHours) * 100;
-    if (schVariancePct > 0) {
-      // Over scheduled: lose 6 points per 1% over
-      schedScore = Math.max(0, 100 - (schVariancePct * 6));
-    } else {
-      // Under scheduled: lose 3 points per 1% under (less harsh)
-      schedScore = Math.max(0, 100 - (Math.abs(schVariancePct) * 3));
+    const schVariancePct = Math.abs((schVariance / day.scheduledHours) * 100);
+    if (schVariancePct > 5) {
+      const excessPct = schVariancePct - 5;
+      if (schVariance > 0) {
+        // Over scheduled: lose 4 points per 1% beyond comfort zone
+        schedScore = Math.max(0, 100 - (excessPct * 4));
+      } else {
+        // Under scheduled: lose 2 points per 1% beyond comfort zone
+        schedScore = Math.max(0, 100 - (excessPct * 2));
+      }
     }
   }
 
+  // --- 4. Forecast Sales Bonus/Penalty (adjusts composite ±10) ---
+  // If you beat forecast, small bonus. If you missed, small penalty.
+  // This is a modifier, not a standalone score — labor management is still primary.
+  let forecastModifier = 0;
+  if (forecastVariance !== null && forecastVariance !== undefined && day.sales > 0) {
+    const forecastPct = (forecastVariance / day.sales) * 100;
+    if (forecastPct >= 5) forecastModifier = 5;       // Beat forecast by 5%+ = +5
+    else if (forecastPct >= 0) forecastModifier = 2;   // Beat forecast = +2
+    else if (forecastPct >= -5) forecastModifier = -2;  // Slightly under = -2
+    else forecastModifier = -5;                         // Missed by 5%+ = -5
+  }
+
   // --- Weighted composite ---
-  // Labor % variance is the most important (it directly reflects cost efficiency)
-  // Hours vs optimal is next (staffing quality)
-  // Scheduled adherence is a supporting signal
-  const composite = (laborPctScore * 0.45) + (hoursScore * 0.35) + (schedScore * 0.20);
+  const composite = Math.min(100, Math.max(0,
+    (laborPctScore * 0.45) + (hoursScore * 0.35) + (schedScore * 0.20) + forecastModifier
+  ));
 
   // --- Letter grade ---
   if (composite >= 90) return { letter: 'A', color: 'text-green-400', bg: 'bg-green-900/40 border-green-700', score: composite };
@@ -3146,7 +3183,10 @@ loadModelCoefficients();
                         </thead>
                         <tbody>
                           {locationData.map((day, idx) => {
-                            const grade = getDailyLaborGrade(day);
+                            // Cross-reference forecast variance from Daily Sales data
+                            const salesDayData = (dailyFlashData[location] || []).find(s => s.date === day.date);
+                            const forecastVar = salesDayData ? salesDayData.forecastVariance : null;
+                            const grade = getDailyLaborGrade(day, forecastVar);
                             return (
                               <tr key={idx} className="border-t border-slate-700">
                                 <td className="text-center p-2">
@@ -3200,7 +3240,11 @@ loadModelCoefficients();
                               return day.date.substring(0, 3);
                             }
                           })();
-                          const grade = getDailyLaborGrade(day);
+                          const grade = (() => {
+                            const salesDayData = (dailyFlashData[location] || []).find(s => s.date === day.date);
+                            const forecastVar = salesDayData ? salesDayData.forecastVariance : null;
+                            return getDailyLaborGrade(day, forecastVar);
+                          })();
                           
                           return (
                             <div key={idx} className="border-b border-slate-700 last:border-b-0 p-2 text-xs flex items-center">
