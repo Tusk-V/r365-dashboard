@@ -122,16 +122,20 @@ const getDailyLaborGrade = (day, forecastVariance) => {
     }
   }
 
-  // --- 4. Forecast Sales Bonus/Penalty (adjusts composite ±10) ---
-  // If you beat forecast, small bonus. If you missed, small penalty.
-  // This is a modifier, not a standalone score — labor management is still primary.
+  // --- 4. Forecast Sales Modifier ---
+  // If a store is way up in sales over forecast, they needed those extra hours
+  // to serve the demand — reduce the penalty. Scales with how much they beat it.
+  // Missing forecast still hurts (you had the staff and couldn't sell).
   let forecastModifier = 0;
   if (forecastVariance !== null && forecastVariance !== undefined && day.sales > 0) {
     const forecastPct = (forecastVariance / day.sales) * 100;
-    if (forecastPct >= 5) forecastModifier = 5;       // Beat forecast by 5%+ = +5
-    else if (forecastPct >= 0) forecastModifier = 2;   // Beat forecast = +2
-    else if (forecastPct >= -5) forecastModifier = -2;  // Slightly under = -2
-    else forecastModifier = -5;                         // Missed by 5%+ = -5
+    if (forecastPct >= 15) forecastModifier = 15;        // Crushed it by 15%+ = big cushion
+    else if (forecastPct >= 10) forecastModifier = 12;   // Beat by 10-15% = strong cushion
+    else if (forecastPct >= 5) forecastModifier = 8;     // Beat by 5-10% = solid cushion
+    else if (forecastPct >= 0) forecastModifier = 3;     // Beat forecast = small bump
+    else if (forecastPct >= -5) forecastModifier = -3;   // Slightly under = small penalty
+    else if (forecastPct >= -10) forecastModifier = -6;  // Missed by 5-10% = moderate penalty
+    else forecastModifier = -8;                          // Missed by 10%+ = harsh penalty
   }
 
   // --- Weighted composite ---
