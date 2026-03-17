@@ -3205,9 +3205,9 @@ loadModelCoefficients();
                                           setClockoutModalData({ location: location, data: dayClockouts });
                                           setShowClockoutModal(true);
                                         }}
-                                        className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold cursor-pointer hover:bg-red-700 transition-colors"
+                                        className="bg-red-600 text-white text-[10px] px-1 py-0.5 rounded font-semibold cursor-pointer hover:bg-red-700 transition-colors"
                                       >
-                                        AC ({dayClockouts.length}) {dayExtraHrs > 0 ? `${dayExtraHrs.toFixed(1)}h` : ''}
+                                        AC{dayClockouts.length > 1 ? `×${dayClockouts.length}` : ''} {dayExtraHrs > 0 ? `${dayExtraHrs.toFixed(1)}h` : ''}
                                       </button>
                                     )}
                                   </div>
@@ -3230,7 +3230,7 @@ loadModelCoefficients();
                       <div className="md:hidden">
                         {/* Mobile Headers */}
                         <div className="border-b border-slate-700 p-2 text-xs flex items-center bg-slate-800 sticky top-0">
-                          <div className="text-slate-400 font-semibold w-7 text-center"></div>
+                          <div className="text-slate-400 font-semibold w-6 text-center">G</div>
                           <div className="text-slate-400 font-semibold w-8">Day</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Act</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Sch</div>
@@ -3238,7 +3238,6 @@ loadModelCoefficients();
                           <div className="text-slate-600 text-center w-3">|</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Act%</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Opt%</div>
-                          <div className="text-slate-400 font-semibold text-right w-11">Var</div>
                         </div>
                         
                         {/* Data rows */}
@@ -3266,7 +3265,7 @@ loadModelCoefficients();
                             <div key={idx} className="border-b border-slate-700 last:border-b-0">
                               <div className="p-2 text-xs flex items-center">
                               {/* Grade */}
-                              <div className="w-7 text-center flex-shrink-0">
+                              <div className="w-6 text-center flex-shrink-0">
                                 {grade ? (
                                   <span className={`inline-block w-5 py-0.5 rounded text-[10px] font-bold border ${grade.bg} ${grade.color}`}>
                                     {grade.letter}
@@ -3296,11 +3295,6 @@ loadModelCoefficients();
                               
                               {/* Opt % */}
                               <div className="text-slate-400 text-right flex-1">{day.optimalLaborPercent.toFixed(1)}%</div>
-                              
-                              {/* % Var */}
-                              <div className={`text-right w-11 ${day.laborPercentVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                                {day.laborPercentVariance >= 0 ? '+' : ''}{day.laborPercentVariance.toFixed(1)}%
-                              </div>
                               </div>
                               {dayClockouts.length > 0 && (
                                 <div className="px-2 pb-1.5 -mt-0.5">
@@ -3309,9 +3303,9 @@ loadModelCoefficients();
                                       setClockoutModalData({ location: location, data: dayClockouts });
                                       setShowClockoutModal(true);
                                     }}
-                                    className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold cursor-pointer hover:bg-red-700 transition-colors ml-7"
+                                    className="bg-red-600 text-white text-[9px] px-1 py-0.5 rounded font-semibold cursor-pointer hover:bg-red-700 transition-colors ml-6"
                                   >
-                                    AC ({dayClockouts.length}) {dayExtraHrs > 0 ? `${dayExtraHrs.toFixed(1)}h` : ''}
+                                    AC{dayClockouts.length > 1 ? `×${dayClockouts.length}` : ''} {dayExtraHrs > 0 ? `${dayExtraHrs.toFixed(1)}h` : ''}
                                   </button>
                                 </div>
                               )}
