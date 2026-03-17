@@ -3232,9 +3232,9 @@ loadModelCoefficients();
                         <div className="border-b border-slate-700 px-1.5 py-2 text-[11px] flex items-center bg-slate-800 sticky top-0">
                           <div className="text-slate-400 font-semibold w-5 text-center">G</div>
                           <div className="text-slate-400 font-semibold w-7">Day</div>
-                          <div className="text-slate-400 font-semibold text-right w-9">Act</div>
-                          <div className="text-slate-400 font-semibold text-right w-9">Sch</div>
-                          <div className="text-slate-400 font-semibold text-right w-9">Opt</div>
+                          <div className="text-slate-400 font-semibold text-right flex-1">Act</div>
+                          <div className="text-slate-400 font-semibold text-right flex-1">Sch</div>
+                          <div className="text-slate-400 font-semibold text-right flex-1">Opt</div>
                           <div className="text-slate-600 text-center w-2">|</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Act%</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Opt%</div>
@@ -3279,13 +3279,13 @@ loadModelCoefficients();
                               <div className="text-slate-300 font-semibold w-7">{dayOfWeek}</div>
                               
                               {/* Act Hours */}
-                              <div className="text-white font-semibold text-right w-9">{day.actualHours.toFixed(1)}</div>
+                              <div className="text-white font-semibold text-right flex-1">{day.actualHours.toFixed(1)}</div>
                               
                               {/* Sch Hours */}
-                              <div className="text-slate-400 text-right w-9">{day.scheduledHours.toFixed(1)}</div>
+                              <div className="text-slate-400 text-right flex-1">{day.scheduledHours.toFixed(1)}</div>
                               
                               {/* Opt Hours */}
-                              <div className="text-slate-400 text-right w-9">{day.optimalHours.toFixed(1)}</div>
+                              <div className="text-slate-400 text-right flex-1">{day.optimalHours.toFixed(1)}</div>
                               
                               {/* Separator */}
                               <div className="text-slate-600 text-center w-2">|</div>
