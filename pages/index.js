@@ -3143,24 +3143,6 @@ loadModelCoefficients();
                     <div className="mb-2 md:mb-3 flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm md:text-base font-bold text-white">{location}</h3>
                       {(() => {
-                        const clockoutData = getAutoClockoutData(location);
-                        const extraHrs = getAutoClockoutExtraHours(location);
-                        if (clockoutData.length > 0) {
-                          return (
-                            <button
-                              onClick={() => {
-                                setClockoutModalData({ location: location, data: clockoutData });
-                                setShowClockoutModal(true);
-                              }}
-                              className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 cursor-pointer hover:bg-red-700 transition-colors"
-                            >
-                              AC ({clockoutData.length}){extraHrs && ` ${extraHrs}h`}
-                            </button>
-                          );
-                        }
-                        return null;
-                      })()}
-                      {(() => {
                         const callOffEmployees = getCallOffEmployees(location);
                         if (callOffEmployees.length > 0) {
                           return (
@@ -3200,6 +3182,9 @@ loadModelCoefficients();
                             const salesDayData = (dailyFlashData[location] || []).find(s => s.date === day.date);
                             const forecastVar = salesDayData ? salesDayData.forecastVariance : null;
                             const grade = getDailyLaborGrade(day, forecastVar);
+                            // Cross-reference auto-clockouts for this location+date
+                            const dayClockouts = clockouts.filter(c => c.location === location && c.reportDate === day.date);
+                            const dayExtraHrs = dayClockouts.reduce((sum, c) => { const h = parseFloat(c.extraHours); return sum + (isNaN(h) ? 0 : h); }, 0);
                             return (
                               <tr key={idx} className="border-t border-slate-700">
                                 <td className="text-center p-2">
@@ -3211,7 +3196,22 @@ loadModelCoefficients();
                                     <span className="text-slate-600 text-xs">—</span>
                                   )}
                                 </td>
-                                <td className="p-2 text-slate-300">{day.date}</td>
+                                <td className="p-2 text-slate-300">
+                                  <div className="flex items-center gap-1.5">
+                                    {day.date}
+                                    {dayClockouts.length > 0 && (
+                                      <button
+                                        onClick={() => {
+                                          setClockoutModalData({ location: location, data: dayClockouts });
+                                          setShowClockoutModal(true);
+                                        }}
+                                        className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold cursor-pointer hover:bg-red-700 transition-colors"
+                                      >
+                                        AC ({dayClockouts.length}) {dayExtraHrs > 0 ? `${dayExtraHrs.toFixed(1)}h` : ''}
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
                                 <td className="text-right p-2 text-white font-semibold">{day.actualHours.toFixed(1)}</td>
                                 <td className="text-right p-2 text-slate-300">{day.scheduledHours.toFixed(1)}</td>
                                 <td className="text-right p-2 text-slate-300">{day.optimalHours.toFixed(1)}</td>
@@ -3258,9 +3258,13 @@ loadModelCoefficients();
                             const forecastVar = salesDayData ? salesDayData.forecastVariance : null;
                             return getDailyLaborGrade(day, forecastVar);
                           })();
+                          // Cross-reference auto-clockouts for this location+date
+                          const dayClockouts = clockouts.filter(c => c.location === location && c.reportDate === day.date);
+                          const dayExtraHrs = dayClockouts.reduce((sum, c) => { const h = parseFloat(c.extraHours); return sum + (isNaN(h) ? 0 : h); }, 0);
                           
                           return (
-                            <div key={idx} className="border-b border-slate-700 last:border-b-0 p-2 text-xs flex items-center">
+                            <div key={idx} className="border-b border-slate-700 last:border-b-0">
+                              <div className="p-2 text-xs flex items-center">
                               {/* Grade */}
                               <div className="w-7 text-center flex-shrink-0">
                                 {grade ? (
@@ -3297,6 +3301,20 @@ loadModelCoefficients();
                               <div className={`text-right w-11 ${day.laborPercentVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
                                 {day.laborPercentVariance >= 0 ? '+' : ''}{day.laborPercentVariance.toFixed(1)}%
                               </div>
+                              </div>
+                              {dayClockouts.length > 0 && (
+                                <div className="px-2 pb-1.5 -mt-0.5">
+                                  <button
+                                    onClick={() => {
+                                      setClockoutModalData({ location: location, data: dayClockouts });
+                                      setShowClockoutModal(true);
+                                    }}
+                                    className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold cursor-pointer hover:bg-red-700 transition-colors ml-7"
+                                  >
+                                    AC ({dayClockouts.length}) {dayExtraHrs > 0 ? `${dayExtraHrs.toFixed(1)}h` : ''}
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
