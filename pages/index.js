@@ -43,6 +43,73 @@ return (
 );
 };
 
+// ============================================================================
+// DAILY LABOR GRADE CALCULATION
+// Grades each day A-F based on how well labor was managed relative to optimal.
+// The sweet spot is AT optimal — deviations in either direction are penalized.
+// Being over optimal is weighted more heavily (direct cost waste) than being
+// under (potential lost sales from understaffing).
+// ============================================================================
+const getDailyLaborGrade = (day) => {
+  // Need at least optimal hours to grade meaningfully
+  if (!day.optimalHours || day.optimalHours === 0) return null;
+
+  // --- 1. Hours Variance Score (0-100) ---
+  // How close are actual hours to optimal hours?
+  // Perfect = 0 variance. Penalize both directions.
+  const hoursVariance = day.actualHours - day.optimalHours;
+  const hoursVariancePct = (hoursVariance / day.optimalHours) * 100;
+  // Over optimal: lose 8 points per 1% over (harsh — direct cost)
+  // Under optimal: lose 5 points per 1% under (still bad — lost sales)
+  let hoursScore = 100;
+  if (hoursVariancePct > 0) {
+    hoursScore = Math.max(0, 100 - (hoursVariancePct * 8));
+  } else {
+    hoursScore = Math.max(0, 100 - (Math.abs(hoursVariancePct) * 5));
+  }
+
+  // --- 2. Labor % Variance Score (0-100) ---
+  // How close is actual labor % to optimal labor %?
+  const laborPctVar = day.laborPercentVariance; // Act% - Opt%
+  let laborPctScore = 100;
+  if (laborPctVar > 0) {
+    // Over optimal %: lose 12 points per 1% over
+    laborPctScore = Math.max(0, 100 - (laborPctVar * 12));
+  } else {
+    // Under optimal %: lose 6 points per 1% under
+    laborPctScore = Math.max(0, 100 - (Math.abs(laborPctVar) * 6));
+  }
+
+  // --- 3. Scheduled Adherence Score (0-100) ---
+  // How close are actual hours to scheduled hours?
+  // Over scheduled = lost control. Way under = call-offs or poor planning.
+  let schedScore = 100;
+  if (day.scheduledHours > 0) {
+    const schVariance = day.actualHours - day.scheduledHours;
+    const schVariancePct = (schVariance / day.scheduledHours) * 100;
+    if (schVariancePct > 0) {
+      // Over scheduled: lose 6 points per 1% over
+      schedScore = Math.max(0, 100 - (schVariancePct * 6));
+    } else {
+      // Under scheduled: lose 3 points per 1% under (less harsh)
+      schedScore = Math.max(0, 100 - (Math.abs(schVariancePct) * 3));
+    }
+  }
+
+  // --- Weighted composite ---
+  // Labor % variance is the most important (it directly reflects cost efficiency)
+  // Hours vs optimal is next (staffing quality)
+  // Scheduled adherence is a supporting signal
+  const composite = (laborPctScore * 0.45) + (hoursScore * 0.35) + (schedScore * 0.20);
+
+  // --- Letter grade ---
+  if (composite >= 90) return { letter: 'A', color: 'text-green-400', bg: 'bg-green-900/40 border-green-700', score: composite };
+  if (composite >= 75) return { letter: 'B', color: 'text-blue-400', bg: 'bg-blue-900/40 border-blue-700', score: composite };
+  if (composite >= 60) return { letter: 'C', color: 'text-yellow-400', bg: 'bg-yellow-900/40 border-yellow-700', score: composite };
+  if (composite >= 40) return { letter: 'D', color: 'text-orange-400', bg: 'bg-orange-900/40 border-orange-700', score: composite };
+  return { letter: 'F', color: 'text-red-400', bg: 'bg-red-900/40 border-red-700', score: composite };
+};
+
 export default function Home() {
 const { data: session, status } = useSession()
 const router = useRouter()
@@ -833,6 +900,7 @@ try {
     
     groupedByLocation[location].push({
       date: row[0] || '',
+      sales: parseFloat(row[2]) || 0,
       actualHours: parseFloat(row[3]) || 0,
       optimalHours: parseFloat(row[4]) || 0,
       scheduledHours: parseFloat(row[5]) || 0,
@@ -3066,6 +3134,7 @@ loadModelCoefficients();
                       <table className="hidden md:table w-full text-xs">
                         <thead className="bg-slate-800">
                           <tr>
+                            <th className="text-center p-2 text-slate-400 font-semibold w-10">Grade</th>
                             <th className="text-left p-2 text-slate-400 font-semibold">Date</th>
                             <th className="text-right p-2 text-slate-400 font-semibold">Act Hrs</th>
                             <th className="text-right p-2 text-slate-400 font-semibold">Sch Hrs</th>
@@ -3077,8 +3146,18 @@ loadModelCoefficients();
                         </thead>
                         <tbody>
                           {locationData.map((day, idx) => {
+                            const grade = getDailyLaborGrade(day);
                             return (
                               <tr key={idx} className="border-t border-slate-700">
+                                <td className="text-center p-2">
+                                  {grade ? (
+                                    <span className={`inline-block w-7 py-0.5 rounded text-xs font-bold border ${grade.bg} ${grade.color}`}>
+                                      {grade.letter}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-600 text-xs">—</span>
+                                  )}
+                                </td>
                                 <td className="p-2 text-slate-300">{day.date}</td>
                                 <td className="text-right p-2 text-white font-semibold">{day.actualHours.toFixed(1)}</td>
                                 <td className="text-right p-2 text-slate-300">{day.scheduledHours.toFixed(1)}</td>
@@ -3098,14 +3177,15 @@ loadModelCoefficients();
                       <div className="md:hidden">
                         {/* Mobile Headers */}
                         <div className="border-b border-slate-700 p-2 text-xs flex items-center bg-slate-800 sticky top-0">
-                          <div className="text-slate-400 font-semibold w-9">Day</div>
+                          <div className="text-slate-400 font-semibold w-7 text-center"></div>
+                          <div className="text-slate-400 font-semibold w-8">Day</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Act</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Sch</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Opt</div>
-                          <div className="text-slate-600 text-center w-4">|</div>
+                          <div className="text-slate-600 text-center w-3">|</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Act%</div>
                           <div className="text-slate-400 font-semibold text-right flex-1">Opt%</div>
-                          <div className="text-slate-400 font-semibold text-right w-12">Var</div>
+                          <div className="text-slate-400 font-semibold text-right w-11">Var</div>
                         </div>
                         
                         {/* Data rows */}
@@ -3120,11 +3200,23 @@ loadModelCoefficients();
                               return day.date.substring(0, 3);
                             }
                           })();
+                          const grade = getDailyLaborGrade(day);
                           
                           return (
                             <div key={idx} className="border-b border-slate-700 last:border-b-0 p-2 text-xs flex items-center">
+                              {/* Grade */}
+                              <div className="w-7 text-center flex-shrink-0">
+                                {grade ? (
+                                  <span className={`inline-block w-5 py-0.5 rounded text-[10px] font-bold border ${grade.bg} ${grade.color}`}>
+                                    {grade.letter}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-600">—</span>
+                                )}
+                              </div>
+                              
                               {/* Day */}
-                              <div className="text-slate-300 font-semibold w-9">{dayOfWeek}</div>
+                              <div className="text-slate-300 font-semibold w-8">{dayOfWeek}</div>
                               
                               {/* Act Hours */}
                               <div className="text-white font-semibold text-right flex-1">{day.actualHours.toFixed(1)}</div>
@@ -3136,7 +3228,7 @@ loadModelCoefficients();
                               <div className="text-slate-400 text-right flex-1">{day.optimalHours.toFixed(1)}</div>
                               
                               {/* Separator */}
-                              <div className="text-slate-600 text-center w-4">|</div>
+                              <div className="text-slate-600 text-center w-3">|</div>
                               
                               {/* Act % */}
                               <div className="text-white text-right flex-1">{day.actualLaborPercent.toFixed(1)}%</div>
@@ -3145,7 +3237,7 @@ loadModelCoefficients();
                               <div className="text-slate-400 text-right flex-1">{day.optimalLaborPercent.toFixed(1)}%</div>
                               
                               {/* % Var */}
-                              <div className={`text-right w-12 ${day.laborPercentVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                              <div className={`text-right w-11 ${day.laborPercentVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
                                 {day.laborPercentVariance >= 0 ? '+' : ''}{day.laborPercentVariance.toFixed(1)}%
                               </div>
                             </div>
