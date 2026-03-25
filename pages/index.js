@@ -300,7 +300,7 @@ const getMarket = (locationName) => {
 const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
 const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
 const dallas = ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'Lake Highlands', 'Hillcrest Village', 'The Colony', 'Prosper', 'Allen'];
-const orlando = ['Sanford', 'Lakeland'];
+const orlando = ['Sanford', 'Lakeland', "Hunter's Creek"];
 
 if (tulsa.includes(locationName)) return 'Tulsa';
 if (okc.includes(locationName)) return 'Oklahoma City';
