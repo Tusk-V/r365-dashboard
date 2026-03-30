@@ -310,6 +310,16 @@ return 'Other';
 
 };
 
+const marketSortOrder = { 'Tulsa': 0, 'Oklahoma City': 1, 'Dallas': 2, 'Orlando': 3, 'Other': 4 };
+const sortByMarket = (locations) => {
+  return [...locations].sort((a, b) => {
+    const ma = marketSortOrder[getMarket(a)] ?? 4;
+    const mb = marketSortOrder[getMarket(b)] ?? 4;
+    if (ma !== mb) return ma - mb;
+    return a.localeCompare(b);
+  });
+};
+
 // Logbook helper functions
 const extractDriveTime = (comment) => {
 if (!comment) return null;
@@ -1709,7 +1719,7 @@ if (dailyFlashFilters.market !== 'all') {
   filtered = filtered.filter(loc => getMarket(loc) === dailyFlashFilters.market);
 }
 
-setFilteredDailyFlash(filtered);
+setFilteredDailyFlash(sortByMarket(filtered));
 
 };
 
@@ -1747,7 +1757,7 @@ if (dailyLaborFilters.market !== 'all') {
   filtered = filtered.filter(loc => getMarket(loc) === dailyLaborFilters.market);
 }
 
-setFilteredDailyLabor(filtered);
+setFilteredDailyLabor(sortByMarket(filtered));
 
 };
 
@@ -2882,7 +2892,7 @@ loadModelCoefficients();
                         />
                         <span className="text-white text-xs font-semibold">All Locations</span>
                       </label>
-                      {Object.keys(dailyFlashData).sort().map(location => (
+                      {sortByMarket(Object.keys(dailyFlashData)).map(location => (
                         <label key={location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
                           <input
                             type="checkbox"
@@ -3084,7 +3094,7 @@ loadModelCoefficients();
                           />
                           <span className="text-sm text-white">All Locations</span>
                         </label>
-                        {Object.keys(dailyLaborData).sort().map((location) => (
+                        {sortByMarket(Object.keys(dailyLaborData)).map((location) => (
                           <label key={location} className="flex items-center px-3 py-2 hover:bg-slate-600 cursor-pointer">
                             <input
                               type="checkbox"
