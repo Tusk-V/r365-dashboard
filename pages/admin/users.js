@@ -9,7 +9,7 @@ const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 const ALL_LOCATIONS = [
   'Allen', 'Bixby', 'Broken Arrow', 'Carrollton', 'Edmond',
   'Frisco #1', 'Frisco #2', 'Frisco #3', 'Hillcrest Village',
-  'Lake Highlands', 'Lakeland', 'Norman', 'Owasso', 'Penn',
+  "Hunter's Creek", 'Lake Highlands', 'Lakeland', 'Norman', 'Owasso', 'Penn',
   'Prosper', 'Sanford', 'The Colony', 'Treat Truck', 'Warr Acres', 'Yale'
 ];
 
