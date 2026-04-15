@@ -836,7 +836,9 @@ export default function PLDashboard() {
                 <select
                   value="pl"
                   onChange={(e) => {
-                    if (e.target.value !== 'pl') {
+                    if (e.target.value === 'bonus') {
+                      router.push('/bonus');
+                    } else if (e.target.value !== 'pl') {
                       router.push('/');
                       if (typeof window !== 'undefined') {
                         sessionStorage.setItem('pendingTab', e.target.value);
@@ -854,6 +856,7 @@ export default function PLDashboard() {
                   <option value="logbook">Logbook</option>
                   <option value="scheduled-today">Scheduled Today</option>
                   <option value="pl">Profit & Loss</option>
+                  <option value="bonus">Quarterly Bonus</option>
                 </select>
                 
                 <button
@@ -920,7 +923,9 @@ export default function PLDashboard() {
               <select
                 value="pl"
                 onChange={(e) => {
-                  if (e.target.value !== 'pl') {
+                  if (e.target.value === 'bonus') {
+                    router.push('/bonus');
+                  } else if (e.target.value !== 'pl') {
                     router.push('/');
                     if (typeof window !== 'undefined') {
                       sessionStorage.setItem('pendingTab', e.target.value);
@@ -938,6 +943,7 @@ export default function PLDashboard() {
                 <option value="logbook">Logbook</option>
                 <option value="scheduled-today">Scheduled Today</option>
                 <option value="pl">Profit & Loss</option>
+                <option value="bonus">Quarterly Bonus</option>
               </select>
             </div>
           </div>
