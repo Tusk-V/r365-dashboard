@@ -42,10 +42,11 @@ async function sendAccessGrantedEmail(userEmail, userName) {
 }
 
 // Check if user has any access
-function hasAnyAccess(dashboardAccess, plAccess) {
+function hasAnyAccess(dashboardAccess, plAccess, bonusAccess) {
   const hasDb = dashboardAccess?.type && dashboardAccess.type !== 'none';
   const hasPl = plAccess?.type && plAccess.type !== 'none';
-  return hasDb || hasPl;
+  const hasBonus = bonusAccess?.type && bonusAccess.type !== 'none';
+  return hasDb || hasPl || hasBonus;
 }
 
 export default async function handler(req, res) {
@@ -76,6 +77,7 @@ export default async function handler(req, res) {
           image: u.image,
           dashboardAccess: u.dashboardAccess || { type: 'none', locations: [] },
           plAccess: u.plAccess || { type: 'none', locations: [] },
+          bonusAccess: u.bonusAccess || { type: 'none', locations: [] },
           lastLogin: u.lastLogin,
           createdAt: u.createdAt
         }))
@@ -84,7 +86,7 @@ export default async function handler(req, res) {
 
     // POST - Update user access
     if (req.method === 'POST') {
-      const { email, dashboardAccess, plAccess, accessType, locations } = req.body;
+      const { email, dashboardAccess, plAccess, bonusAccess, accessType, locations } = req.body;
 
       if (!email) {
         return res.status(400).json({ error: 'Email required' });
@@ -92,7 +94,7 @@ export default async function handler(req, res) {
 
       // Get existing user to check if this is a new grant
       const existingUser = await db.collection('users').findOne({ email });
-      const hadAccessBefore = existingUser ? hasAnyAccess(existingUser.dashboardAccess, existingUser.plAccess) : false;
+      const hadAccessBefore = existingUser ? hasAnyAccess(existingUser.dashboardAccess, existingUser.plAccess, existingUser.bonusAccess) : false;
 
       // Build update object
       const updateFields = {
@@ -115,6 +117,13 @@ export default async function handler(req, res) {
         };
       }
 
+      if (bonusAccess !== undefined) {
+        updateFields.bonusAccess = {
+          type: bonusAccess.type || 'none',
+          locations: bonusAccess.locations || []
+        };
+      }
+
       // Backward compatibility: if only accessType/locations sent, treat as plAccess
       if (accessType !== undefined && plAccess === undefined) {
         updateFields.plAccess = {
@@ -132,7 +141,8 @@ export default async function handler(req, res) {
       // Check if user now has access when they didn't before
       const newDashboardAccess = updateFields.dashboardAccess || existingUser?.dashboardAccess;
       const newPlAccess = updateFields.plAccess || existingUser?.plAccess;
-      const hasAccessNow = hasAnyAccess(newDashboardAccess, newPlAccess);
+      const newBonusAccess = updateFields.bonusAccess || existingUser?.bonusAccess;
+      const hasAccessNow = hasAnyAccess(newDashboardAccess, newPlAccess, newBonusAccess);
 
       // Send email if access was just granted
       if (!hadAccessBefore && hasAccessNow) {
