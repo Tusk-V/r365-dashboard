@@ -38,16 +38,17 @@ export default async function handler(req, res) {
     const selectedReportType = reportType || 'period-ytd';
 
     // Get all available locations from database
-    // For period-ytd: exclude current-prior and ytd-prior-ytd (includes legacy data)
-    // For current-prior: only current-prior
-    // For ytd-prior-ytd: only ytd-prior-ytd
+    // Each reportType gets its own explicit filter
+    // period-ytd (default): excludes current-prior, ytd-prior-ytd, and quarterly (includes legacy data)
     let locationQuery = {};
     if (selectedReportType === 'current-prior') {
       locationQuery = { reportType: 'current-prior' };
     } else if (selectedReportType === 'ytd-prior-ytd') {
       locationQuery = { reportType: 'ytd-prior-ytd' };
+    } else if (selectedReportType === 'quarterly') {
+      locationQuery = { reportType: 'quarterly' };
     } else {
-      locationQuery = { reportType: { $nin: ['current-prior', 'ytd-prior-ytd'] } };
+      locationQuery = { reportType: { $nin: ['current-prior', 'ytd-prior-ytd', 'quarterly'] } };
     }
     
     const allLocations = await db.collection('pl_data').distinct('location', locationQuery);
@@ -84,8 +85,10 @@ export default async function handler(req, res) {
         periodQuery.reportType = 'current-prior';
       } else if (selectedReportType === 'ytd-prior-ytd') {
         periodQuery.reportType = 'ytd-prior-ytd';
+      } else if (selectedReportType === 'quarterly') {
+        periodQuery.reportType = 'quarterly';
       } else {
-        periodQuery.reportType = { $nin: ['current-prior', 'ytd-prior-ytd'] };
+        periodQuery.reportType = { $nin: ['current-prior', 'ytd-prior-ytd', 'quarterly'] };
       }
       
       const periods = await db.collection('pl_data')
@@ -107,8 +110,10 @@ export default async function handler(req, res) {
       query.reportType = 'current-prior';
     } else if (selectedReportType === 'ytd-prior-ytd') {
       query.reportType = 'ytd-prior-ytd';
+    } else if (selectedReportType === 'quarterly') {
+      query.reportType = 'quarterly';
     } else {
-      query.reportType = { $nin: ['current-prior', 'ytd-prior-ytd'] };
+      query.reportType = { $nin: ['current-prior', 'ytd-prior-ytd', 'quarterly'] };
     }
     if (period) {
       query.periodEnding = period;
