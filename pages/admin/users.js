@@ -21,7 +21,8 @@ export default function AdminUsers() {
   const [editingUser, setEditingUser] = useState(null);
   const [editForm, setEditForm] = useState({
     dashboardAccess: { type: 'none', locations: [] },
-    plAccess: { type: 'none', locations: [] }
+    plAccess: { type: 'none', locations: [] },
+    bonusAccess: { type: 'none', locations: [] }
   });
   const [expandedSection, setExpandedSection] = useState(null); // 'dashboard' or 'pl'
 
@@ -53,7 +54,8 @@ export default function AdminUsers() {
     setEditingUser(user.email);
     setEditForm({
       dashboardAccess: user.dashboardAccess || { type: 'none', locations: [] },
-      plAccess: user.plAccess || { type: 'none', locations: [] }
+      plAccess: user.plAccess || { type: 'none', locations: [] },
+      bonusAccess: user.bonusAccess || { type: 'none', locations: [] }
     });
     setExpandedSection(null);
   };
@@ -66,7 +68,8 @@ export default function AdminUsers() {
         body: JSON.stringify({
           email,
           dashboardAccess: editForm.dashboardAccess,
-          plAccess: editForm.plAccess
+          plAccess: editForm.plAccess,
+          bonusAccess: editForm.bonusAccess
         })
       });
 
@@ -127,6 +130,8 @@ export default function AdminUsers() {
   const getAccessBadge = (access, type) => {
     const colors = type === 'dashboard' 
       ? { all: 'bg-green-900/50 text-green-400', specific: 'bg-blue-900/50 text-blue-400', none: 'bg-slate-700 text-slate-400' }
+      : type === 'bonus'
+      ? { all: 'bg-emerald-900/50 text-emerald-400', specific: 'bg-teal-900/50 text-teal-400', none: 'bg-slate-700 text-slate-400' }
       : { all: 'bg-purple-900/50 text-purple-400', specific: 'bg-orange-900/50 text-orange-400', none: 'bg-slate-700 text-slate-400' };
 
     if (access?.type === 'all') {
@@ -269,6 +274,7 @@ export default function AdminUsers() {
                   <th className="px-4 py-3 text-left text-sm font-semibold text-slate-300">Last Login</th>
                   <th className="px-4 py-3 text-center text-sm font-semibold text-slate-300">Dashboard Access</th>
                   <th className="px-4 py-3 text-center text-sm font-semibold text-slate-300">P&L Access</th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold text-slate-300">Bonus Access</th>
                   <th className="px-4 py-3 text-right text-sm font-semibold text-slate-300">Actions</th>
                 </tr>
               </thead>
@@ -305,6 +311,9 @@ export default function AdminUsers() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         {getAccessBadge(user.plAccess, 'pl')}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {getAccessBadge(user.bonusAccess, 'bonus')}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-2">
@@ -371,11 +380,13 @@ export default function AdminUsers() {
                         </button>
                       </div>
                     </div>
-                    <div className="flex gap-2 text-xs">
+                    <div className="flex gap-2 text-xs flex-wrap">
                       <span className="text-slate-500">Dashboard:</span>
                       {getAccessBadge(user.dashboardAccess, 'dashboard')}
                       <span className="text-slate-500 ml-2">P&L:</span>
                       {getAccessBadge(user.plAccess, 'pl')}
+                      <span className="text-slate-500 ml-2">Bonus:</span>
+                      {getAccessBadge(user.bonusAccess, 'bonus')}
                     </div>
                   </div>
                 ))}
@@ -503,6 +514,64 @@ export default function AdminUsers() {
                                   type="checkbox"
                                   checked={editForm.plAccess.locations.includes(loc)}
                                   onChange={() => toggleLocation('plAccess', loc)}
+                                  className="rounded border-slate-500"
+                                />
+                                {loc}
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bonus Access */}
+                  <div className="border border-slate-700 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setExpandedSection(expandedSection === 'bonus' ? null : 'bonus')}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-slate-700/50 hover:bg-slate-700"
+                    >
+                      <div className="flex items-center gap-3">
+                        {expandedSection === 'bonus' ? <ChevronDown size={18} className="text-slate-400" /> : <ChevronRight size={18} className="text-slate-400" />}
+                        <span className="font-medium text-white">Bonus Access</span>
+                        <span className="text-xs text-slate-400">(Quarterly bonus dashboard)</span>
+                      </div>
+                      {getAccessBadge(editForm.bonusAccess, 'bonus')}
+                    </button>
+                    
+                    {expandedSection === 'bonus' && (
+                      <div className="p-4 space-y-4">
+                        <div className="flex gap-2 flex-wrap">
+                          {['none', 'specific', 'all'].map(type => (
+                            <button
+                              key={type}
+                              onClick={() => setAccessType('bonusAccess', type)}
+                              className={`px-4 py-2 rounded-lg text-sm ${
+                                editForm.bonusAccess.type === type
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                              }`}
+                            >
+                              {type === 'none' ? 'No Access' : type === 'specific' ? 'Specific Locations' : 'All Locations'}
+                            </button>
+                          ))}
+                        </div>
+                        
+                        {editForm.bonusAccess.type === 'specific' && (
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {ALL_LOCATIONS.map(loc => (
+                              <label
+                                key={loc}
+                                className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer text-sm ${
+                                  editForm.bonusAccess.locations.includes(loc)
+                                    ? 'bg-emerald-600/20 border border-emerald-500 text-white'
+                                    : 'bg-slate-700 border border-slate-600 text-slate-300 hover:border-slate-500'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={editForm.bonusAccess.locations.includes(loc)}
+                                  onChange={() => toggleLocation('bonusAccess', loc)}
                                   className="rounded border-slate-500"
                                 />
                                 {loc}
