@@ -146,7 +146,11 @@ export default function BonusDashboard() {
   // Upload state
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
-  const [showUploadModal, setShowUploadModal] = useState(false);
+
+  // Config state
+  const [configLoaded, setConfigLoaded] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configDirty, setConfigDirty] = useState(false);
 
   const reportType = 'quarterly';
 
@@ -163,24 +167,60 @@ export default function BonusDashboard() {
 
   const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
+  // Load saved account config from MongoDB on mount
   useEffect(() => {
-    if (status === 'authenticated') loadLocations();
-  }, [status, reportType]);
+    if (status === 'authenticated') {
+      loadBonusConfig();
+      loadLocations();
+    }
+  }, [status]);
 
   useEffect(() => {
     if (selectedLocation) loadPeriods(selectedLocation);
-  }, [selectedLocation, reportType]);
+  }, [selectedLocation]);
 
   useEffect(() => {
     if (selectedLocation && selectedPeriod) loadPlData(selectedLocation, selectedPeriod);
   }, [selectedLocation, selectedPeriod]);
+
+  const loadBonusConfig = async () => {
+    try {
+      const res = await fetch('/api/save-bonus-config');
+      const data = await res.json();
+      if (res.ok && data.toggles) {
+        setAccountToggles(prev => ({ ...prev, ...data.toggles }));
+      }
+    } catch (err) {
+      console.error('Failed to load bonus config:', err);
+    } finally {
+      setConfigLoaded(true);
+    }
+  };
+
+  const saveBonusConfig = async (toggles) => {
+    setSavingConfig(true);
+    try {
+      const res = await fetch('/api/save-bonus-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toggles })
+      });
+      if (res.ok) {
+        setConfigDirty(false);
+      }
+    } catch (err) {
+      console.error('Failed to save bonus config:', err);
+    } finally {
+      setSavingConfig(false);
+    }
+  };
 
   const loadLocations = async () => {
     try {
       setLoading(true);
       setPlData(null);
       const currentLocation = selectedLocation;
-      const res = await fetch(`/api/get-pl?reportType=${reportType}`);
+      const res = await fetch('/api/get-bonus');
       const data = await res.json();
       if (res.ok) {
         setAccessType(data.accessType || 'all');
@@ -206,7 +246,7 @@ export default function BonusDashboard() {
 
   const loadPeriods = async (location) => {
     try {
-      const res = await fetch(`/api/get-pl?location=${encodeURIComponent(location)}&listPeriods=true&reportType=${reportType}`);
+      const res = await fetch(`/api/get-bonus?location=${encodeURIComponent(location)}&listPeriods=true`);
       const data = await res.json();
       if (res.ok && data.periods) {
         setAvailablePeriods(data.periods);
@@ -221,7 +261,7 @@ export default function BonusDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/get-pl?location=${encodeURIComponent(location)}&period=${encodeURIComponent(period)}&reportType=${reportType}`);
+      const res = await fetch(`/api/get-bonus?location=${encodeURIComponent(location)}&period=${encodeURIComponent(period)}`);
       const data = await res.json();
       if (res.ok && data.data) {
         setPlData(data.data);
@@ -301,12 +341,14 @@ export default function BonusDashboard() {
 
   const bonusCalc = calculateBonus();
 
-  const toggleAccount = (key) => setAccountToggles(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleAccount = (key) => {
+    setAccountToggles(prev => { const next = { ...prev, [key]: !prev[key] }; setConfigDirty(true); return next; });
+  };
   const toggleSection = (section) => setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   const toggleAllInSection = (sectionName, value) => {
     const updates = {};
     DEFAULT_ACCOUNTS[sectionName].items.forEach(item => { updates[item.key] = value; });
-    setAccountToggles(prev => ({ ...prev, ...updates }));
+    setAccountToggles(prev => { const next = { ...prev, ...updates }; setConfigDirty(true); return next; });
   };
   const resetDefaults = () => {
     const toggles = {};
@@ -314,6 +356,7 @@ export default function BonusDashboard() {
       items.forEach(item => { toggles[item.key] = item.defaultOn; });
     });
     setAccountToggles(toggles);
+    setConfigDirty(true);
   };
 
   const getColumnLabels = () => {
@@ -533,10 +576,25 @@ export default function BonusDashboard() {
           {showAccountConfig && (
             <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-2 md:mb-3 shadow-lg">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-white font-semibold text-sm">Account Selection</h2>
-                <button onClick={resetDefaults} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Reset to Defaults</button>
+                <h2 className="text-white font-semibold text-sm">Account Selection {!isAdmin && <span className="text-slate-500 font-normal">(view only)</span>}</h2>
+                <div className="flex items-center gap-2">
+                  {isAdmin && (
+                    <button onClick={resetDefaults} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Reset to Defaults</button>
+                  )}
+                  {isAdmin && configDirty && (
+                    <button
+                      onClick={() => saveBonusConfig(accountToggles)}
+                      disabled={savingConfig}
+                      className="px-3 py-1 text-xs font-medium bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {savingConfig ? 'Saving...' : 'Save Config'}
+                    </button>
+                  )}
+                </div>
               </div>
-              <p className="text-slate-400 text-xs mb-3">Toggle accounts on/off to customize the controllable net income calculation.</p>
+              <p className="text-slate-400 text-xs mb-3">
+                {isAdmin ? 'Toggle accounts on/off to customize the controllable net income calculation. Changes apply to all users after saving.' : 'These accounts are included in the bonus calculation.'}
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                 {Object.entries(DEFAULT_ACCOUNTS).map(([sectionName, { items }]) => {
                   const isExpanded = expandedSections[sectionName] !== false;
@@ -552,9 +610,12 @@ export default function BonusDashboard() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-slate-400">{enabledInSection}/{items.length}</span>
+                          {isAdmin && (
                           <button onClick={(e) => { e.stopPropagation(); toggleAllInSection(sectionName, !allOn); }}
                             className={`text-xs px-2 py-0.5 rounded ${allOn ? 'bg-green-600/30 text-green-400' : noneOn ? 'bg-red-600/30 text-red-400' : 'bg-yellow-600/30 text-yellow-400'}`}>
                             {allOn ? 'All On' : noneOn ? 'All Off' : 'Mixed'}
+                          </button>
+                          )}
                           </button>
                         </div>
                       </div>
@@ -562,8 +623,9 @@ export default function BonusDashboard() {
                         <div className="px-3 py-2 space-y-1">
                           {items.map(item => (
                             <label key={item.key} className="flex items-center gap-2 cursor-pointer py-0.5">
-                              <input type="checkbox" checked={accountToggles[item.key]} onChange={() => toggleAccount(item.key)}
-                                className="w-3.5 h-3.5 rounded border-slate-500 text-green-500 focus:ring-green-500 focus:ring-offset-0 bg-slate-600" />
+                              <input type="checkbox" checked={accountToggles[item.key]} onChange={() => { if (isAdmin) toggleAccount(item.key); }}
+                                disabled={!isAdmin}
+                                className="w-3.5 h-3.5 rounded border-slate-500 text-green-500 focus:ring-green-500 focus:ring-offset-0 bg-slate-600 disabled:opacity-60" />
                               <span className={`text-xs transition-colors ${accountToggles[item.key] ? 'text-slate-200' : 'text-slate-500 line-through'}`}>{item.label}</span>
                             </label>
                           ))}
@@ -715,6 +777,12 @@ export default function BonusDashboard() {
           )}
           {!loading && !error && !selectedLocation && (
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center text-slate-400 shadow-lg">Select a location to view the bonus calculation.</div>
+          )}
+          {!loading && accessType === 'none' && (
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center shadow-lg">
+              <div className="text-slate-400 mb-2">You don&apos;t have access to the bonus dashboard.</div>
+              <div className="text-slate-500 text-sm">Contact your administrator to request access.</div>
+            </div>
           )}
         </div>
       </div>
