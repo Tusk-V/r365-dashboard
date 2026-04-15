@@ -122,12 +122,117 @@ function parseSheet(sheet, sheetName) {
     return cell.v;
   };
 
+  // Detect quarterly format: Row 1 contains "Current Quarter vs Prior Quarter"
+  const row1 = String(getCellValue('A1') || '');
+  const isQuarterly = row1.toLowerCase().includes('quarter');
+
+  if (isQuarterly) {
+    return parseQuarterlySheet(sheet, getCellValue);
+  } else {
+    return parseStandardSheet(sheet, getCellValue);
+  }
+}
+
+// ============================================================
+// QUARTERLY FORMAT PARSER
+// Row 1: "Store P&L - Current Quarter vs Prior Quarter"
+// Row 2: Location (e.g., "101 - Bixby")
+// Row 3: empty
+// Row 4: col B = "Quarter Ending March 31, 2026", col D = "Quarter Ending March 31, 2025"
+// Row 5: "Sales" (section header)
+// Row 6+: line items, col B = current quarter, col D = prior quarter
+// ============================================================
+function parseQuarterlySheet(sheet, getCellValue) {
   // Row 2: Location name
   const locationCell = getCellValue('A2');
   if (!locationCell) return [];
   
-  const locationMatch = locationCell.match(/^\d+\s*-\s*(.+)$/);
-  const location = locationMatch ? locationMatch[1].trim() : locationCell;
+  const locationMatch = String(locationCell).match(/^\d+\s*-\s*(.+)$/);
+  const location = locationMatch ? locationMatch[1].trim() : String(locationCell).trim();
+  
+  // Row 4: Quarter ending dates
+  const colBHeader = String(getCellValue('B4') || '');
+  const colDHeader = String(getCellValue('D4') || '');
+  
+  // Extract period ending from "Quarter Ending March 31, 2026"
+  let periodEnding = colBHeader;
+  const quarterMatch = colBHeader.match(/Quarter Ending\s+(.+)/i);
+  if (quarterMatch) {
+    periodEnding = quarterMatch[1].trim();
+  }
+
+  // Find Total Sales for percentage calculations
+  let totalSales = { period: 0, ytd: 0 };
+  for (let rowNum = 5; rowNum <= 150; rowNum++) {
+    const label = getCellValue(`A${rowNum}`);
+    if (label === 'Total Sales') {
+      const periodVal = getCellValue(`B${rowNum}`);
+      if (periodVal !== null && periodVal !== 0 && typeof periodVal === 'number') {
+        totalSales.period = parseFloat(periodVal) || 0;
+        totalSales.ytd = parseFloat(getCellValue(`D${rowNum}`)) || 0;
+        break;
+      }
+    }
+  }
+
+  // Parse all line item rows (start at row 5 for quarterly)
+  const rows = [];
+  for (let rowNum = 5; rowNum <= 142; rowNum++) {
+    const label = getCellValue(`A${rowNum}`);
+    if (!label) continue;
+
+    const periodValue = getCellValue(`B${rowNum}`);
+    const ytdValue = getCellValue(`D${rowNum}`);
+    
+    const isSection = isSectionHeader(label);
+    const isTotal = label.startsWith('Total ');
+    const isSubHeader = isSubHeaderRow(label);
+    
+    let periodPercent = null;
+    let ytdPercent = null;
+    
+    if (periodValue !== null && periodValue !== 0 && totalSales.period !== 0) {
+      periodPercent = (parseFloat(periodValue) / totalSales.period) * 100;
+    }
+    if (ytdValue !== null && ytdValue !== 0 && totalSales.ytd !== 0) {
+      ytdPercent = (parseFloat(ytdValue) / totalSales.ytd) * 100;
+    }
+
+    rows.push({
+      rowNum,
+      label: String(label).trim(),
+      period: periodValue !== null ? parseFloat(periodValue) : null,
+      periodPercent,
+      ytd: ytdValue !== null ? parseFloat(ytdValue) : null,
+      ytdPercent,
+      isSection,
+      isTotal,
+      isSubHeader,
+      indent: getIndentLevel(label, isSection, isTotal, isSubHeader)
+    });
+  }
+
+  return [{
+    location,
+    periodEnding,
+    reportType: 'quarterly',
+    quarterLabel: colBHeader,
+    priorQuarterLabel: colDHeader,
+    totalSales,
+    rows
+  }];
+}
+
+// ============================================================
+// STANDARD (MONTHLY) FORMAT PARSER — unchanged from original
+// ============================================================
+function parseStandardSheet(sheet, getCellValue) {
+  // Row 2: Location name
+  const locationCell = getCellValue('A2');
+  if (!locationCell) return [];
+  
+  const locationMatch = String(locationCell).match(/^\d+\s*-\s*(.+)$/);
+  const location = locationMatch ? locationMatch[1].trim() : String(locationCell).trim();
   
   // Row 3: Period ending date
   const periodCell = getCellValue('A3');
@@ -149,8 +254,6 @@ function parseSheet(sheet, sheetName) {
   const colLHeader = String(getCellValue('L6') || '').toLowerCase();
 
   // Determine which column pairs exist in this file
-  // New format: B=Current Period, E=Prior Period, I=YTD, L=Prior YTD
-  // Legacy format: B + D (period-ytd)
   const columnSets = [];
 
   const hasNewFormat = colBHeader.includes('period ending') && colEHeader.includes('period ending');
@@ -158,20 +261,16 @@ function parseSheet(sheet, sheetName) {
   const hasPriorYTD = colLHeader.includes('ytd');
 
   if (hasNewFormat) {
-    // Current/Prior Year Period: B + E
     columnSets.push({ reportType: 'current-prior', col1: 'B', col2: 'E' });
     
     if (hasYTD) {
-      // Period/YTD: B (current period) + I (current YTD)
       columnSets.push({ reportType: 'period-ytd', col1: 'B', col2: 'I' });
     }
     
     if (hasYTD && hasPriorYTD) {
-      // YTD/Prior YTD: I + L
       columnSets.push({ reportType: 'ytd-prior-ytd', col1: 'I', col2: 'L' });
     }
   } else if (colBHeader.includes('current') || colDHeader.includes('prior')) {
-    // Older current-prior format with B + D
     columnSets.push({ reportType: 'current-prior', col1: 'B', col2: 'D' });
   }
 
@@ -187,7 +286,6 @@ function parseSheet(sheet, sheetName) {
     const rows = [];
     let totalSales = { period: 0, ytd: 0 };
 
-    // Find Total Sales - need actual numeric values, not formula cells
     for (let rowNum = 6; rowNum <= 150; rowNum++) {
       const label = getCellValue(`A${rowNum}`);
       if (label === 'Total Sales') {
@@ -197,11 +295,9 @@ function parseSheet(sheet, sheetName) {
           totalSales.ytd = parseFloat(getCellValue(`${col2}${rowNum}`)) || 0;
           break;
         }
-        // If values are null (formula cells), keep looking for another Total Sales row
       }
     }
 
-    // Parse all rows
     for (let rowNum = 6; rowNum <= 142; rowNum++) {
       const label = getCellValue(`A${rowNum}`);
       if (!label) continue;
