@@ -577,34 +577,66 @@ export default function BonusDashboard() {
           )}
 
           {/* KPI Summary Cards */}
-          {plData && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-2 md:mb-3">
+          {plData && (() => {
+            const yoyIncrease = bonusCalc.current.controllableNI - bonusCalc.prior.controllableNI;
+            const bonusPayout = yoyIncrease > 0 ? yoyIncrease * 0.10 : 0;
+            return (
+            <>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3 mb-2 md:mb-3">
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
-                <div className="text-xs text-slate-400 mb-1">Net Sales</div>
-                <div className="text-lg md:text-xl font-bold text-white">{formatCurrency(bonusCalc.current.sales)}</div>
-                {bonusCalc.prior.sales !== 0 && <div className="text-xs text-slate-500 mt-1">Prior: {formatCurrency(bonusCalc.prior.sales)}</div>}
-              </div>
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
-                <div className="text-xs text-slate-400 mb-1">Controllable Expenses</div>
-                <div className="text-lg md:text-xl font-bold text-white">{formatCurrency(bonusCalc.current.expenses)}</div>
-                {bonusCalc.prior.expenses !== 0 && <div className="text-xs text-slate-500 mt-1">Prior: {formatCurrency(bonusCalc.prior.expenses)}</div>}
-              </div>
-              <div className="bg-slate-800 border border-green-700/50 rounded-lg p-3 md:p-4 shadow-lg">
-                <div className="text-xs text-green-400 mb-1">Controllable Net Income</div>
+                <div className="text-xs text-slate-400 mb-1">Current Quarter CNI</div>
                 <div className={`text-lg md:text-xl font-bold ${bonusCalc.current.controllableNI >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {formatCurrency(bonusCalc.current.controllableNI)}
                 </div>
-                {bonusCalc.prior.controllableNI !== 0 && <div className="text-xs text-slate-500 mt-1">Prior: {formatCurrency(bonusCalc.prior.controllableNI)}</div>}
+                <div className="text-xs text-slate-500 mt-1">{bonusCalc.current.sales !== 0 ? formatPercent((bonusCalc.current.controllableNI / bonusCalc.current.sales) * 100) : '0.0%'} of sales</div>
               </div>
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
-                <div className="text-xs text-slate-400 mb-1">CNI % of Sales</div>
-                <div className={`text-lg md:text-xl font-bold ${bonusCalc.current.controllableNI >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {bonusCalc.current.sales !== 0 ? formatPercent((bonusCalc.current.controllableNI / bonusCalc.current.sales) * 100) : '0.0%'}
+                <div className="text-xs text-slate-400 mb-1">Prior Year Quarter CNI</div>
+                <div className={`text-lg md:text-xl font-bold ${bonusCalc.prior.controllableNI >= 0 ? 'text-slate-300' : 'text-red-400'}`}>
+                  {formatCurrency(bonusCalc.prior.controllableNI)}
                 </div>
-                {bonusCalc.prior.sales !== 0 && <div className="text-xs text-slate-500 mt-1">Prior: {formatPercent((bonusCalc.prior.controllableNI / bonusCalc.prior.sales) * 100)}</div>}
+                <div className="text-xs text-slate-500 mt-1">{bonusCalc.prior.sales !== 0 ? formatPercent((bonusCalc.prior.controllableNI / bonusCalc.prior.sales) * 100) : '0.0%'} of sales</div>
+              </div>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
+                <div className="text-xs text-slate-400 mb-1">YOY CNI Change</div>
+                <div className={`text-lg md:text-xl font-bold ${yoyIncrease > 0 ? 'text-green-400' : yoyIncrease < 0 ? 'text-red-400' : 'text-slate-300'}`}>
+                  {yoyIncrease >= 0 ? '+' : ''}{formatCurrency(yoyIncrease)}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">
+                  {bonusCalc.prior.controllableNI !== 0 ? (yoyIncrease >= 0 ? '+' : '') + formatPercent((yoyIncrease / Math.abs(bonusCalc.prior.controllableNI)) * 100) : '-'}
+                </div>
               </div>
             </div>
-          )}
+
+            {/* Bonus Payout Card */}
+            <div className={`border rounded-lg p-4 md:p-5 mb-2 md:mb-3 shadow-lg ${bonusPayout > 0 ? 'bg-green-900/30 border-green-600/50' : 'bg-slate-800 border-slate-700'}`}>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-300 mb-2">Manager Bonus Calculation</div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-400">
+                    <span>{formatCurrency(bonusCalc.current.controllableNI)} <span className="text-slate-500">current</span></span>
+                    <span className="text-slate-600">−</span>
+                    <span>{formatCurrency(bonusCalc.prior.controllableNI)} <span className="text-slate-500">prior</span></span>
+                    <span className="text-slate-600">=</span>
+                    <span className={yoyIncrease > 0 ? 'text-green-400' : 'text-red-400'}>{yoyIncrease >= 0 ? '+' : ''}{formatCurrency(yoyIncrease)} <span className="text-slate-500">increase</span></span>
+                    <span className="text-slate-600">×</span>
+                    <span>10%</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-400 mb-1">Bonus Payout</div>
+                  <div className={`text-2xl md:text-3xl font-bold ${bonusPayout > 0 ? 'text-green-400' : 'text-slate-500'}`}>
+                    {bonusPayout > 0 ? formatCurrency(bonusPayout) : '$0'}
+                  </div>
+                  {bonusPayout === 0 && yoyIncrease <= 0 && (
+                    <div className="text-xs text-slate-500 mt-1">No increase, no bonus</div>
+                  )}
+                </div>
+              </div>
+            </div>
+            </>
+            );
+          })()}
 
           {/* Detailed Breakdown Table */}
           {plData && (
