@@ -2021,6 +2021,8 @@ className="h-16"
               onChange={(e) => {
                 if (e.target.value === 'pl') {
                   router.push('/pl');
+                } else if (e.target.value === 'bonus') {
+                  router.push('/bonus');
                 } else {
                   setActiveTab(e.target.value);
                 }
@@ -2038,6 +2040,7 @@ className="h-16"
               <option value="scheduled-today">Scheduled Today</option>
               <option value="forecast">Forecasting</option>
               <option value="pl">Profit & Loss</option>
+              <option value="bonus">Quarterly Bonus</option>
             </select>
             
             <button
@@ -2136,6 +2139,8 @@ loadModelCoefficients();
             onChange={(e) => {
               if (e.target.value === 'pl') {
                 router.push('/pl');
+              } else if (e.target.value === 'bonus') {
+                router.push('/bonus');
               } else {
                 setActiveTab(e.target.value);
               }
@@ -2153,6 +2158,7 @@ loadModelCoefficients();
             <option value="scheduled-today">Scheduled Today</option>
             <option value="forecast">Forecasting</option>
             <option value="pl">Profit & Loss</option>
+            <option value="bonus">Quarterly Bonus</option>
           </select>
           
           <button
