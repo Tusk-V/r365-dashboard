@@ -616,7 +616,6 @@ export default function BonusDashboard() {
                             {allOn ? 'All On' : noneOn ? 'All Off' : 'Mixed'}
                           </button>
                           )}
-                          </button>
                         </div>
                       </div>
                       {isExpanded && (
