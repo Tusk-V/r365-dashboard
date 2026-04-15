@@ -573,14 +573,17 @@ export default function PLDashboard() {
         managerWagesAccum.period += parseFloat(row.period) || 0;
         managerWagesAccum.ytd += parseFloat(row.ytd) || 0;
         
+        const recalcPeriodPct = totalSales.period !== 0 ? (managerWagesAccum.period / totalSales.period) * 100 : 0;
+        const recalcYtdPct = totalSales.ytd !== 0 ? (managerWagesAccum.ytd / totalSales.ytd) * 100 : 0;
+
         if (!managerWagesAdded && (managerWagesAccum.period !== 0 || managerWagesAccum.ytd !== 0)) {
           const rowIndex = sections[currentSection].rows.length;
           sections[currentSection].rows.push({
             label: 'Manager Wages',
             period: managerWagesAccum.period,
             ytd: managerWagesAccum.ytd,
-            periodPercent: row.periodPercent,
-            ytdPercent: row.ytdPercent,
+            periodPercent: recalcPeriodPct,
+            ytdPercent: recalcYtdPct,
             rowType: 'lineItem',
             indent: currentSubCategory ? 1 : 0,
             _managerWagesIndex: rowIndex
@@ -591,6 +594,8 @@ export default function PLDashboard() {
           if (existingRow) {
             existingRow.period = managerWagesAccum.period;
             existingRow.ytd = managerWagesAccum.ytd;
+            existingRow.periodPercent = recalcPeriodPct;
+            existingRow.ytdPercent = recalcYtdPct;
           }
         }
         
