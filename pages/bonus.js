@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { ChevronDown, ChevronRight, Settings, RefreshCw, Printer } from 'lucide-react';
+import { ChevronDown, ChevronRight, Settings, RefreshCw, Printer, Upload, CheckCircle, XCircle } from 'lucide-react';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -119,9 +119,9 @@ const DEFAULT_ACCOUNTS = {
 };
 
 const formatCurrency = (val) => {
-  if (val === null || val === undefined || isNaN(val)) return '$0.00';
+  if (val === null || val === undefined || isNaN(val)) return '$0';
   const negative = val < 0;
-  const formatted = Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatted = Math.round(Math.abs(val)).toLocaleString('en-US');
   return negative ? `($${formatted})` : `$${formatted}`;
 };
 
@@ -142,7 +142,13 @@ export default function BonusDashboard() {
   const [selectedLocation, setSelectedLocation] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [plData, setPlData] = useState(null);
-  const [reportType, setReportType] = useState('quarterly');
+
+  // Upload state
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+
+  const reportType = 'quarterly';
 
   const [accountToggles, setAccountToggles] = useState(() => {
     const toggles = {};
@@ -236,6 +242,31 @@ export default function BonusDashboard() {
     }
   };
 
+  const handleUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    setUploadResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/upload-pl', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (res.ok) {
+        const successCount = data.results?.filter(r => r.status === 'success').length || 0;
+        const errorCount = data.results?.filter(r => r.status === 'error').length || 0;
+        setUploadResult({ success: true, message: `${successCount} locations uploaded${errorCount > 0 ? `, ${errorCount} errors` : ''}`, results: data.results });
+        // Reload data after upload
+        loadLocations();
+      } else {
+        setUploadResult({ success: false, message: data.error || 'Upload failed' });
+      }
+    } catch (err) {
+      setUploadResult({ success: false, message: err.message });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const getLineValue = useCallback((key, column = 'current') => {
     if (!plData?.rows) return 0;
     for (const row of plData.rows) {
@@ -286,17 +317,10 @@ export default function BonusDashboard() {
   };
 
   const getColumnLabels = () => {
-    switch (reportType) {
-      case 'quarterly':
-        return { col1: plData?.quarterLabel || 'Current Quarter', col2: plData?.priorQuarterLabel || 'Prior Quarter' };
-      case 'current-prior':
-        return { col1: 'Current Period', col2: 'Prior Year Period' };
-      case 'ytd-prior-ytd':
-        return { col1: 'YTD', col2: 'Prior YTD' };
-      case 'period-ytd':
-      default:
-        return { col1: 'Period', col2: 'YTD' };
-    }
+    return {
+      col1: plData?.quarterLabel || 'Current Quarter',
+      col2: plData?.priorQuarterLabel || 'Prior Quarter'
+    };
   };
   const columnLabels = getColumnLabels();
 
@@ -397,6 +421,13 @@ export default function BonusDashboard() {
                   <RefreshCw size={16} className="text-white" />
                 </button>
 
+                {isAdmin && (
+                  <label className="p-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors cursor-pointer" title="Upload Quarterly P&L">
+                    <Upload size={16} className="text-white" />
+                    <input type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { if (e.target.files?.[0]) { handleUpload(e.target.files[0]); e.target.value = ''; } }} />
+                  </label>
+                )}
+
                 <button onClick={() => window.print()} className="p-2 bg-slate-600 hover:bg-slate-500 rounded-lg transition-colors" title="Print">
                   <Printer size={16} className="text-white" />
                 </button>
@@ -415,6 +446,12 @@ export default function BonusDashboard() {
                   <button onClick={handleRefresh} className="p-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors" title="Refresh data">
                     <RefreshCw size={14} className="text-white" />
                   </button>
+                  {isAdmin && (
+                    <label className="p-1.5 bg-green-600 hover:bg-green-700 rounded-lg transition-colors cursor-pointer" title="Upload Quarterly P&L">
+                      <Upload size={14} className="text-white" />
+                      <input type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { if (e.target.files?.[0]) { handleUpload(e.target.files[0]); e.target.value = ''; } }} />
+                    </label>
+                  )}
                   <button onClick={() => signOut()} className="px-2 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors">
                     Sign Out
                   </button>
@@ -449,19 +486,23 @@ export default function BonusDashboard() {
             </div>
           </div>
 
-          {/* Filters: Report Type, Location, Period, Account Config */}
+          {/* Filters: Location, Period, Account Config */}
           <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg">
-            <div className="flex flex-wrap gap-2 md:gap-3 items-end">
-              <div className="flex-1 min-w-[120px]">
-                <label className="block text-xs text-slate-400 mb-1">Report Type</label>
-                <select value={reportType} onChange={(e) => { setReportType(e.target.value); setSelectedPeriod(''); setPlData(null); }}
-                  className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
-                  <option value="quarterly">Quarterly</option>
-                  <option value="period-ytd">Period / YTD</option>
-                  <option value="current-prior">Current / Prior Year</option>
-                  <option value="ytd-prior-ytd">YTD / Prior YTD</option>
-                </select>
+            {/* Upload Result Banner */}
+            {uploadResult && (
+              <div className={`flex items-center gap-2 p-2 mb-2 rounded-lg text-sm ${uploadResult.success ? 'bg-green-900/50 border border-green-700 text-green-200' : 'bg-red-900/50 border border-red-700 text-red-200'}`}>
+                {uploadResult.success ? <CheckCircle size={16} /> : <XCircle size={16} />}
+                <span>{uploadResult.message}</span>
+                <button onClick={() => setUploadResult(null)} className="ml-auto text-xs opacity-60 hover:opacity-100">✕</button>
               </div>
+            )}
+            {uploading && (
+              <div className="flex items-center gap-2 p-2 mb-2 rounded-lg text-sm bg-blue-900/50 border border-blue-700 text-blue-200">
+                <RefreshCw size={14} className="animate-spin" />
+                <span>Uploading quarterly P&L...</span>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2 md:gap-3 items-end">
               <div className="flex-1 min-w-[140px]">
                 <label className="block text-xs text-slate-400 mb-1">Location</label>
                 <select value={selectedLocation} onChange={(e) => { setSelectedLocation(e.target.value); setSelectedPeriod(''); setPlData(null); }}
@@ -471,10 +512,10 @@ export default function BonusDashboard() {
                 </select>
               </div>
               <div className="flex-1 min-w-[140px]">
-                <label className="block text-xs text-slate-400 mb-1">Period</label>
+                <label className="block text-xs text-slate-400 mb-1">Quarter</label>
                 <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}
                   className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
-                  <option value="">Select period...</option>
+                  <option value="">Select quarter...</option>
                   {availablePeriods.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
