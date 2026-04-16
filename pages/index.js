@@ -297,7 +297,7 @@ const filterPrior7Days = (entries) => {
 };
 
 const getMarket = (locationName) => {
-const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'];
+const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso', 'Claremore'];
 const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
 const dallas = ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'Lake Highlands', 'Hillcrest Village', 'The Colony', 'Prosper', 'Allen'];
 const orlando = ['Sanford', 'Lakeland', "Hunter's Creek"];
