@@ -187,6 +187,18 @@ export const authOptions = {
             // Check if user has any access (admin always has access)
             const isAdmin = session.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
             session.user.accessPending = !isAdmin && !hasAnyAccess(userData);
+            
+            // Refresh lastLogin on active sessions, throttled to once per hour.
+            // The signIn callback only fires on actual auth events (every ~30 days
+            // with database sessions), so without this heartbeat lastLogin goes stale.
+            const HEARTBEAT_MS = 60 * 60 * 1000; // 1 hour
+            const lastLogin = userData.lastLogin ? new Date(userData.lastLogin).getTime() : 0;
+            if (Date.now() - lastLogin > HEARTBEAT_MS) {
+              db.collection('users').updateOne(
+                { email: session.user.email },
+                { $set: { lastLogin: new Date() } }
+              ).catch(err => console.error('lastLogin heartbeat failed:', err));
+            }
           } else {
             session.user.accessPending = session.user.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase();
           }
