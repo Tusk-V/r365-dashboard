@@ -6,6 +6,15 @@ import { ChevronDown, ChevronRight, RefreshCw, Upload, Printer } from 'lucide-re
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
+// Market groupings for rolled-up P&L views
+const MARKETS = {
+  'Tulsa': ['Bixby', 'Yale', 'Broken Arrow', 'Owasso'],
+  'OKC': ['Warr Acres', 'Penn', 'Edmond', 'Norman'],
+  'Dallas': ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'The Colony', 'Hillcrest Village', 'Lake Highlands', 'Allen', 'Prosper'],
+  'Orlando': ['Sanford', 'Lakeland', "Hunter's Creek"],
+  'All Stores': null // computed as union of all market stores that are available
+};
+
 export default function PLDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -19,6 +28,8 @@ export default function PLDashboard() {
   const [plData, setPlData] = useState(null);
   const [reportType, setReportType] = useState('current-prior');
   const [expandedSubCategories, setExpandedSubCategories] = useState({});
+  const [viewMode, setViewMode] = useState('store'); // 'store' or 'market'
+  const [selectedMarket, setSelectedMarket] = useState('Tulsa');
 
   const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
@@ -29,16 +40,20 @@ export default function PLDashboard() {
   }, [status, reportType]);
 
   useEffect(() => {
-    if (selectedLocation) {
+    if (viewMode === 'store' && selectedLocation) {
       loadPeriodsForLocation(selectedLocation, selectedPeriod);
+    } else if (viewMode === 'market' && selectedMarket) {
+      loadPeriodsForMarket(selectedMarket, selectedPeriod);
     }
-  }, [selectedLocation]);
+  }, [selectedLocation, viewMode, selectedMarket]);
 
   useEffect(() => {
-    if (selectedLocation && selectedPeriod) {
+    if (viewMode === 'store' && selectedLocation && selectedPeriod) {
       loadPLData(selectedLocation, selectedPeriod);
+    } else if (viewMode === 'market' && selectedMarket && selectedPeriod) {
+      loadMarketPLData(selectedMarket, selectedPeriod);
     }
-  }, [selectedLocation, selectedPeriod, reportType]);
+  }, [selectedLocation, selectedPeriod, reportType, viewMode, selectedMarket]);
 
   const loadInitialData = async () => {
     try {
@@ -125,9 +140,180 @@ export default function PLDashboard() {
     }
   };
 
+  // Get the list of stores in a market that the user actually has access to
+  const getStoresForMarket = (market) => {
+    if (market === 'All Stores') {
+      // Union of all stores across all markets, filtered to what's available
+      const allMarketStores = Object.values(MARKETS)
+        .filter(Boolean)
+        .flat();
+      return availableLocations.filter(loc => allMarketStores.includes(loc));
+    }
+    const marketStores = MARKETS[market] || [];
+    return availableLocations.filter(loc => marketStores.includes(loc));
+  };
+
+  // Load available periods for a market — use the union of periods across all stores in the market
+  const loadPeriodsForMarket = async (market, preferredPeriod) => {
+    try {
+      const stores = getStoresForMarket(market);
+      if (stores.length === 0) {
+        setAvailablePeriods([]);
+        setSelectedPeriod('');
+        return;
+      }
+      
+      const periodLists = await Promise.all(
+        stores.map(async (store) => {
+          try {
+            const res = await fetch(`/api/get-pl?location=${encodeURIComponent(store)}&listPeriods=true&reportType=${reportType}`);
+            const data = await res.json();
+            return res.ok && data.periods ? data.periods : [];
+          } catch {
+            return [];
+          }
+        })
+      );
+      
+      // Union of all periods
+      const periodSet = new Set();
+      periodLists.forEach(list => list.forEach(p => periodSet.add(p)));
+      const unionPeriods = [...periodSet].sort((a, b) => new Date(b) - new Date(a));
+      
+      setAvailablePeriods(unionPeriods);
+      if (unionPeriods.length > 0) {
+        if (preferredPeriod && unionPeriods.includes(preferredPeriod)) {
+          setSelectedPeriod(preferredPeriod);
+        } else {
+          setSelectedPeriod(unionPeriods[0]);
+        }
+      } else {
+        setSelectedPeriod('');
+      }
+    } catch (err) {
+      console.error('Error loading market periods:', err);
+    }
+  };
+
+  // Merge rows from multiple store P&Ls into a single rolled-up row set.
+  // Sums period/ytd per matching label, preserves row order from the first available store,
+  // and recalculates percentages off the rolled-up Total Sales.
+  const mergePLRows = (storeDataArray) => {
+    const validStores = storeDataArray.filter(s => s && s.rows && s.rows.length > 0);
+    if (validStores.length === 0) return null;
+    
+    // Use the first store's row structure as the template to preserve ordering
+    const template = validStores[0].rows;
+    
+    // Build a map: label -> { period, ytd } summed across all stores
+    const sumMap = {};
+    validStores.forEach(store => {
+      store.rows.forEach(row => {
+        const key = row.label?.trim();
+        if (!key) return;
+        if (!sumMap[key]) {
+          sumMap[key] = { period: 0, ytd: 0, hasPeriod: false, hasYtd: false };
+        }
+        const p = parseFloat(row.period);
+        const y = parseFloat(row.ytd);
+        if (!isNaN(p)) { sumMap[key].period += p; sumMap[key].hasPeriod = true; }
+        if (!isNaN(y)) { sumMap[key].ytd += y; sumMap[key].hasYtd = true; }
+      });
+    });
+    
+    // Find the merged Total Sales for percentage recalculation
+    let totalSalesPeriod = 0;
+    let totalSalesYtd = 0;
+    if (sumMap['Total Sales']) {
+      totalSalesPeriod = sumMap['Total Sales'].period;
+      totalSalesYtd = sumMap['Total Sales'].ytd;
+    }
+    
+    // Rebuild rows using template order, with summed values and recalculated percentages
+    const mergedRows = template.map(row => {
+      const key = row.label?.trim();
+      const sum = sumMap[key];
+      
+      // Section headers and subcategory headers have null period/ytd — preserve that
+      const isHeader = (row.period === null || row.period === undefined) &&
+                      (row.ytd === null || row.ytd === undefined);
+      
+      if (isHeader || !sum) {
+        return { ...row };
+      }
+      
+      const mergedPeriod = sum.hasPeriod ? sum.period : null;
+      const mergedYtd = sum.hasYtd ? sum.ytd : null;
+      
+      // Recalculate percentages off rolled-up Total Sales
+      let mergedPeriodPercent = null;
+      let mergedYtdPercent = null;
+      if (row.periodPercent !== null && row.periodPercent !== undefined && totalSalesPeriod !== 0 && mergedPeriod !== null) {
+        mergedPeriodPercent = (mergedPeriod / totalSalesPeriod) * 100;
+      }
+      if (row.ytdPercent !== null && row.ytdPercent !== undefined && totalSalesYtd !== 0 && mergedYtd !== null) {
+        mergedYtdPercent = (mergedYtd / totalSalesYtd) * 100;
+      }
+      
+      return {
+        ...row,
+        period: mergedPeriod,
+        ytd: mergedYtd,
+        periodPercent: mergedPeriodPercent,
+        ytdPercent: mergedYtdPercent
+      };
+    });
+    
+    return { rows: mergedRows };
+  };
+
+  const loadMarketPLData = async (market, period) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const stores = getStoresForMarket(market);
+      
+      if (stores.length === 0) {
+        setPlData(null);
+        setError(`No stores available for ${market}`);
+        return;
+      }
+      
+      // Fetch all store P&Ls in parallel
+      const results = await Promise.all(
+        stores.map(async (store) => {
+          try {
+            const res = await fetch(`/api/get-pl?location=${encodeURIComponent(store)}&period=${encodeURIComponent(period)}&reportType=${reportType}`);
+            const data = await res.json();
+            return res.ok ? data.data : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      
+      const merged = mergePLRows(results);
+      
+      if (!merged) {
+        setPlData(null);
+        setError(`No P&L data available for ${market} for this period`);
+      } else {
+        setPlData(merged);
+        setError(null);
+      }
+    } catch (err) {
+      setError(err.message);
+      setPlData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRefresh = () => {
-    if (selectedLocation && selectedPeriod) {
+    if (viewMode === 'store' && selectedLocation && selectedPeriod) {
       loadPLData(selectedLocation, selectedPeriod);
+    } else if (viewMode === 'market' && selectedMarket && selectedPeriod) {
+      loadMarketPLData(selectedMarket, selectedPeriod);
     }
   };
 
@@ -814,7 +1000,7 @@ export default function PLDashboard() {
                 alt="Andy's Frozen Custard" 
                 className="h-12"
               />
-              <div className="mt-1 text-sm font-bold">{selectedLocation} — Period Ending {formatPeriodDisplay(selectedPeriod)}</div>
+              <div className="mt-1 text-sm font-bold">{viewMode === 'market' ? `${selectedMarket} Market` : selectedLocation} — Period Ending {formatPeriodDisplay(selectedPeriod)}</div>
             </div>
           </div>
 
@@ -951,19 +1137,57 @@ export default function PLDashboard() {
           {/* Location & Period Selection */}
           {accessType !== 'none' && (
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg no-print">
+              {/* View Mode Toggle: Store vs Market */}
+              <div className="flex gap-1 mb-2">
+                <button
+                  onClick={() => setViewMode('store')}
+                  className={`flex-1 px-3 py-1.5 text-xs md:text-sm font-medium rounded-lg transition-colors ${
+                    viewMode === 'store'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  Store View
+                </button>
+                <button
+                  onClick={() => setViewMode('market')}
+                  className={`flex-1 px-3 py-1.5 text-xs md:text-sm font-medium rounded-lg transition-colors ${
+                    viewMode === 'market'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  Market View
+                </button>
+              </div>
+              
               {/* Desktop: Location left, Period right with Print button */}
               <div className="hidden md:flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-slate-400">Location:</label>
-                  <select
-                    value={selectedLocation}
-                    onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    {availableLocations.map(loc => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                  </select>
+                  <label className="text-sm font-medium text-slate-400">
+                    {viewMode === 'market' ? 'Market:' : 'Location:'}
+                  </label>
+                  {viewMode === 'store' ? (
+                    <select
+                      value={selectedLocation}
+                      onChange={(e) => setSelectedLocation(e.target.value)}
+                      className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      {availableLocations.map(loc => (
+                        <option key={loc} value={loc}>{loc}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select
+                      value={selectedMarket}
+                      onChange={(e) => setSelectedMarket(e.target.value)}
+                      className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      {Object.keys(MARKETS).map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 
                 <div className="flex items-center gap-2">
@@ -990,16 +1214,30 @@ export default function PLDashboard() {
               {/* Mobile: Fill the row */}
               <div className="md:hidden flex items-center gap-2">
                 <div className="flex-1 flex items-center gap-1">
-                  <label className="text-xs font-medium text-slate-400">Location:</label>
-                  <select
-                    value={selectedLocation}
-                    onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    {availableLocations.map(loc => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                  </select>
+                  <label className="text-xs font-medium text-slate-400">
+                    {viewMode === 'market' ? 'Market:' : 'Location:'}
+                  </label>
+                  {viewMode === 'store' ? (
+                    <select
+                      value={selectedLocation}
+                      onChange={(e) => setSelectedLocation(e.target.value)}
+                      className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      {availableLocations.map(loc => (
+                        <option key={loc} value={loc}>{loc}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select
+                      value={selectedMarket}
+                      onChange={(e) => setSelectedMarket(e.target.value)}
+                      className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    >
+                      {Object.keys(MARKETS).map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 
                 <div className="flex-1 flex items-center gap-1">
