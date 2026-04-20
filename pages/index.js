@@ -3179,17 +3179,17 @@ loadModelCoefficients();
 
                     <div className="bg-slate-900 rounded-lg overflow-x-auto">
                       {/* Desktop Table */}
-                      <table className="hidden md:table w-full text-xs">
+                      <table className="hidden md:table w-full text-xs table-fixed">
                         <thead className="bg-slate-800">
                           <tr>
-                            <th className="text-center p-2 text-slate-400 font-semibold w-10">Grade</th>
-                            <th className="text-left p-2 text-slate-400 font-semibold">Date</th>
-                            <th className="text-right p-2 text-slate-400 font-semibold">Act Hrs</th>
-                            <th className="text-right p-2 text-slate-400 font-semibold">Sch Hrs</th>
-                            <th className="text-right p-2 text-slate-400 font-semibold">Opt Hrs</th>
-                            <th className="text-right p-2 text-slate-400 font-semibold">Act %</th>
-                            <th className="text-right p-2 text-slate-400 font-semibold">Opt %</th>
-                            <th className="text-right p-2 text-slate-400 font-semibold">% Var</th>
+                            <th className="text-center p-2 text-slate-400 font-semibold w-16">Grade</th>
+                            <th className="text-left p-2 text-slate-400 font-semibold w-44">Date</th>
+                            <th className="text-right p-2 text-slate-400 font-semibold w-24">Act Hrs</th>
+                            <th className="text-right p-2 text-slate-400 font-semibold w-24">Sch Hrs</th>
+                            <th className="text-right p-2 text-slate-400 font-semibold w-24">Opt Hrs</th>
+                            <th className="text-right p-2 text-slate-400 font-semibold w-24">Act %</th>
+                            <th className="text-right p-2 text-slate-400 font-semibold w-24">Opt %</th>
+                            <th className="text-right p-2 text-slate-400 font-semibold w-24">% Var</th>
                           </tr>
                         </thead>
                         <tbody>
