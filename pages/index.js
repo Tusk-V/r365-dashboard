@@ -3889,6 +3889,10 @@ loadModelCoefficients();
               const totalForecast = days.reduce((s, d) => s + d.forecast, 0);
               const totalR365 = days.filter(d => d.r365Forecast !== null).reduce((s, d) => s + d.r365Forecast, 0);
               const totalActual = days.filter(d => d.actual !== null).reduce((s, d) => s + d.actual, 0);
+              // Apples-to-apples: only sum model/R365 forecast over days that have actuals
+              const daysWithActual = days.filter(d => d.actual !== null);
+              const totalForecastForActual = daysWithActual.reduce((s, d) => s + d.forecast, 0);
+              const totalR365ForActual = daysWithActual.filter(d => d.r365Forecast !== null).reduce((s, d) => s + d.r365Forecast, 0);
               const totalAvg = days.reduce((s, d) => s + d.weightedAvg, 0);
               const totalPW = days.filter(d => d.pwSales !== null).reduce((s, d) => s + d.pwSales, 0);
               const totalPY = days.filter(d => d.pySales !== null).reduce((s, d) => s + d.pySales, 0);
@@ -4008,8 +4012,8 @@ loadModelCoefficients();
                                 <div className="flex flex-col items-end">
                                   <span className="text-white">${totalActual.toLocaleString()}</span>
                                   <div className="flex gap-1.5">
-                                    {totalForecast > 0 && <span className={`text-[10px] font-semibold ${totalActual >= totalForecast ? 'text-green-400' : 'text-red-400'}`}>M:{totalActual >= totalForecast ? '+' : ''}{Math.round(((totalActual - totalForecast) / totalForecast) * 100)}%</span>}
-                                    {totalR365 > 0 && <span className={`text-[10px] font-semibold ${totalActual >= totalR365 ? 'text-green-400' : 'text-red-400'}`}>R:{totalActual >= totalR365 ? '+' : ''}{Math.round(((totalActual - totalR365) / totalR365) * 100)}%</span>}
+                                    {totalForecastForActual > 0 && <span className={`text-[10px] font-semibold ${totalActual >= totalForecastForActual ? 'text-green-400' : 'text-red-400'}`}>M:{totalActual >= totalForecastForActual ? '+' : ''}{Math.round(((totalActual - totalForecastForActual) / totalForecastForActual) * 100)}%</span>}
+                                    {totalR365ForActual > 0 && <span className={`text-[10px] font-semibold ${totalActual >= totalR365ForActual ? 'text-green-400' : 'text-red-400'}`}>R:{totalActual >= totalR365ForActual ? '+' : ''}{Math.round(((totalActual - totalR365ForActual) / totalR365ForActual) * 100)}%</span>}
                                   </div>
                                 </div>
                               ) : ''}
