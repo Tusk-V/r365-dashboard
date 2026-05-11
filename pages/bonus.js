@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, Settings, RefreshCw, Printer, Upload, CheckC
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 // All P&L line items organized by section, with default on/off for controllable net income
+// Items are listed in P&L row order to match the R365 report
 const DEFAULT_ACCOUNTS = {
   'Sales': {
     items: [
@@ -40,6 +41,7 @@ const DEFAULT_ACCOUNTS = {
   },
   'Payroll Taxes': {
     items: [
+      { label: 'Federal Payroll Taxes', key: 'Federal Payroll Taxes', defaultOn: true },
       { label: 'FICA Taxes', key: 'FICA Taxes', defaultOn: true },
       { label: 'FUTA Taxes', key: 'FUTA Taxes', defaultOn: true },
       { label: 'State Unemployment Tax', key: 'State Unemployment Tax', defaultOn: true },
@@ -47,20 +49,28 @@ const DEFAULT_ACCOUNTS = {
   },
   'Payroll Benefits': {
     items: [
+      { label: 'Retirement Expense', key: 'Retirement Expense', defaultOn: true },
       { label: 'Employer Contributions', key: 'Employer Contributions', defaultOn: true },
       { label: 'Health Insurance', key: 'Health Insurance', defaultOn: true },
       { label: 'Life Insurance', key: 'Life Insurance', defaultOn: true },
+      { label: 'COVID Wages', key: 'COVID Wages', defaultOn: true },
     ]
   },
   'Direct Operating Expense': {
     items: [
+      { label: 'Bar Utensils and Supplies', key: 'Bar Utensils and Supplies', defaultOn: true },
       { label: 'Cleaning Supplies', key: 'Cleaning Supplies', defaultOn: true },
       { label: 'Contract Cleaning', key: 'Contract Cleaning', defaultOn: true },
+      { label: 'Kitchen Equipment', key: 'Kitchen Equipment', defaultOn: true },
+      { label: 'Glassware', key: 'Glassware', defaultOn: true },
       { label: 'Kitchen Supplies and Smallwares', key: 'Kitchen Supplies and Smallwares', defaultOn: true },
       { label: 'Uniforms and Linen Rental', key: 'Uniforms and Linen Rental', defaultOn: true },
       { label: 'Miscellaneous Expense', key: 'Miscellaneous Expense', defaultOn: true },
+      { label: 'Paper and Packaging', key: 'Paper and Packaging', defaultOn: true },
       { label: 'Pest Control', key: 'Pest Control', defaultOn: true },
+      { label: 'Tableware and Smallwares', key: 'Tableware and Smallwares', defaultOn: true },
       { label: 'Employee Meals', key: 'Employee Meals', defaultOn: true },
+      { label: 'Uniforms', key: 'Uniforms', defaultOn: true },
       { label: 'Cash Over/Short', key: 'Cash Over/Short', defaultOn: true },
       { label: 'Product Waste', key: 'Product Waste', defaultOn: true },
       { label: 'Repairs and Maintenance', key: 'Repairs and Maintenance', defaultOn: true },
@@ -79,10 +89,27 @@ const DEFAULT_ACCOUNTS = {
   'Advertising': {
     items: [
       { label: 'Advertising Fund', key: 'Advertising Fund', defaultOn: true },
+      { label: 'Print Media', key: 'Print Media', defaultOn: true },
+      { label: 'Online Advertising', key: 'Online Advertising', defaultOn: true },
       { label: 'Marketing Manager', key: 'Marketing Manager', defaultOn: true },
+      { label: 'Radio and Television', key: 'Radio and Television', defaultOn: true },
+      { label: 'Direct Response', key: 'Direct Response', defaultOn: true },
+      { label: 'Direct Mailers', key: 'Direct Mailers', defaultOn: true },
       { label: 'Cost of Giveaways and Comps', key: 'Cost of Giveaways and Comps', defaultOn: true },
       { label: 'Other Sponsorships', key: 'Other Sponsorships', defaultOn: true },
       { label: 'Donations', key: 'Donations', defaultOn: true },
+    ]
+  },
+  'Market Manager Benefits and Taxes': {
+    items: [
+      { label: 'MM Payroll Taxes', key: 'MM Payroll Taxes', defaultOn: false },
+      { label: 'MM Federal Payroll Taxes', key: 'MM Federal Payroll Taxes', defaultOn: false },
+      { label: 'MM Federal Unemployment Taxes', key: 'MM Federal Unemployment Taxes', defaultOn: false },
+      { label: 'MM State Unemployment Taxes', key: 'MM State Unemployment Taxes', defaultOn: false },
+      { label: 'MM Insurance', key: 'MM Insurance', defaultOn: false },
+      { label: 'MM Retirement', key: 'MM Retirement', defaultOn: false },
+      { label: 'MM Health/Life Insurance', key: 'MM Health/Life Insurance', defaultOn: false },
+      { label: 'MM Bonuses', key: 'MM Bonuses', defaultOn: false },
     ]
   },
   'General and Administrative': {
@@ -90,14 +117,20 @@ const DEFAULT_ACCOUNTS = {
       { label: 'Credit Card Fees', key: 'Credit Card Fees', defaultOn: true },
       { label: 'Dues and Subscriptions', key: 'Dues and Subscriptions', defaultOn: true },
       { label: 'Store Menus and Displays', key: 'Store Menus and Displays', defaultOn: true },
+      { label: 'Postage and Delivery', key: 'Postage and Delivery', defaultOn: true },
       { label: 'Computer Costs', key: 'Computer Costs', defaultOn: true },
       { label: 'Royalties', key: 'Royalties', defaultOn: true },
       { label: 'Licenses and Permits Expense', key: 'Licenses and Permits Expense', defaultOn: true },
       { label: 'Insurance Expense', key: 'Insurance Expense', defaultOn: true },
+      { label: 'Miscellaneous G&A Expense', key: 'Miscellaneous G&A Expense', defaultOn: true },
+      { label: 'State Business Taxes', key: 'State Business Taxes', defaultOn: true },
       { label: 'Security System Expense', key: 'Security System Expense', defaultOn: true },
       { label: 'Internet/Telephone', key: 'Internet/Telephone', defaultOn: true },
+      { label: 'Training Programs', key: 'Training Programs', defaultOn: true },
       { label: 'Gift Cards Expense', key: 'Gift Cards Expense', defaultOn: true },
+      { label: 'Travel', key: 'Travel', defaultOn: true },
       { label: 'Office Supplies', key: 'Office Supplies', defaultOn: true },
+      { label: 'Interest Expense', key: 'Interest Expense', defaultOn: true },
     ]
   },
   'Occupancy Costs': {
