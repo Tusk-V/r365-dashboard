@@ -1,10 +1,25 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { ChevronDown, ChevronRight, Settings, RefreshCw, Printer, Upload, CheckCircle, XCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight, Settings, RefreshCw, Printer, Upload, CheckCircle, XCircle, ArrowLeft, ArrowUp, ArrowDown } from 'lucide-react';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
+
+// Market groupings used for the summary filter
+const MARKETS = {
+  'Tulsa': ['Bixby', 'Yale', 'Broken Arrow', 'Owasso', 'Claremore'],
+  'OKC': ['Warr Acres', 'Penn', 'Edmond', 'Norman'],
+  'Dallas': ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'The Colony', 'Hillcrest Village', 'Lake Highlands', 'Allen', 'Prosper'],
+  'Orlando': ['Sanford', 'Lakeland', "Hunter's Creek"]
+};
+
+const getMarketForLocation = (loc) => {
+  for (const [market, stores] of Object.entries(MARKETS)) {
+    if (stores.includes(loc)) return market;
+  }
+  return 'Other';
+};
 
 // All P&L line items organized by section, with default on/off for controllable net income
 // Items are listed in P&L row order to match the R365 report
@@ -163,18 +178,53 @@ const formatPercent = (val) => {
   return val.toFixed(1) + '%';
 };
 
+// Compute CNI for a given P&L doc using the current account toggles
+const computeStoreCNI = (plData, accountToggles) => {
+  if (!plData?.rows) return { currentSales: 0, currentCNI: 0, priorSales: 0, priorCNI: 0 };
+  const rowMap = {};
+  for (const row of plData.rows) rowMap[row.label] = row;
+  let currentSales = 0, currentExpenses = 0, priorSales = 0, priorExpenses = 0;
+  Object.entries(DEFAULT_ACCOUNTS).forEach(([, { items }]) => {
+    items.forEach(item => {
+      if (!accountToggles[item.key]) return;
+      const row = rowMap[item.key];
+      const currentVal = row?.period || 0;
+      const priorVal = row?.ytd || 0;
+      if (item.isSales) { currentSales += currentVal; priorSales += priorVal; }
+      else { currentExpenses += currentVal; priorExpenses += priorVal; }
+    });
+  });
+  return {
+    currentSales,
+    currentCNI: currentSales - currentExpenses,
+    priorSales,
+    priorCNI: priorSales - priorExpenses
+  };
+};
+
 export default function BonusDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
+
+  // View routing: ?location=X → detail view; absent → summary view
+  const selectedLocation = router.query.location || '';
+  const isSummaryView = !selectedLocation;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [accessType, setAccessType] = useState('none');
   const [availableLocations, setAvailableLocations] = useState([]);
   const [availablePeriods, setAvailablePeriods] = useState([]);
-  const [selectedLocation, setSelectedLocation] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [plData, setPlData] = useState(null);
+
+  // Summary view state
+  const [summaryPeriod, setSummaryPeriod] = useState('');
+  const [summaryRows, setSummaryRows] = useState([]); // [{ location, market, plData, ... }]
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [marketFilter, setMarketFilter] = useState('All');
+  const [sortKey, setSortKey] = useState('bonus');
+  const [sortDir, setSortDir] = useState('desc');
 
   // Upload state
   const [uploading, setUploading] = useState(false);
@@ -185,11 +235,9 @@ export default function BonusDashboard() {
   const [savingConfig, setSavingConfig] = useState(false);
   const [configDirty, setConfigDirty] = useState(false);
 
-  const reportType = 'quarterly';
-
   const [accountToggles, setAccountToggles] = useState(() => {
     const toggles = {};
-    Object.entries(DEFAULT_ACCOUNTS).forEach(([section, { items }]) => {
+    Object.entries(DEFAULT_ACCOUNTS).forEach(([, { items }]) => {
       items.forEach(item => { toggles[item.key] = item.defaultOn; });
     });
     return toggles;
@@ -200,7 +248,7 @@ export default function BonusDashboard() {
 
   const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
-  // Load saved account config from MongoDB on mount
+  // Load config + available locations on auth
   useEffect(() => {
     if (status === 'authenticated') {
       loadBonusConfig();
@@ -208,13 +256,27 @@ export default function BonusDashboard() {
     }
   }, [status]);
 
+  // Detail view: when location changes via URL, load its periods
   useEffect(() => {
-    if (selectedLocation) loadPeriods(selectedLocation);
+    if (selectedLocation) {
+      loadPeriods(selectedLocation);
+    } else {
+      setSelectedPeriod('');
+      setPlData(null);
+    }
   }, [selectedLocation]);
 
+  // Detail view: load P&L data
   useEffect(() => {
     if (selectedLocation && selectedPeriod) loadPlData(selectedLocation, selectedPeriod);
   }, [selectedLocation, selectedPeriod]);
+
+  // Summary view: when we land on summary and have locations + config, kick off the parallel fetch
+  useEffect(() => {
+    if (isSummaryView && configLoaded && availableLocations.length > 0) {
+      loadSummary();
+    }
+  }, [isSummaryView, configLoaded, availableLocations.length, summaryPeriod]);
 
   const loadBonusConfig = async () => {
     try {
@@ -238,9 +300,7 @@ export default function BonusDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toggles })
       });
-      if (res.ok) {
-        setConfigDirty(false);
-      }
+      if (res.ok) setConfigDirty(false);
     } catch (err) {
       console.error('Failed to save bonus config:', err);
     } finally {
@@ -251,24 +311,11 @@ export default function BonusDashboard() {
   const loadLocations = async () => {
     try {
       setLoading(true);
-      setPlData(null);
-      const currentLocation = selectedLocation;
       const res = await fetch('/api/get-bonus');
       const data = await res.json();
       if (res.ok) {
         setAccessType(data.accessType || 'all');
         setAvailableLocations(data.availableLocations || []);
-        if (data.availableLocations?.length > 0) {
-          if (currentLocation && data.availableLocations.includes(currentLocation)) {
-            setSelectedLocation(currentLocation);
-            loadPeriods(currentLocation);
-          } else {
-            setSelectedLocation(data.availableLocations[0]);
-          }
-        } else {
-          setSelectedLocation('');
-          setSelectedPeriod('');
-        }
       }
     } catch (err) {
       setError('Failed to load locations');
@@ -309,8 +356,71 @@ export default function BonusDashboard() {
     }
   };
 
+  // Summary: fetch each store's most recent (or selected) quarter in parallel
+  const loadSummary = async () => {
+    setSummaryLoading(true);
+    setError(null);
+    try {
+      const results = await Promise.all(availableLocations.map(async (loc) => {
+        try {
+          let period = summaryPeriod;
+          // If no period chosen yet, ask each location for its most recent
+          if (!period) {
+            const periodRes = await fetch(`/api/get-bonus?location=${encodeURIComponent(loc)}&listPeriods=true`);
+            const periodData = await periodRes.json();
+            if (!periodRes.ok || !periodData.periods?.length) {
+              return { location: loc, plData: null, periods: [] };
+            }
+            period = periodData.periods[0];
+            return { location: loc, plData: null, periods: periodData.periods, mostRecent: period };
+          }
+          const dataRes = await fetch(`/api/get-bonus?location=${encodeURIComponent(loc)}&period=${encodeURIComponent(period)}`);
+          const dataJson = await dataRes.json();
+          return {
+            location: loc,
+            plData: dataRes.ok ? dataJson.data : null,
+            usedPeriod: period
+          };
+        } catch (err) {
+          return { location: loc, plData: null, error: err.message };
+        }
+      }));
+
+      // If we just collected periods, pick the most common most-recent as the default
+      if (!summaryPeriod) {
+        const periodCounts = {};
+        const allPeriodsSet = new Set();
+        results.forEach(r => {
+          if (r.mostRecent) {
+            periodCounts[r.mostRecent] = (periodCounts[r.mostRecent] || 0) + 1;
+          }
+          (r.periods || []).forEach(p => allPeriodsSet.add(p));
+        });
+        const bestPeriod = Object.entries(periodCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+        if (bestPeriod) {
+          setAvailablePeriods([...allPeriodsSet].sort((a, b) => new Date(b) - new Date(a)));
+          setSummaryPeriod(bestPeriod);
+          return; // useEffect will re-run loadSummary with the chosen period
+        }
+      }
+
+      // Hydrate market info for each row
+      const enriched = results.map(r => ({
+        ...r,
+        market: getMarketForLocation(r.location)
+      }));
+      setSummaryRows(enriched);
+    } catch (err) {
+      setError('Failed to load summary');
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
   const handleRefresh = () => {
-    if (selectedLocation && selectedPeriod) {
+    if (isSummaryView) {
+      loadSummary();
+    } else if (selectedLocation && selectedPeriod) {
       loadPlData(selectedLocation, selectedPeriod);
     }
   };
@@ -329,7 +439,13 @@ export default function BonusDashboard() {
         const errorCount = data.results?.filter(r => r.status === 'error').length || 0;
         setUploadResult({ success: true, message: `${successCount} locations uploaded${errorCount > 0 ? `, ${errorCount} errors` : ''}`, results: data.results });
         // Reload data after upload
-        loadLocations();
+        if (isSummaryView) {
+          setSummaryPeriod(''); // forces re-detection of most recent
+          loadLocations();
+        } else {
+          loadLocations();
+          if (selectedLocation && selectedPeriod) loadPlData(selectedLocation, selectedPeriod);
+        }
       } else {
         setUploadResult({ success: false, message: data.error || 'Upload failed' });
       }
@@ -340,6 +456,9 @@ export default function BonusDashboard() {
     }
   };
 
+  // ============================================================
+  // DETAIL VIEW HELPERS (used when ?location=X is in URL)
+  // ============================================================
   const getLineValue = useCallback((key, column = 'current') => {
     if (!plData?.rows) return 0;
     for (const row of plData.rows) {
@@ -353,10 +472,8 @@ export default function BonusDashboard() {
 
   const calculateBonus = useCallback(() => {
     if (!plData) return { current: { sales: 0, expenses: 0, controllableNI: 0 }, prior: { sales: 0, expenses: 0, controllableNI: 0 } };
-
     let currentSales = 0, currentExpenses = 0, priorSales = 0, priorExpenses = 0;
-
-    Object.entries(DEFAULT_ACCOUNTS).forEach(([section, { items }]) => {
+    Object.entries(DEFAULT_ACCOUNTS).forEach(([, { items }]) => {
       items.forEach(item => {
         if (!accountToggles[item.key]) return;
         const currentVal = getLineValue(item.key, 'current');
@@ -365,7 +482,6 @@ export default function BonusDashboard() {
         else { currentExpenses += currentVal; priorExpenses += priorVal; }
       });
     });
-
     return {
       current: { sales: currentSales, expenses: currentExpenses, controllableNI: currentSales - currentExpenses },
       prior: { sales: priorSales, expenses: priorExpenses, controllableNI: priorSales - priorExpenses }
@@ -385,7 +501,7 @@ export default function BonusDashboard() {
   };
   const resetDefaults = () => {
     const toggles = {};
-    Object.entries(DEFAULT_ACCOUNTS).forEach(([section, { items }]) => {
+    Object.entries(DEFAULT_ACCOUNTS).forEach(([, { items }]) => {
       items.forEach(item => { toggles[item.key] = item.defaultOn; });
     });
     setAccountToggles(toggles);
@@ -400,6 +516,67 @@ export default function BonusDashboard() {
   };
   const columnLabels = getColumnLabels();
 
+  // ============================================================
+  // SUMMARY VIEW COMPUTED ROWS (re-runs whenever toggles change)
+  // ============================================================
+  const summaryComputed = useMemo(() => {
+    return summaryRows.map(r => {
+      if (!r.plData) return { ...r, currentCNI: null, priorCNI: null, yoy: null, bonus: null };
+      const { currentSales, currentCNI, priorSales, priorCNI } = computeStoreCNI(r.plData, accountToggles);
+      const yoy = currentCNI - priorCNI;
+      const bonus = yoy > 0 ? yoy * 0.10 : 0;
+      return { ...r, currentSales, currentCNI, priorSales, priorCNI, yoy, bonus };
+    });
+  }, [summaryRows, accountToggles]);
+
+  const filteredRows = useMemo(() => {
+    let rows = summaryComputed;
+    if (marketFilter !== 'All') rows = rows.filter(r => r.market === marketFilter);
+    rows = [...rows].sort((a, b) => {
+      const aVal = a[sortKey];
+      const bVal = b[sortKey];
+      // null/undefined values always at the bottom
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+      if (sortKey === 'location' || sortKey === 'market') {
+        return sortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+      }
+      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+    return rows;
+  }, [summaryComputed, marketFilter, sortKey, sortDir]);
+
+  const summaryTotals = useMemo(() => {
+    const rows = filteredRows.filter(r => r.currentCNI !== null);
+    const totalCurrentCNI = rows.reduce((s, r) => s + r.currentCNI, 0);
+    const totalPriorCNI = rows.reduce((s, r) => s + r.priorCNI, 0);
+    const totalYoy = rows.reduce((s, r) => s + r.yoy, 0);
+    const totalBonus = rows.reduce((s, r) => s + r.bonus, 0);
+    const earningCount = rows.filter(r => r.bonus > 0).length;
+    return { totalCurrentCNI, totalPriorCNI, totalYoy, totalBonus, earningCount, storeCount: rows.length };
+  }, [filteredRows]);
+
+  const toggleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'location' || key === 'market' ? 'asc' : 'desc');
+    }
+  };
+
+  const goToDetail = (location) => {
+    router.push({ pathname: '/bonus', query: { location } });
+  };
+
+  const goToSummary = () => {
+    router.push('/bonus');
+  };
+
+  // ============================================================
+  // RENDER GATES
+  // ============================================================
   if (status === 'loading') {
     return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center"><div className="text-white text-lg">Loading...</div></div>;
   }
@@ -419,6 +596,11 @@ export default function BonusDashboard() {
 
   const enabledCount = Object.values(accountToggles).filter(Boolean).length;
   const totalCount = Object.values(accountToggles).length;
+
+  // Available markets in the filter pill row (only show those with at least one store the user can see)
+  const visibleMarkets = ['All', ...Object.keys(MARKETS).filter(m =>
+    summaryRows.some(r => r.market === m)
+  )];
 
   return (
     <>
@@ -447,12 +629,14 @@ export default function BonusDashboard() {
 
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
         <div className="max-w-[1400px] mx-auto">
-          
+
           {/* Print Header */}
           <div className="print-only hidden mb-2">
             <div className="flex flex-col items-center justify-center py-2">
               <img src="https://i.imgur.com/kkJMVz0.png" alt="Andy's Frozen Custard" className="h-12" />
-              <div className="mt-1 text-sm font-bold">{selectedLocation} — Quarterly Bonus — {selectedPeriod}</div>
+              <div className="mt-1 text-sm font-bold">
+                {isSummaryView ? `All Stores — Quarterly Bonus — ${summaryPeriod}` : `${selectedLocation} — Quarterly Bonus — ${selectedPeriod}`}
+              </div>
             </div>
           </div>
 
@@ -464,7 +648,7 @@ export default function BonusDashboard() {
                 <img src="https://i.imgur.com/kkJMVz0.png" alt="Andy's Frozen Custard" className="h-16" />
                 <h1 className="text-2xl font-bold text-white">R365 Dashboards</h1>
               </div>
-              
+
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
                 <select
@@ -492,7 +676,7 @@ export default function BonusDashboard() {
                   <option value="pl">Profit & Loss</option>
                   <option value="bonus">Quarterly Bonus</option>
                 </select>
-                
+
                 <button onClick={handleRefresh} className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors" title="Refresh data">
                   <RefreshCw size={16} className="text-white" />
                 </button>
@@ -533,7 +717,7 @@ export default function BonusDashboard() {
                   </button>
                 </div>
               </div>
-              
+
               <select
                 value="bonus"
                 onChange={(e) => {
@@ -562,262 +746,460 @@ export default function BonusDashboard() {
             </div>
           </div>
 
-          {/* Filters: Location, Period, Account Config */}
-          <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg">
-            {/* Upload Result Banner */}
-            {uploadResult && (
-              <div className={`flex items-center gap-2 p-2 mb-2 rounded-lg text-sm ${uploadResult.success ? 'bg-green-900/50 border border-green-700 text-green-200' : 'bg-red-900/50 border border-red-700 text-red-200'}`}>
-                {uploadResult.success ? <CheckCircle size={16} /> : <XCircle size={16} />}
-                <span>{uploadResult.message}</span>
-                <button onClick={() => setUploadResult(null)} className="ml-auto text-xs opacity-60 hover:opacity-100">✕</button>
-              </div>
-            )}
-            {uploading && (
-              <div className="flex items-center gap-2 p-2 mb-2 rounded-lg text-sm bg-blue-900/50 border border-blue-700 text-blue-200">
-                <RefreshCw size={14} className="animate-spin" />
-                <span>Uploading quarterly P&L...</span>
-              </div>
-            )}
-            <div className="flex flex-wrap gap-2 md:gap-3 items-end">
-              <div className="flex-1 min-w-[140px]">
-                <label className="block text-xs text-slate-400 mb-1">Location</label>
-                <select value={selectedLocation} onChange={(e) => { setSelectedLocation(e.target.value); setSelectedPeriod(''); setPlData(null); }}
-                  className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
-                  <option value="">Select location...</option>
-                  {availableLocations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
-                </select>
-              </div>
-              <div className="flex-1 min-w-[140px]">
-                <label className="block text-xs text-slate-400 mb-1">Quarter</label>
-                <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
-                  <option value="">Select quarter...</option>
-                  {availablePeriods.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-              <div>
-                <button onClick={() => setShowAccountConfig(!showAccountConfig)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showAccountConfig ? 'bg-green-600 text-white' : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600'}`}>
-                  <Settings size={14} />
-                  Accounts ({enabledCount}/{totalCount})
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Account Configuration Panel */}
-          {showAccountConfig && (
-            <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-2 md:mb-3 shadow-lg">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-white font-semibold text-sm">Account Selection {!isAdmin && <span className="text-slate-500 font-normal">(view only)</span>}</h2>
-                <div className="flex items-center gap-2">
-                  {isAdmin && (
-                    <button onClick={resetDefaults} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Reset to Defaults</button>
-                  )}
-                  {isAdmin && configDirty && (
-                    <button
-                      onClick={() => saveBonusConfig(accountToggles)}
-                      disabled={savingConfig}
-                      className="px-3 py-1 text-xs font-medium bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      {savingConfig ? 'Saving...' : 'Save Config'}
-                    </button>
-                  )}
+          {/* Upload Banners (shared between views) */}
+          {(uploadResult || uploading) && (
+            <div className="no-print mb-2 md:mb-3">
+              {uploadResult && (
+                <div className={`flex items-center gap-2 p-2 rounded-lg text-sm ${uploadResult.success ? 'bg-green-900/50 border border-green-700 text-green-200' : 'bg-red-900/50 border border-red-700 text-red-200'}`}>
+                  {uploadResult.success ? <CheckCircle size={16} /> : <XCircle size={16} />}
+                  <span>{uploadResult.message}</span>
+                  <button onClick={() => setUploadResult(null)} className="ml-auto text-xs opacity-60 hover:opacity-100">✕</button>
                 </div>
+              )}
+              {uploading && (
+                <div className="flex items-center gap-2 p-2 rounded-lg text-sm bg-blue-900/50 border border-blue-700 text-blue-200">
+                  <RefreshCw size={14} className="animate-spin" />
+                  <span>Uploading quarterly P&L...</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ============================================== */}
+          {/* SUMMARY VIEW                                   */}
+          {/* ============================================== */}
+          {isSummaryView && (
+            <>
+              {/* Summary Filters */}
+              <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg">
+                <div className="flex flex-wrap gap-2 md:gap-3 items-end">
+                  <div className="flex-1 min-w-[180px]">
+                    <label className="block text-xs text-slate-400 mb-1">Quarter</label>
+                    <select value={summaryPeriod} onChange={(e) => setSummaryPeriod(e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+                      {availablePeriods.length === 0 && <option value="">Loading...</option>}
+                      {availablePeriods.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <button onClick={() => setShowAccountConfig(!showAccountConfig)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showAccountConfig ? 'bg-green-600 text-white' : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600'}`}>
+                      <Settings size={14} />
+                      Accounts ({enabledCount}/{totalCount})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Market filter pills */}
+                {visibleMarkets.length > 2 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {visibleMarkets.map(m => (
+                      <button key={m} onClick={() => setMarketFilter(m)}
+                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${marketFilter === m ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <p className="text-slate-400 text-xs mb-3">
-                {isAdmin ? 'Toggle accounts on/off to customize the controllable net income calculation. Changes apply to all users after saving.' : 'These accounts are included in the bonus calculation.'}
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                {Object.entries(DEFAULT_ACCOUNTS).map(([sectionName, { items }]) => {
-                  const isExpanded = expandedSections[sectionName] !== false;
-                  const enabledInSection = items.filter(i => accountToggles[i.key]).length;
-                  const allOn = enabledInSection === items.length;
-                  const noneOn = enabledInSection === 0;
+
+              {/* Account Config Panel (shared with detail view) */}
+              {showAccountConfig && (
+                <AccountConfigPanel
+                  isAdmin={isAdmin}
+                  accountToggles={accountToggles}
+                  expandedSections={expandedSections}
+                  configDirty={configDirty}
+                  savingConfig={savingConfig}
+                  toggleAccount={toggleAccount}
+                  toggleSection={toggleSection}
+                  toggleAllInSection={toggleAllInSection}
+                  resetDefaults={resetDefaults}
+                  saveBonusConfig={saveBonusConfig}
+                />
+              )}
+
+              {/* Grand Total Strip */}
+              {summaryTotals.storeCount > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-2 md:mb-3">
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
+                    <div className="text-xs text-slate-400 mb-1">Total Bonus Payout</div>
+                    <div className={`text-lg md:text-xl font-bold ${summaryTotals.totalBonus > 0 ? 'text-green-400' : 'text-slate-500'}`}>
+                      {formatCurrency(summaryTotals.totalBonus)}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">{summaryTotals.earningCount} of {summaryTotals.storeCount} earning</div>
+                  </div>
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
+                    <div className="text-xs text-slate-400 mb-1">YOY CNI Change</div>
+                    <div className={`text-lg md:text-xl font-bold ${summaryTotals.totalYoy > 0 ? 'text-green-400' : summaryTotals.totalYoy < 0 ? 'text-red-400' : 'text-slate-300'}`}>
+                      {summaryTotals.totalYoy >= 0 ? '+' : ''}{formatCurrency(summaryTotals.totalYoy)}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">{summaryTotals.totalPriorCNI !== 0 ? (summaryTotals.totalYoy >= 0 ? '+' : '') + formatPercent((summaryTotals.totalYoy / Math.abs(summaryTotals.totalPriorCNI)) * 100) : '-'}</div>
+                  </div>
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
+                    <div className="text-xs text-slate-400 mb-1">Total Current CNI</div>
+                    <div className={`text-lg md:text-xl font-bold ${summaryTotals.totalCurrentCNI >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {formatCurrency(summaryTotals.totalCurrentCNI)}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">{summaryPeriod}</div>
+                  </div>
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
+                    <div className="text-xs text-slate-400 mb-1">Total Prior Year CNI</div>
+                    <div className={`text-lg md:text-xl font-bold ${summaryTotals.totalPriorCNI >= 0 ? 'text-slate-300' : 'text-red-400'}`}>
+                      {formatCurrency(summaryTotals.totalPriorCNI)}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">Comparison baseline</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Store Table */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden shadow-lg">
+                <div className="bg-slate-700 px-3 md:px-4 py-2 md:py-3">
+                  <div className="grid grid-cols-12 gap-1 md:gap-2 text-xs font-semibold text-slate-300">
+                    <SortHeader className="col-span-3 text-left" label="Store" active={sortKey === 'location'} dir={sortDir} onClick={() => toggleSort('location')} />
+                    <SortHeader className="col-span-2 text-left hidden md:flex md:items-center" label="Market" active={sortKey === 'market'} dir={sortDir} onClick={() => toggleSort('market')} />
+                    <SortHeader className="col-span-3 md:col-span-2 text-right justify-end" label="Current CNI" active={sortKey === 'currentCNI'} dir={sortDir} onClick={() => toggleSort('currentCNI')} />
+                    <SortHeader className="col-span-3 md:col-span-2 text-right justify-end hidden md:flex md:items-center" label="Prior CNI" active={sortKey === 'priorCNI'} dir={sortDir} onClick={() => toggleSort('priorCNI')} />
+                    <SortHeader className="col-span-3 md:col-span-1 text-right justify-end" label="YOY" active={sortKey === 'yoy'} dir={sortDir} onClick={() => toggleSort('yoy')} />
+                    <SortHeader className="col-span-3 md:col-span-2 text-right justify-end" label="Bonus" active={sortKey === 'bonus'} dir={sortDir} onClick={() => toggleSort('bonus')} />
+                  </div>
+                </div>
+
+                {summaryLoading && (
+                  <div className="p-8 text-center text-slate-400">Loading store data...</div>
+                )}
+
+                {!summaryLoading && filteredRows.length === 0 && (
+                  <div className="p-8 text-center text-slate-400">No stores match the selected filters.</div>
+                )}
+
+                {!summaryLoading && filteredRows.map(r => {
+                  const hasData = r.currentCNI !== null;
                   return (
-                    <div key={sectionName} className="border border-slate-600 rounded-lg overflow-hidden bg-slate-800/50">
-                      <div className="flex items-center justify-between px-3 py-2 bg-slate-700 cursor-pointer" onClick={() => toggleSection(sectionName)}>
-                        <div className="flex items-center gap-2">
-                          {isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
-                          <span className="text-sm font-medium text-white">{sectionName}</span>
+                    <div key={r.location}
+                      onClick={() => hasData && goToDetail(r.location)}
+                      className={`px-3 md:px-4 py-2 md:py-2.5 border-t border-slate-700/50 transition-colors ${hasData ? 'hover:bg-slate-700/40 cursor-pointer' : 'opacity-50'}`}>
+                      <div className="grid grid-cols-12 gap-1 md:gap-2 items-center">
+                        <div className="col-span-3 text-sm font-medium text-white flex items-center gap-2">
+                          {r.location}
+                          {hasData && <ChevronRight size={14} className="text-slate-500 hidden md:block" />}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-400">{enabledInSection}/{items.length}</span>
-                          {isAdmin && (
-                          <button onClick={(e) => { e.stopPropagation(); toggleAllInSection(sectionName, !allOn); }}
-                            className={`text-xs px-2 py-0.5 rounded ${allOn ? 'bg-green-600/30 text-green-400' : noneOn ? 'bg-red-600/30 text-red-400' : 'bg-yellow-600/30 text-yellow-400'}`}>
-                            {allOn ? 'All On' : noneOn ? 'All Off' : 'Mixed'}
-                          </button>
-                          )}
+                        <div className="col-span-2 text-xs text-slate-400 hidden md:block">{r.market}</div>
+                        <div className="col-span-3 md:col-span-2 text-right text-sm">
+                          {hasData ? (
+                            <span className={r.currentCNI >= 0 ? 'text-green-400' : 'text-red-400'}>{formatCurrency(r.currentCNI)}</span>
+                          ) : <span className="text-slate-600">—</span>}
+                        </div>
+                        <div className="col-span-3 md:col-span-2 text-right text-sm hidden md:block">
+                          {hasData ? (
+                            <span className={r.priorCNI >= 0 ? 'text-slate-300' : 'text-red-400'}>{formatCurrency(r.priorCNI)}</span>
+                          ) : <span className="text-slate-600">—</span>}
+                        </div>
+                        <div className="col-span-3 md:col-span-1 text-right text-sm">
+                          {hasData ? (
+                            <span className={r.yoy > 0 ? 'text-green-400' : r.yoy < 0 ? 'text-red-400' : 'text-slate-300'}>
+                              {r.yoy >= 0 ? '+' : ''}{formatCurrency(r.yoy)}
+                            </span>
+                          ) : <span className="text-slate-600">—</span>}
+                        </div>
+                        <div className="col-span-3 md:col-span-2 text-right text-sm font-bold">
+                          {hasData ? (
+                            <span className={r.bonus > 0 ? 'text-green-400' : 'text-slate-500'}>
+                              {r.bonus > 0 ? formatCurrency(r.bonus) : '$0'}
+                            </span>
+                          ) : <span className="text-slate-600 text-xs">No data</span>}
                         </div>
                       </div>
-                      {isExpanded && (
-                        <div className="px-3 py-2 space-y-1">
-                          {items.map(item => (
-                            <label key={item.key} className="flex items-center gap-2 cursor-pointer py-0.5">
-                              <input type="checkbox" checked={accountToggles[item.key]} onChange={() => { if (isAdmin) toggleAccount(item.key); }}
-                                disabled={!isAdmin}
-                                className="w-3.5 h-3.5 rounded border-slate-500 text-green-500 focus:ring-green-500 focus:ring-offset-0 bg-slate-600 disabled:opacity-60" />
-                              <span className={`text-xs transition-colors ${accountToggles[item.key] ? 'text-slate-200' : 'text-slate-500 line-through'}`}>{item.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   );
                 })}
               </div>
-            </div>
+
+              {!summaryLoading && accessType === 'none' && (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center shadow-lg mt-3">
+                  <div className="text-slate-400 mb-2">You don&apos;t have access to the bonus dashboard.</div>
+                  <div className="text-slate-500 text-sm">Contact your administrator to request access.</div>
+                </div>
+              )}
+            </>
           )}
 
-          {/* KPI Summary Cards */}
-          {plData && (() => {
-            const yoyIncrease = bonusCalc.current.controllableNI - bonusCalc.prior.controllableNI;
-            const bonusPayout = yoyIncrease > 0 ? yoyIncrease * 0.10 : 0;
-            return (
+          {/* ============================================== */}
+          {/* DETAIL VIEW                                    */}
+          {/* ============================================== */}
+          {!isSummaryView && (
             <>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3 mb-2 md:mb-3">
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
-                <div className="text-xs text-slate-400 mb-1">Current Quarter CNI</div>
-                <div className={`text-lg md:text-xl font-bold ${bonusCalc.current.controllableNI >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {formatCurrency(bonusCalc.current.controllableNI)}
-                </div>
-                <div className="text-xs text-slate-500 mt-1">{bonusCalc.current.sales !== 0 ? formatPercent((bonusCalc.current.controllableNI / bonusCalc.current.sales) * 100) : '0.0%'} of sales</div>
-              </div>
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
-                <div className="text-xs text-slate-400 mb-1">Prior Year Quarter CNI</div>
-                <div className={`text-lg md:text-xl font-bold ${bonusCalc.prior.controllableNI >= 0 ? 'text-slate-300' : 'text-red-400'}`}>
-                  {formatCurrency(bonusCalc.prior.controllableNI)}
-                </div>
-                <div className="text-xs text-slate-500 mt-1">{bonusCalc.prior.sales !== 0 ? formatPercent((bonusCalc.prior.controllableNI / bonusCalc.prior.sales) * 100) : '0.0%'} of sales</div>
-              </div>
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
-                <div className="text-xs text-slate-400 mb-1">YOY CNI Change</div>
-                <div className={`text-lg md:text-xl font-bold ${yoyIncrease > 0 ? 'text-green-400' : yoyIncrease < 0 ? 'text-red-400' : 'text-slate-300'}`}>
-                  {yoyIncrease >= 0 ? '+' : ''}{formatCurrency(yoyIncrease)}
-                </div>
-                <div className="text-xs text-slate-500 mt-1">
-                  {bonusCalc.prior.controllableNI !== 0 ? (yoyIncrease >= 0 ? '+' : '') + formatPercent((yoyIncrease / Math.abs(bonusCalc.prior.controllableNI)) * 100) : '-'}
-                </div>
-              </div>
-            </div>
-
-            {/* Bonus Payout Card */}
-            <div className={`border rounded-lg p-4 md:p-5 mb-2 md:mb-3 shadow-lg ${bonusPayout > 0 ? 'bg-green-900/30 border-green-600/50' : 'bg-slate-800 border-slate-700'}`}>
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-slate-300 mb-2">Manager Bonus Calculation</div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-400">
-                    <span>{formatCurrency(bonusCalc.current.controllableNI)} <span className="text-slate-500">current</span></span>
-                    <span className="text-slate-600">−</span>
-                    <span>{formatCurrency(bonusCalc.prior.controllableNI)} <span className="text-slate-500">prior</span></span>
-                    <span className="text-slate-600">=</span>
-                    <span className={yoyIncrease > 0 ? 'text-green-400' : 'text-red-400'}>{yoyIncrease >= 0 ? '+' : ''}{formatCurrency(yoyIncrease)} <span className="text-slate-500">increase</span></span>
-                    <span className="text-slate-600">×</span>
-                    <span>10%</span>
+              {/* Back + Filters */}
+              <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg">
+                <div className="flex flex-wrap gap-2 md:gap-3 items-end">
+                  <button onClick={goToSummary}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-sm text-white transition-colors">
+                    <ArrowLeft size={14} />
+                    All Stores
+                  </button>
+                  <div className="flex-1 min-w-[140px]">
+                    <label className="block text-xs text-slate-400 mb-1">Location</label>
+                    <select value={selectedLocation} onChange={(e) => goToDetail(e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+                      <option value="">Select location...</option>
+                      {availableLocations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex-1 min-w-[140px]">
+                    <label className="block text-xs text-slate-400 mb-1">Quarter</label>
+                    <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+                      <option value="">Select quarter...</option>
+                      {availablePeriods.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <button onClick={() => setShowAccountConfig(!showAccountConfig)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showAccountConfig ? 'bg-green-600 text-white' : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600'}`}>
+                      <Settings size={14} />
+                      Accounts ({enabledCount}/{totalCount})
+                    </button>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs text-slate-400 mb-1">Bonus Payout</div>
-                  <div className={`text-2xl md:text-3xl font-bold ${bonusPayout > 0 ? 'text-green-400' : 'text-slate-500'}`}>
-                    {bonusPayout > 0 ? formatCurrency(bonusPayout) : '$0'}
-                  </div>
-                  {bonusPayout === 0 && yoyIncrease <= 0 && (
-                    <div className="text-xs text-slate-500 mt-1">No increase, no bonus</div>
-                  )}
-                </div>
-              </div>
-            </div>
-            </>
-            );
-          })()}
-
-          {/* Detailed Breakdown Table */}
-          {plData && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden shadow-lg">
-              <div className="bg-slate-700 px-3 md:px-4 py-2 md:py-3">
-                <div className="grid grid-cols-12 gap-1 md:gap-2 text-xs font-semibold text-slate-300">
-                  <div className="col-span-4">Account</div>
-                  <div className="col-span-2 text-right">{columnLabels.col1}</div>
-                  <div className="col-span-2 text-right">% of Sales</div>
-                  <div className="col-span-2 text-right">{columnLabels.col2}</div>
-                  <div className="col-span-2 text-right">% of Sales</div>
-                </div>
               </div>
 
-              {Object.entries(DEFAULT_ACCOUNTS).map(([sectionName, { items }]) => {
-                const activeItems = items.filter(i => accountToggles[i.key]);
-                if (activeItems.length === 0) return null;
-                let sectionCurrentTotal = 0, sectionPriorTotal = 0;
-                activeItems.forEach(item => {
-                  sectionCurrentTotal += getLineValue(item.key, 'current');
-                  sectionPriorTotal += getLineValue(item.key, 'prior');
-                });
+              {/* Account Config Panel */}
+              {showAccountConfig && (
+                <AccountConfigPanel
+                  isAdmin={isAdmin}
+                  accountToggles={accountToggles}
+                  expandedSections={expandedSections}
+                  configDirty={configDirty}
+                  savingConfig={savingConfig}
+                  toggleAccount={toggleAccount}
+                  toggleSection={toggleSection}
+                  toggleAllInSection={toggleAllInSection}
+                  resetDefaults={resetDefaults}
+                  saveBonusConfig={saveBonusConfig}
+                />
+              )}
+
+              {/* KPI Summary Cards */}
+              {plData && (() => {
+                const yoyIncrease = bonusCalc.current.controllableNI - bonusCalc.prior.controllableNI;
+                const bonusPayout = yoyIncrease > 0 ? yoyIncrease * 0.10 : 0;
                 return (
-                  <div key={sectionName}>
-                    <div className="bg-slate-700/50 px-3 md:px-4 py-1.5 md:py-2 border-t border-slate-600">
-                      <div className="grid grid-cols-12 gap-1 md:gap-2">
-                        <div className="col-span-4 text-xs md:text-sm font-semibold text-blue-400">{sectionName}</div>
-                        <div className="col-span-2 text-right text-xs md:text-sm font-semibold text-white">{formatCurrency(sectionCurrentTotal)}</div>
-                        <div className="col-span-2 text-right text-xs md:text-sm text-slate-400">{bonusCalc.current.sales !== 0 ? formatPercent((sectionCurrentTotal / bonusCalc.current.sales) * 100) : '-'}</div>
-                        <div className="col-span-2 text-right text-xs md:text-sm font-semibold text-slate-300">{formatCurrency(sectionPriorTotal)}</div>
-                        <div className="col-span-2 text-right text-xs md:text-sm text-slate-400">{bonusCalc.prior.sales !== 0 ? formatPercent((sectionPriorTotal / bonusCalc.prior.sales) * 100) : '-'}</div>
+                <>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3 mb-2 md:mb-3">
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
+                    <div className="text-xs text-slate-400 mb-1">Current Quarter CNI</div>
+                    <div className={`text-lg md:text-xl font-bold ${bonusCalc.current.controllableNI >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {formatCurrency(bonusCalc.current.controllableNI)}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">{bonusCalc.current.sales !== 0 ? formatPercent((bonusCalc.current.controllableNI / bonusCalc.current.sales) * 100) : '0.0%'} of sales</div>
+                  </div>
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
+                    <div className="text-xs text-slate-400 mb-1">Prior Year Quarter CNI</div>
+                    <div className={`text-lg md:text-xl font-bold ${bonusCalc.prior.controllableNI >= 0 ? 'text-slate-300' : 'text-red-400'}`}>
+                      {formatCurrency(bonusCalc.prior.controllableNI)}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">{bonusCalc.prior.sales !== 0 ? formatPercent((bonusCalc.prior.controllableNI / bonusCalc.prior.sales) * 100) : '0.0%'} of sales</div>
+                  </div>
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
+                    <div className="text-xs text-slate-400 mb-1">YOY CNI Change</div>
+                    <div className={`text-lg md:text-xl font-bold ${yoyIncrease > 0 ? 'text-green-400' : yoyIncrease < 0 ? 'text-red-400' : 'text-slate-300'}`}>
+                      {yoyIncrease >= 0 ? '+' : ''}{formatCurrency(yoyIncrease)}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {bonusCalc.prior.controllableNI !== 0 ? (yoyIncrease >= 0 ? '+' : '') + formatPercent((yoyIncrease / Math.abs(bonusCalc.prior.controllableNI)) * 100) : '-'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bonus Payout Card */}
+                <div className={`border rounded-lg p-4 md:p-5 mb-2 md:mb-3 shadow-lg ${bonusPayout > 0 ? 'bg-green-900/30 border-green-600/50' : 'bg-slate-800 border-slate-700'}`}>
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-300 mb-2">Manager Bonus Calculation</div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-400">
+                        <span>{formatCurrency(bonusCalc.current.controllableNI)} <span className="text-slate-500">current</span></span>
+                        <span className="text-slate-600">−</span>
+                        <span>{formatCurrency(bonusCalc.prior.controllableNI)} <span className="text-slate-500">prior</span></span>
+                        <span className="text-slate-600">=</span>
+                        <span className={yoyIncrease > 0 ? 'text-green-400' : 'text-red-400'}>{yoyIncrease >= 0 ? '+' : ''}{formatCurrency(yoyIncrease)} <span className="text-slate-500">increase</span></span>
+                        <span className="text-slate-600">×</span>
+                        <span>10%</span>
                       </div>
                     </div>
-                    {activeItems.map(item => {
-                      const currentVal = getLineValue(item.key, 'current');
-                      const priorVal = getLineValue(item.key, 'prior');
-                      if (currentVal === 0 && priorVal === 0) return null;
-                      return (
-                        <div key={item.key} className="px-3 md:px-4 py-1 md:py-1.5 border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+                    <div className="text-right">
+                      <div className="text-xs text-slate-400 mb-1">Bonus Payout</div>
+                      <div className={`text-2xl md:text-3xl font-bold ${bonusPayout > 0 ? 'text-green-400' : 'text-slate-500'}`}>
+                        {bonusPayout > 0 ? formatCurrency(bonusPayout) : '$0'}
+                      </div>
+                      {bonusPayout === 0 && yoyIncrease <= 0 && (
+                        <div className="text-xs text-slate-500 mt-1">No increase, no bonus</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                </>
+                );
+              })()}
+
+              {/* Detailed Breakdown Table */}
+              {plData && (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden shadow-lg">
+                  <div className="bg-slate-700 px-3 md:px-4 py-2 md:py-3">
+                    <div className="grid grid-cols-12 gap-1 md:gap-2 text-xs font-semibold text-slate-300">
+                      <div className="col-span-4">Account</div>
+                      <div className="col-span-2 text-right">{columnLabels.col1}</div>
+                      <div className="col-span-2 text-right">% of Sales</div>
+                      <div className="col-span-2 text-right">{columnLabels.col2}</div>
+                      <div className="col-span-2 text-right">% of Sales</div>
+                    </div>
+                  </div>
+
+                  {Object.entries(DEFAULT_ACCOUNTS).map(([sectionName, { items }]) => {
+                    const activeItems = items.filter(i => accountToggles[i.key]);
+                    if (activeItems.length === 0) return null;
+                    let sectionCurrentTotal = 0, sectionPriorTotal = 0;
+                    activeItems.forEach(item => {
+                      sectionCurrentTotal += getLineValue(item.key, 'current');
+                      sectionPriorTotal += getLineValue(item.key, 'prior');
+                    });
+                    return (
+                      <div key={sectionName}>
+                        <div className="bg-slate-700/50 px-3 md:px-4 py-1.5 md:py-2 border-t border-slate-600">
                           <div className="grid grid-cols-12 gap-1 md:gap-2">
-                            <div className="col-span-4 text-xs md:text-sm text-slate-300 pl-3 md:pl-4">{item.label}</div>
-                            <div className="col-span-2 text-right text-xs md:text-sm text-white">{formatCurrency(currentVal)}</div>
-                            <div className="col-span-2 text-right text-xs md:text-sm text-slate-500">{bonusCalc.current.sales !== 0 ? formatPercent((currentVal / bonusCalc.current.sales) * 100) : '-'}</div>
-                            <div className="col-span-2 text-right text-xs md:text-sm text-slate-400">{formatCurrency(priorVal)}</div>
-                            <div className="col-span-2 text-right text-xs md:text-sm text-slate-500">{bonusCalc.prior.sales !== 0 ? formatPercent((priorVal / bonusCalc.prior.sales) * 100) : '-'}</div>
+                            <div className="col-span-4 text-xs md:text-sm font-semibold text-blue-400">{sectionName}</div>
+                            <div className="col-span-2 text-right text-xs md:text-sm font-semibold text-white">{formatCurrency(sectionCurrentTotal)}</div>
+                            <div className="col-span-2 text-right text-xs md:text-sm text-slate-400">{bonusCalc.current.sales !== 0 ? formatPercent((sectionCurrentTotal / bonusCalc.current.sales) * 100) : '-'}</div>
+                            <div className="col-span-2 text-right text-xs md:text-sm font-semibold text-slate-300">{formatCurrency(sectionPriorTotal)}</div>
+                            <div className="col-span-2 text-right text-xs md:text-sm text-slate-400">{bonusCalc.prior.sales !== 0 ? formatPercent((sectionPriorTotal / bonusCalc.prior.sales) * 100) : '-'}</div>
                           </div>
                         </div>
-                      );
-                    })}
+                        {activeItems.map(item => {
+                          const currentVal = getLineValue(item.key, 'current');
+                          const priorVal = getLineValue(item.key, 'prior');
+                          if (currentVal === 0 && priorVal === 0) return null;
+                          return (
+                            <div key={item.key} className="px-3 md:px-4 py-1 md:py-1.5 border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+                              <div className="grid grid-cols-12 gap-1 md:gap-2">
+                                <div className="col-span-4 text-xs md:text-sm text-slate-300 pl-3 md:pl-4">{item.label}</div>
+                                <div className="col-span-2 text-right text-xs md:text-sm text-white">{formatCurrency(currentVal)}</div>
+                                <div className="col-span-2 text-right text-xs md:text-sm text-slate-500">{bonusCalc.current.sales !== 0 ? formatPercent((currentVal / bonusCalc.current.sales) * 100) : '-'}</div>
+                                <div className="col-span-2 text-right text-xs md:text-sm text-slate-400">{formatCurrency(priorVal)}</div>
+                                <div className="col-span-2 text-right text-xs md:text-sm text-slate-500">{bonusCalc.prior.sales !== 0 ? formatPercent((priorVal / bonusCalc.prior.sales) * 100) : '-'}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+
+                  {/* CNI Total Row */}
+                  <div className="bg-slate-700 px-3 md:px-4 py-2 md:py-3 border-t-2 border-green-600/50">
+                    <div className="grid grid-cols-12 gap-1 md:gap-2">
+                      <div className="col-span-4 text-xs md:text-sm font-bold text-green-400">Controllable Net Income</div>
+                      <div className={`col-span-2 text-right text-xs md:text-sm font-bold ${bonusCalc.current.controllableNI >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(bonusCalc.current.controllableNI)}</div>
+                      <div className="col-span-2 text-right text-xs md:text-sm font-bold text-green-400">{bonusCalc.current.sales !== 0 ? formatPercent((bonusCalc.current.controllableNI / bonusCalc.current.sales) * 100) : '-'}</div>
+                      <div className={`col-span-2 text-right text-xs md:text-sm font-bold ${bonusCalc.prior.controllableNI >= 0 ? 'text-green-300' : 'text-red-300'}`}>{formatCurrency(bonusCalc.prior.controllableNI)}</div>
+                      <div className="col-span-2 text-right text-xs md:text-sm font-bold text-slate-300">{bonusCalc.prior.sales !== 0 ? formatPercent((bonusCalc.prior.controllableNI / bonusCalc.prior.sales) * 100) : '-'}</div>
+                    </div>
                   </div>
-                );
-              })}
-
-              {/* CNI Total Row */}
-              <div className="bg-slate-700 px-3 md:px-4 py-2 md:py-3 border-t-2 border-green-600/50">
-                <div className="grid grid-cols-12 gap-1 md:gap-2">
-                  <div className="col-span-4 text-xs md:text-sm font-bold text-green-400">Controllable Net Income</div>
-                  <div className={`col-span-2 text-right text-xs md:text-sm font-bold ${bonusCalc.current.controllableNI >= 0 ? 'text-green-400' : 'text-red-400'}`}>{formatCurrency(bonusCalc.current.controllableNI)}</div>
-                  <div className="col-span-2 text-right text-xs md:text-sm font-bold text-green-400">{bonusCalc.current.sales !== 0 ? formatPercent((bonusCalc.current.controllableNI / bonusCalc.current.sales) * 100) : '-'}</div>
-                  <div className={`col-span-2 text-right text-xs md:text-sm font-bold ${bonusCalc.prior.controllableNI >= 0 ? 'text-green-300' : 'text-red-300'}`}>{formatCurrency(bonusCalc.prior.controllableNI)}</div>
-                  <div className="col-span-2 text-right text-xs md:text-sm font-bold text-slate-300">{bonusCalc.prior.sales !== 0 ? formatPercent((bonusCalc.prior.controllableNI / bonusCalc.prior.sales) * 100) : '-'}</div>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {/* States */}
-          {loading && !plData && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center text-slate-400 shadow-lg">Loading...</div>
-          )}
-          {error && (
-            <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 text-red-200 shadow-lg">{error}</div>
-          )}
-          {!loading && !error && !plData && selectedLocation && selectedPeriod && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center text-slate-400 shadow-lg">No data found for this location and period.</div>
-          )}
-          {!loading && !error && !selectedLocation && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center text-slate-400 shadow-lg">Select a location to view the bonus calculation.</div>
-          )}
-          {!loading && accessType === 'none' && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center shadow-lg">
-              <div className="text-slate-400 mb-2">You don&apos;t have access to the bonus dashboard.</div>
-              <div className="text-slate-500 text-sm">Contact your administrator to request access.</div>
-            </div>
+              {/* States */}
+              {loading && !plData && (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center text-slate-400 shadow-lg">Loading...</div>
+              )}
+              {error && (
+                <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 text-red-200 shadow-lg">{error}</div>
+              )}
+              {!loading && !error && !plData && selectedLocation && selectedPeriod && (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center text-slate-400 shadow-lg">No data found for this location and period.</div>
+              )}
+            </>
           )}
         </div>
       </div>
     </>
+  );
+}
+
+// ============================================================
+// Helper Components
+// ============================================================
+
+function SortHeader({ label, active, dir, onClick, className }) {
+  return (
+    <div onClick={onClick} className={`${className} cursor-pointer hover:text-white transition-colors flex items-center gap-1`}>
+      <span>{label}</span>
+      {active && (dir === 'asc' ? <ArrowUp size={10} /> : <ArrowDown size={10} />)}
+    </div>
+  );
+}
+
+function AccountConfigPanel({ isAdmin, accountToggles, expandedSections, configDirty, savingConfig, toggleAccount, toggleSection, toggleAllInSection, resetDefaults, saveBonusConfig }) {
+  return (
+    <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-2 md:mb-3 shadow-lg">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-white font-semibold text-sm">Account Selection {!isAdmin && <span className="text-slate-500 font-normal">(view only)</span>}</h2>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button onClick={resetDefaults} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Reset to Defaults</button>
+          )}
+          {isAdmin && configDirty && (
+            <button
+              onClick={() => saveBonusConfig(accountToggles)}
+              disabled={savingConfig}
+              className="px-3 py-1 text-xs font-medium bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50"
+            >
+              {savingConfig ? 'Saving...' : 'Save Config'}
+            </button>
+          )}
+        </div>
+      </div>
+      <p className="text-slate-400 text-xs mb-3">
+        {isAdmin ? 'Toggle accounts on/off to customize the controllable net income calculation. Changes apply to all users after saving.' : 'These accounts are included in the bonus calculation.'}
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+        {Object.entries(DEFAULT_ACCOUNTS).map(([sectionName, { items }]) => {
+          const isExpanded = expandedSections[sectionName] !== false;
+          const enabledInSection = items.filter(i => accountToggles[i.key]).length;
+          const allOn = enabledInSection === items.length;
+          const noneOn = enabledInSection === 0;
+          return (
+            <div key={sectionName} className="border border-slate-600 rounded-lg overflow-hidden bg-slate-800/50">
+              <div className="flex items-center justify-between px-3 py-2 bg-slate-700 cursor-pointer" onClick={() => toggleSection(sectionName)}>
+                <div className="flex items-center gap-2">
+                  {isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+                  <span className="text-sm font-medium text-white">{sectionName}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">{enabledInSection}/{items.length}</span>
+                  {isAdmin && (
+                  <button onClick={(e) => { e.stopPropagation(); toggleAllInSection(sectionName, !allOn); }}
+                    className={`text-xs px-2 py-0.5 rounded ${allOn ? 'bg-green-600/30 text-green-400' : noneOn ? 'bg-red-600/30 text-red-400' : 'bg-yellow-600/30 text-yellow-400'}`}>
+                    {allOn ? 'All On' : noneOn ? 'All Off' : 'Mixed'}
+                  </button>
+                  )}
+                </div>
+              </div>
+              {isExpanded && (
+                <div className="px-3 py-2 space-y-1">
+                  {items.map(item => (
+                    <label key={item.key} className="flex items-center gap-2 cursor-pointer py-0.5">
+                      <input type="checkbox" checked={accountToggles[item.key]} onChange={() => { if (isAdmin) toggleAccount(item.key); }}
+                        disabled={!isAdmin}
+                        className="w-3.5 h-3.5 rounded border-slate-500 text-green-500 focus:ring-green-500 focus:ring-offset-0 bg-slate-600 disabled:opacity-60" />
+                      <span className={`text-xs transition-colors ${accountToggles[item.key] ? 'text-slate-200' : 'text-slate-500 line-through'}`}>{item.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
