@@ -2,13 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Paint the dark slate background on html + body so the safe-area insets
+   (notch / status bar / home indicator) match the app instead of falling
+   back to white on a home-screen PWA. */
+html,
 body {
   margin: 0;
+  background-color: #0f172a; /* slate-900 */
+  /* Fill the safe-area insets with the slate background under the notch
+     and home indicator when viewport-fit=cover is set. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure the root color region behind any overscroll is also slate. */
+:root {
+  background-color: #0f172a;
 }
 
 code {
