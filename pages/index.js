@@ -1996,7 +1996,7 @@ return (
 <Head>
 <title>Andy's Dashboards</title>
 </Head>
-<div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
+<div className="min-h-screen bg-slate-900 p-2 md:p-4">
 <div className="max-w-[1400px] mx-auto">
 <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 md:mb-4 shadow-2xl">
 <div className="hidden md:flex items-center justify-between gap-3">
