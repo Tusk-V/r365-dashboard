@@ -2007,7 +2007,7 @@ alt="Andy's Frozen Custard"
 className="h-16"
 />
 <div>
-<h1 className="text-2xl font-bold text-white mb-1">R365 Dashboards (deploy test)</h1>
+<h1 className="text-2xl font-bold text-white mb-1">R365 Dashboards</h1>
 {activeTab === 'sales' && reportDate && reportDate !== 'Loading...' && !reportDate.includes('.') && (
 <p className="text-sm text-slate-400">Week Ending: {reportDate}</p>
 )}
