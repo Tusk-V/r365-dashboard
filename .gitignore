@@ -45,3 +45,7 @@ next-env.d.ts
 .claude/
 .idea/
 .vscode/
+
+# clasp (Google Apps Script CLI)
+.clasp.json
+.clasprc.json
