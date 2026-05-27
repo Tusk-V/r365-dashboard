@@ -335,22 +335,10 @@ function processWeeklyData(data) {
   sheet.setFrozenRows(1);
   
   var rows = [];
-  var dataStartRow = headerRowIndex + 1;
-  // Read until we hit a section boundary (Totals, Week To Date, etc.) or 30 rows max
-  for (var i = dataStartRow; i < dataStartRow + 30; i++) {
-    if (i >= data.length) break;
-    var row = data[i];
-    var locationName = getColumnValue(row, columnMap, 'Location Name');
-    if (!locationName) locationName = row[0] ? row[0].toString().trim() : '';
-    locationName = locationName ? locationName.toString().trim() : '';
-    // Stop at Totals or any section break (handles multi-section weekly reports)
-    if (isSectionEndRow(locationName)) {
-      Logger.log('Stopped at section end: "' + locationName + '" (row ' + i + ')');
-      break;
-    }
-    if (!locationName) continue;
-    
-    var rowData = [locationName,
+  var seenLocations = {};
+  // Helper: build a Sheet1-shaped row from a raw spreadsheet row using the column map
+  var buildRowData = function(row, locationName) {
+    return [locationName,
       parseNumber(getColumnValue(row, columnMap, 'Lunch')),
       parseNumber(getColumnValue(row, columnMap, 'Mid-Day')),
       parseNumber(getColumnValue(row, columnMap, 'Dinner')),
@@ -372,9 +360,64 @@ function processWeeklyData(data) {
       parseNumber(getColumnValue(row, columnMap, 'Entree Avg')),
       parseNumber(getColumnValue(row, columnMap, 'Act OT Hrs')),
       parseNumber(getColumnValue(row, columnMap, 'Sch OT Hrs'))];
-    rows.push(rowData);
+  };
+
+  var dataStartRow = headerRowIndex + 1;
+  // Read until we hit a section boundary (Totals, Week To Date, etc.) or 30 rows max
+  for (var i = dataStartRow; i < dataStartRow + 30; i++) {
+    if (i >= data.length) break;
+    var row = data[i];
+    var locationName = getColumnValue(row, columnMap, 'Location Name');
+    if (!locationName) locationName = row[0] ? row[0].toString().trim() : '';
+    locationName = locationName ? locationName.toString().trim() : '';
+    // Stop at Totals or any section break (handles multi-section weekly reports)
+    if (isSectionEndRow(locationName)) {
+      Logger.log('Stopped at section end: "' + locationName + '" (row ' + i + ')');
+      break;
+    }
+    if (!locationName) continue;
+
+    // Defense against R365 multi-section bleed: only the first occurrence of each
+    // location wins. Without this, a stray weekly aggregate row can land in Sheet1.
+    if (seenLocations[locationName]) {
+      Logger.log('SKIP duplicate location in primary section: "' + locationName + '" (row ' + i + ')');
+      continue;
+    }
+
+    rows.push(buildRowData(row, locationName));
+    seenLocations[locationName] = true;
   }
-  
+
+  // --- BACKFILL: scan the per-location daily-breakdown section (Section 2) ---
+  // R365 occasionally omits a location from the primary section. The Weekly Sales
+  // & Labor report contains a second section with the same column structure,
+  // where each location row is followed by per-day rows. We pull location rows
+  // from there to fill any gaps.
+  var dayPattern = /^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+\d+\/\d+\/\d+/i;
+  var sec2HeaderRow = -1;
+  for (var p = headerRowIndex + 1; p < data.length; p++) {
+    var colA = data[p][0] ? data[p][0].toString().trim() : '';
+    if (colA === 'Location Name') { sec2HeaderRow = p; break; }
+  }
+
+  if (sec2HeaderRow !== -1) {
+    var backfilled = 0;
+    for (var p2 = sec2HeaderRow + 1; p2 < data.length; p2++) {
+      var s2row = data[p2];
+      var s2name = s2row[0] ? s2row[0].toString().trim() : '';
+      if (!s2name) continue;
+      if (isSectionEndRow(s2name)) break;
+      if (dayPattern.test(s2name)) continue; // skip per-day breakdown rows
+      if (seenLocations[s2name]) continue;   // already captured from Section 1
+
+      Logger.log('WEEKLY BACKFILL: "' + s2name + '" missing from primary section, sourced from daily-breakdown section');
+      rows.push(buildRowData(s2row, s2name));
+      seenLocations[s2name] = true;
+      backfilled++;
+    }
+    if (backfilled > 0) Logger.log('Backfilled ' + backfilled + ' location(s) from daily-breakdown section');
+  }
+
   if (rows.length > 0) {
     sheet.getRange(2, 1, rows.length, outputHeaders.length).setValues(rows);
     // Apply consistent number formats to all data rows — ensures new rows match existing rows
