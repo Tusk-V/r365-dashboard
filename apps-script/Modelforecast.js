@@ -88,7 +88,7 @@ var MODEL_CONFIG = {
   
   MOMENTUM: {
     WINDOW_DAYS: 7,
-    CAP: 0.08
+    CAP: 0.05
   },
   
   HOLIDAY_MULTIPLIERS: {
@@ -827,15 +827,18 @@ function generateModelForecasts() {
       'Date', 'Location', 'Predicted Sales', 'Actual Sales', 'Variance',
       'Accuracy %', 'PW Sales Used', 'Weather Adj %', 'Temp Diff',
       'Conditions Change', 'Forecast Method', 'Confidence',
-      'Coefficients Version', 'Generated At', 'Holiday'
+      'Coefficients Version', 'Generated At', 'Holiday', 'Predicted (no mom)'
     ];
     modelSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     modelSheet.setFrozenRows(1);
   }
-  
+
   var headerRow = modelSheet.getRange(1, 1, 1, modelSheet.getLastColumn()).getValues()[0];
   if (headerRow.length < 15 || headerRow[14] !== 'Holiday') {
     modelSheet.getRange(1, 15).setValue('Holiday');
+  }
+  if (headerRow.length < 16 || headerRow[15] !== 'Predicted (no mom)') {
+    modelSheet.getRange(1, 16).setValue('Predicted (no mom)');
   }
   
   var forecastDataSheet = ss.getSheetByName(MODEL_CONFIG.FORECAST_DATA_SHEET);
@@ -1072,6 +1075,8 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
       }
     }
     
+    var predictedNoMom = predicted;
+
     if (!holiday) {
       var momentum = computeMomentum(location, targetDate, salesByLocDate);
       if (momentum !== 0) {
@@ -1081,15 +1086,16 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
         else if (method === 'blend') method = 'blend+mom';
       }
     }
-    
+
     predicted = Math.round(predicted);
+    predictedNoMom = Math.round(predictedNoMom);
     var weatherAdjPct = Math.round(weatherAdj * 100);
-    
+
     return [
       targetKey, location, predicted, '', '', '',
       Math.round(pwSales), weatherAdjPct, tempDiff,
       condChange, method, dowConf,
-      versionLabel, generatedAt, holiday
+      versionLabel, generatedAt, holiday, predictedNoMom
     ];
   }
   
@@ -1138,15 +1144,15 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
       targetKey, location, Math.round(predictedAvg), '', '', '',
       Math.round(avgSales), Math.round(weatherAdjAvg * 100), tempDiffAvg,
       '', methodAvg, 'low',
-      versionLabel, generatedAt, holiday
+      versionLabel, generatedAt, holiday, Math.round(predictedAvg)
     ];
   }
-  
+
   return [
     targetKey, location, 0, '', '', '',
     0, 0, null,
     '', 'insufficient', 'low',
-    versionLabel, generatedAt, holiday
+    versionLabel, generatedAt, holiday, 0
   ];
 }
 

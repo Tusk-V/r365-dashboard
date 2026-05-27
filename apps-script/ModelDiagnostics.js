@@ -318,8 +318,181 @@ function summarizeModelAccuracy() {
 
 
 // ============================================================================
+// BACKFILL: PREDICTED (NO MOM) COLUMN
+// Reconstructs the no-momentum prediction for historical rows using the stored
+// PW Sales (col 7) and Weather Adj % (col 8). Lets us A/B momentum impact
+// without waiting weeks of fresh data.
+// ============================================================================
+
+function backfillNoMomentumColumn() {
+  Logger.log('=== Backfilling Predicted (no mom) ===');
+
+  var ss = SpreadsheetApp.openById(MODEL_CONFIG.SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(MODEL_CONFIG.MODEL_FORECAST_SHEET);
+  if (!sheet) { Logger.log('No Model Forecast sheet'); return; }
+
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) { Logger.log('No data'); return; }
+
+  if (data[0].length < 16 || data[0][15] !== 'Predicted (no mom)') {
+    sheet.getRange(1, 16).setValue('Predicted (no mom)');
+  }
+
+  var lastRow = sheet.getLastRow();
+  var values = sheet.getRange(2, 1, lastRow - 1, 16).getValues();
+  var updates = [];
+  var filled = 0, alreadySet = 0, skipped = 0;
+
+  for (var i = 0; i < values.length; i++) {
+    var existing = values[i][15];
+    var predicted = parseFloat(values[i][2]) || 0;
+    var pwSales = parseFloat(values[i][6]) || 0;
+    var weatherAdjPct = parseFloat(values[i][7]);
+    var method = values[i][10] ? values[i][10].toString().trim() : '';
+
+    if (existing !== '' && existing !== null && existing !== undefined && !isNaN(parseFloat(existing))) {
+      updates.push([existing]);
+      alreadySet++;
+      continue;
+    }
+
+    if (method.indexOf('mom') < 0) {
+      if (predicted > 0) {
+        updates.push([predicted]);
+        filled++;
+      } else {
+        updates.push(['']);
+        skipped++;
+      }
+      continue;
+    }
+
+    if (pwSales > 0 && !isNaN(weatherAdjPct)) {
+      var noMom = Math.round(pwSales * (1 + weatherAdjPct / 100));
+      updates.push([noMom]);
+      filled++;
+    } else {
+      updates.push(['']);
+      skipped++;
+    }
+  }
+
+  sheet.getRange(2, 16, updates.length, 1).setValues(updates);
+  Logger.log('Backfilled: ' + filled + ', already set: ' + alreadySet + ', skipped: ' + skipped);
+  Logger.log('=== Backfill Complete ===');
+}
+
+
+// ============================================================================
+// COMPARE: MOMENTUM IMPACT
+// For pw+mom / blend+mom rows with actuals, computes accuracy with and
+// without momentum side by side. Single-number answer to "is momentum helping?"
+// ============================================================================
+
+function compareMomentumImpact() {
+  Logger.log('=== Comparing Momentum Impact ===');
+
+  var ss = SpreadsheetApp.openById(MODEL_CONFIG.SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(MODEL_CONFIG.MODEL_FORECAST_SHEET);
+  if (!sheet) { Logger.log('No Model Forecast sheet'); return; }
+
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2 || data[0].length < 16) {
+    Logger.log('Sheet missing Predicted (no mom) column — run backfillNoMomentumColumn first');
+    return;
+  }
+
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var c28 = new Date(today); c28.setDate(c28.getDate() - 28);
+
+  var errWithAll = [], errNoMomAll = [];
+  var errWith28 = [], errNoMom28 = [];
+  var momentumDeltas = [];
+  var winsWithMom = 0, winsNoMom = 0, ties = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var dateRaw = data[i][0];
+    var predicted = parseFloat(data[i][2]) || 0;
+    var actual = parseFloat(data[i][3]) || 0;
+    var method = data[i][10] ? data[i][10].toString().trim() : '';
+    var noMom = parseFloat(data[i][15]) || 0;
+
+    if (!dateRaw || predicted <= 0 || actual <= 0 || noMom <= 0) continue;
+    if (method.indexOf('mom') < 0) continue;
+
+    var d = new Date(dateRaw);
+    if (isNaN(d.getTime())) continue;
+    d.setHours(0, 0, 0, 0);
+    if (d >= today) continue;
+
+    var eWith = Math.abs(predicted - actual) / actual;
+    var eNo = Math.abs(noMom - actual) / actual;
+
+    errWithAll.push(eWith); errNoMomAll.push(eNo);
+    if (d >= c28) { errWith28.push(eWith); errNoMom28.push(eNo); }
+
+    momentumDeltas.push(predicted - noMom);
+
+    if (eWith < eNo - 0.005) winsWithMom++;
+    else if (eNo < eWith - 0.005) winsNoMom++;
+    else ties++;
+  }
+
+  function avg(arr) {
+    if (arr.length === 0) return null;
+    var s = 0;
+    for (var i = 0; i < arr.length; i++) s += arr[i];
+    return s / arr.length;
+  }
+
+  var mWithAll = avg(errWithAll);
+  var mNoAll = avg(errNoMomAll);
+  var mWith28 = avg(errWith28);
+  var mNo28 = avg(errNoMom28);
+  var avgDelta = avg(momentumDeltas);
+
+  function fmt(v) { return v === null ? '--' : (Math.round(v * 1000) / 10); }
+
+  var rows = [
+    ['Window', 'N', 'MAPE w/ momentum', 'MAPE w/o momentum', 'Delta (pp)', 'Accuracy w/ mom', 'Accuracy w/o mom'],
+    ['Last 28d', errWith28.length, fmt(mWith28), fmt(mNo28),
+      mWith28 !== null ? Math.round((mWith28 - mNo28) * 1000) / 10 : '--',
+      mWith28 !== null ? Math.round((100 - mWith28 * 100) * 10) / 10 : '--',
+      mNo28 !== null ? Math.round((100 - mNo28 * 100) * 10) / 10 : '--'],
+    ['All time', errWithAll.length, fmt(mWithAll), fmt(mNoAll),
+      mWithAll !== null ? Math.round((mWithAll - mNoAll) * 1000) / 10 : '--',
+      mWithAll !== null ? Math.round((100 - mWithAll * 100) * 10) / 10 : '--',
+      mNoAll !== null ? Math.round((100 - mNoAll * 100) * 10) / 10 : '--']
+  ];
+
+  var out = ss.getSheetByName('Momentum Impact');
+  if (!out) out = ss.insertSheet('Momentum Impact');
+  out.clear();
+  out.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  out.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
+  out.setFrozenRows(1);
+
+  var winRow = rows.length + 2;
+  out.getRange(winRow, 1).setValue('Row-level comparison (all time)').setFontWeight('bold');
+  out.getRange(winRow + 1, 1, 4, 2).setValues([
+    ['Momentum helped', winsWithMom],
+    ['Momentum hurt', winsNoMom],
+    ['Tie (within 0.5pp)', ties],
+    ['Avg momentum adjustment ($)', avgDelta !== null ? Math.round(avgDelta) : '--']
+  ]);
+
+  Logger.log('All-time: w/ mom MAPE ' + fmt(mWithAll) + '% vs w/o mom MAPE ' + fmt(mNoAll) + '% (n=' + errWithAll.length + ')');
+  Logger.log('28d: w/ mom MAPE ' + fmt(mWith28) + '% vs w/o mom MAPE ' + fmt(mNo28) + '% (n=' + errWith28.length + ')');
+  Logger.log('Wins: w/mom=' + winsWithMom + ', w/o mom=' + winsNoMom + ', ties=' + ties);
+  Logger.log('=== Momentum Impact Complete ===');
+}
+
+
+// ============================================================================
 // CONVENIENCE WRAPPERS
 // ============================================================================
 
 function testAuditCoefficientCoverage() { auditCoefficientCoverage(); }
 function testSummarizeModelAccuracy() { summarizeModelAccuracy(); }
+function testBackfillNoMomentumColumn() { backfillNoMomentumColumn(); }
+function testCompareMomentumImpact() { compareMomentumImpact(); }
