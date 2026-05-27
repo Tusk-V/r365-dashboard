@@ -287,12 +287,26 @@ function verifyFlashAgainstOData(reportDate) {
   }
 }
 
-// Manual one-shot for ad-hoc verification from the editor.
+// Manual one-shot for ad-hoc verification from the editor. Uses Central-time
+// "yesterday" so behavior matches the 6:30 AM CT processor regardless of
+// the script's underlying timezone or what UTC clock-day it is.
 function verifyTodayFlash() {
-  var yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  var reportDate = (yesterday.getMonth() + 1) + '/' + yesterday.getDate() + '/' + yesterday.getFullYear();
+  var tz = PropertiesService.getScriptProperties().getProperty('ODATA_BUSINESS_TIMEZONE') || 'America/Chicago';
+  var yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  var reportDate = Utilities.formatDate(yesterday, tz, 'M/d/yyyy');
+  Logger.log('verifyTodayFlash: using reportDate=' + reportDate + ' (Central-yesterday)');
   verifyFlashAgainstOData(reportDate);
+}
+
+// Verify a specific date by string. Useful for backfill checks.
+//   verifyFlashFor('5/25/2026')
+function verifyFlashFor(reportDate) {
+  verifyFlashAgainstOData(reportDate);
+}
+
+// Hard-coded one-shot for tonight's 5/25/2026 verification — delete after use.
+function verify_5_25_2026() {
+  verifyFlashAgainstOData('5/25/2026');
 }
 
 // ============================================================================
