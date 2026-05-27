@@ -92,7 +92,7 @@ var MODEL_CONFIG = {
   },
   
   HOLIDAY_MULTIPLIERS: {
-    MIN_LOCATION_SAMPLES: 2,
+    MIN_LOCATION_SAMPLES: 4,
     BASELINE_WINDOW_DAYS: 28
   },
   
@@ -895,9 +895,24 @@ function generateModelForecasts() {
   
   if (rowsToDelete.length > 0) {
     Logger.log('Removing ' + rowsToDelete.length + ' future predictions for regeneration');
-    rowsToDelete.sort(function(a, b) { return b - a; });
-    for (var d = 0; d < rowsToDelete.length; d++) {
-      modelSheet.deleteRow(rowsToDelete[d]);
+    rowsToDelete.sort(function(a, b) { return a - b; });
+
+    var ranges = [];
+    var rangeStart = rowsToDelete[0];
+    var rangeEnd = rowsToDelete[0];
+    for (var d = 1; d < rowsToDelete.length; d++) {
+      if (rowsToDelete[d] === rangeEnd + 1) {
+        rangeEnd = rowsToDelete[d];
+      } else {
+        ranges.push({ start: rangeStart, count: rangeEnd - rangeStart + 1 });
+        rangeStart = rowsToDelete[d];
+        rangeEnd = rowsToDelete[d];
+      }
+    }
+    ranges.push({ start: rangeStart, count: rangeEnd - rangeStart + 1 });
+
+    for (var r = ranges.length - 1; r >= 0; r--) {
+      modelSheet.deleteRows(ranges[r].start, ranges[r].count);
     }
   }
   
@@ -1060,7 +1075,8 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
     if (!holiday) {
       var momentum = computeMomentum(location, targetDate, salesByLocDate);
       if (momentum !== 0) {
-        predicted = predicted * (1 + momentum);
+        var combinedAdj = Math.max(-0.30, Math.min(0.30, weatherAdj + momentum));
+        predicted = pwSales * (1 + combinedAdj);
         if (method === 'pw') method = 'pw+mom';
         else if (method === 'blend') method = 'blend+mom';
       }
