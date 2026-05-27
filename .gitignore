@@ -49,3 +49,4 @@ next-env.d.ts
 # clasp (Google Apps Script CLI)
 .clasp.json
 .clasprc.json
+.env*

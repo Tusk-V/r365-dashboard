@@ -11,8 +11,8 @@ import MessagingPermissions from '../components/MessagingPermissions';
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 // Google Sheets API Configuration
-const API_KEY = 'AIzaSyAbUI3oP_0ofBG9tiAudYLUjZ4MSSaFNDA';
-const SPREADSHEET_ID = '1WsHBn5qLczH8QZ1c-CyVGfCWzMuLg2vmx5R5MZdHY20';
+// Google Sheets reads go through /api/sheets-proxy (server-side, session-gated).
+// SPREADSHEET_ID and API_KEY live in env vars and never reach the client bundle.
 const SHEET_NAME = 'Sheet1';
 const AUTO_CLOCKOUTS_SHEET = 'Auto-Clockouts';
 const CALL_OFFS_SHEET = 'Call-Offs';
@@ -575,7 +575,7 @@ setError(null);
 
 try {
   const range = `${SHEET_NAME}!A2:Z`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+  const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
   
   const response = await fetch(url);
   
@@ -612,7 +612,7 @@ try {
 const loadAvailableWeeks = async () => {
 try {
 const range = `Historical Data!A2:A`;
-const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
 
   const response = await fetch(url);
   if (!response.ok) return;
@@ -634,7 +634,7 @@ setError(null);
 
 try {
   const range = `Historical Data!A2:K`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+  const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
   
   const response = await fetch(url);
   
@@ -672,7 +672,7 @@ setClockoutsError(null);
 
 try {
   const range = `${AUTO_CLOCKOUTS_SHEET}!A2:G`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+  const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
   
   const response = await fetch(url);
   
@@ -748,7 +748,7 @@ setCallOffsError(null);
 
 try {
   const range = `${CALL_OFFS_SHEET}!A2:D`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+  const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
   
   const response = await fetch(url);
   
@@ -805,7 +805,7 @@ setOvertimeError(null);
 
 try {
   const range = `${OVERTIME_SHEET}!A2:C`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+  const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
   
   const response = await fetch(url);
   
@@ -857,7 +857,7 @@ setDailyFlashError(null);
 
 try {
   const range = `${FLASH_DAILY_SALES_SHEET}!A2:I`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+  const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
   
   const response = await fetch(url);
   
@@ -920,7 +920,7 @@ setDailyLaborError(null);
 
 try {
   const range = `${FLASH_DAILY_LABOR_SHEET}!A2:J`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+  const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
   
   const response = await fetch(url);
   
@@ -990,7 +990,7 @@ setLogbookError(null);
 
 try {
   const range = `${LOGBOOK_ENTRIES_SHEET}!A2:F`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+  const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
   
   const response = await fetch(url);
   
@@ -1056,7 +1056,7 @@ setPaidOutsError(null);
 
 try {
   const range = `${PAID_OUTS_SHEET}!A2:F`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+  const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
   
   const response = await fetch(url);
   
@@ -1124,7 +1124,7 @@ const loadForecastData = async () => {
 setForecastLoading(true);
 try {
 const range = `${FORECAST_DATA_SHEET}!A2:E`;
-const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
 const response = await fetch(url);
 if (!response.ok) throw new Error('Failed to load forecast data');
 const data = await response.json();
@@ -1144,7 +1144,7 @@ finally { setForecastLoading(false); }
 const loadModelForecastData = async () => {
 try {
 const range = `${MODEL_FORECAST_SHEET}!A2:N`;
-const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
 const response = await fetch(url);
 if (!response.ok) throw new Error('Failed to load model forecast data');
 const data = await response.json();
@@ -1172,7 +1172,7 @@ setModelForecastData(parsed);
 const loadModelCoefficients = async () => {
 try {
 const range = `${MODEL_COEFFICIENTS_SHEET}!A2:C`;
-const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
 const response = await fetch(url);
 if (!response.ok) return;
 const data = await response.json();
@@ -1461,7 +1461,7 @@ setScheduledError(null);
 
 try {
   const range = `${SCHEDULED_TODAY_SHEET}!A2:E`;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+  const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
   
   const response = await fetch(url);
   
@@ -1498,7 +1498,7 @@ try {
 const loadEmployeeTitles = async () => {
 try {
 const range = `${EMPLOYEE_TITLES_SHEET}!A2:B`;
-const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
+const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
 
   const response = await fetch(url);
   
