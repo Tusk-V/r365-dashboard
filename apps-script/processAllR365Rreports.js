@@ -736,7 +736,47 @@ function processFlashData(data, emailDate) {
     // Column order: reportDate, location, sales, actualHrs, optimalHrs, scheduledHrs, laborPctDisplay, optimalLaborPct, laborPctVariance, laborCostPerHour
     laborRows.push([reportDate, location, sales, actualHrs, optimalHrs, scheduledHrs, laborPctDisplay, optimalLaborPct, laborPctVariance, laborCostPerHour]);
   }
-  
+
+  // --- BACKFILL: locations present in Period To Date but missing from Day-of section ---
+  // R365 occasionally omits a location from the Day-of section even when it has sales.
+  // We scan PTD (which lists every active location) and append a $0 placeholder row for any
+  // location absent from the Day-of capture so the dashboard's location list stays complete.
+  var dayOfLocations = {};
+  for (var s = 0; s < salesRows.length; s++) dayOfLocations[salesRows[s][1]] = true;
+
+  var ptdStart = -1;
+  for (var p = 0; p < data.length; p++) {
+    var ptdColA = data[p][0] ? data[p][0].toString().trim() : '';
+    if (ptdColA.toLowerCase().indexOf('period to date') !== -1) { ptdStart = p; break; }
+  }
+
+  if (ptdStart !== -1) {
+    var ptdDataStart = -1;
+    for (var p2 = ptdStart + 1; p2 < Math.min(ptdStart + 5, data.length); p2++) {
+      var hdr = data[p2][0] ? data[p2][0].toString().trim() : '';
+      if (hdr === 'Location') { ptdDataStart = p2 + 1; break; }
+    }
+
+    if (ptdDataStart !== -1) {
+      var backfilled = 0;
+      for (var p3 = ptdDataStart; p3 < data.length; p3++) {
+        var ptdRow = data[p3];
+        var ptdLocation = ptdRow[0] ? ptdRow[0].toString().trim() : '';
+        if (isSectionEndRow(ptdLocation)) break;
+        if (!ptdLocation || ptdLocation === 'Location') continue;
+
+        if (!dayOfLocations[ptdLocation]) {
+          Logger.log('BACKFILL: "' + ptdLocation + '" missing from Day-of section, writing $0 placeholder row');
+          salesRows.push([reportDate, ptdLocation, 0, 0, 0, 0, 0, 0, 0]);
+          laborRows.push([reportDate, ptdLocation, 0, 0, '', '', 0, '', '', 0]);
+          dayOfLocations[ptdLocation] = true;
+          backfilled++;
+        }
+      }
+      if (backfilled > 0) Logger.log('Backfilled ' + backfilled + ' location(s) from PTD section');
+    }
+  }
+
   if (salesRows.length > 0) {
     var salesSheet = spreadsheet.getSheetByName(CONFIG.FLASH_SALES_SHEET);
     if (!salesSheet) {
@@ -1548,4 +1588,72 @@ function setupDailyTrigger() {
   for (var i = 0; i < triggers.length; i++) { if (triggers[i].getHandlerFunction() === 'processAllR365Reports') ScriptApp.deleteTrigger(triggers[i]); }
   ScriptApp.newTrigger('processAllR365Reports').timeBased().atHour(6).nearMinute(30).everyDays(1).create();
   Logger.log('Daily trigger created for 6:30 AM');
+}
+
+// ============================================================================
+// ONE-SHOT: Backfill Claremore for 5/25/2026 using corrected Flash Report values
+// Run manually via: backfillClaremore_5_25_2026()
+// Values sourced from the re-issued Flash Report attachment for 5/25/2026.
+// Safe to delete after running.
+// ============================================================================
+
+function backfillClaremore_5_25_2026() {
+  Logger.log('=== One-shot backfill: Claremore 5/25/2026 ===');
+  var spreadsheet = SpreadsheetApp.openById(CONFIG.FLASH_SPREADSHEET_ID);
+  var reportDate = '5/25/2026';
+  var location = 'Claremore';
+
+  // Sales section values (from corrected Flash Report)
+  var sales = 5475.71;
+  var pySales = 0;
+  var salesVariance = 5475.71;
+  var forecast = 7000;
+  var forecastVariance = sales - forecast; // -1524.29
+  var guestCount = 384;
+  var pyGuestCount = 0;
+  var laborPctDisplay = 0.22659435945292938 * 100;
+
+  var salesSheet = spreadsheet.getSheetByName(CONFIG.FLASH_SALES_SHEET);
+  if (!salesSheet) { Logger.log('ERROR: Flash - Daily Sales sheet not found'); return; }
+
+  // Remove any existing Claremore row for this date, then append
+  var sdata = salesSheet.getDataRange().getValues();
+  for (var i = sdata.length - 1; i >= 1; i--) {
+    var d = sdata[i][0];
+    var ds = (d instanceof Date) ? ((d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear()) : (d ? d.toString().trim() : '');
+    var loc = sdata[i][1] ? sdata[i][1].toString().trim() : '';
+    if (ds === reportDate && loc === location) { salesSheet.deleteRow(i + 1); Logger.log('Removed existing Sales row'); }
+  }
+  salesSheet.appendRow([reportDate, location, sales, pySales, salesVariance, forecastVariance, guestCount, pyGuestCount, laborPctDisplay]);
+  Logger.log('Appended Sales row');
+
+  // Labor section values
+  var regularHrs = 77.7168;
+  var actualHrs = regularHrs; // OT=0, Other=0
+  var laborRegular = 1024.435;
+  var laborOther = 216.33;
+  var totalLaborCost = laborRegular + laborOther;
+  var laborCostPerHour = totalLaborCost / actualHrs;
+  var optimalHrs = '';
+  var scheduledHrs = '';
+  var optimalLaborPct = '';
+  var laborPctVariance = '';
+
+  var laborSheet = spreadsheet.getSheetByName(CONFIG.FLASH_LABOR_SHEET);
+  if (laborSheet) {
+    var ldata = laborSheet.getDataRange().getValues();
+    for (var j = ldata.length - 1; j >= 1; j--) {
+      var d2 = ldata[j][0];
+      var ds2 = (d2 instanceof Date) ? ((d2.getMonth()+1)+'/'+d2.getDate()+'/'+d2.getFullYear()) : (d2 ? d2.toString().trim() : '');
+      var loc2 = ldata[j][1] ? ldata[j][1].toString().trim() : '';
+      if (ds2 === reportDate && loc2 === location) { laborSheet.deleteRow(j + 1); Logger.log('Removed existing Labor row'); }
+    }
+    laborSheet.appendRow([reportDate, location, sales, actualHrs, optimalHrs, scheduledHrs, laborPctDisplay, optimalLaborPct, laborPctVariance, laborCostPerHour]);
+    Logger.log('Appended Labor row');
+  }
+
+  // Forecast Data archive
+  appendToForecastData(reportDate, [{ location: location, sales: sales }]);
+
+  Logger.log('=== Backfill complete ===');
 }
