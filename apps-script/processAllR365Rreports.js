@@ -52,6 +52,43 @@ function isSectionEndRow(location) {
 }
 
 // ============================================================================
+// ANOMALY ALERTING
+// Collect notable processor events during a run and email a single summary
+// at the end. Kill switch: set Script Property ENABLE_ALERTS to a truthy
+// value to enable. Recipient defaults to dalton@rancherscustard.com but can
+// be overridden via Script Property ALERT_RECIPIENT.
+// ============================================================================
+
+var Alerts = (function() {
+  var entries = [];
+  return {
+    add: function(category, msg) {
+      try {
+        entries.push({ t: new Date(), category: category, msg: msg });
+        Logger.log('[ALERT:' + category + '] ' + msg);
+      } catch (e) { /* never let alerting break the processor */ }
+    },
+    reset: function() { entries = []; },
+    send: function() {
+      try {
+        var enabled = PropertiesService.getScriptProperties().getProperty('ENABLE_ALERTS');
+        if (!enabled || entries.length === 0) return;
+        var to = PropertiesService.getScriptProperties().getProperty('ALERT_RECIPIENT') || 'dalton@rancherscustard.com';
+        var lines = entries.map(function(e) {
+          return '[' + Utilities.formatDate(e.t, Session.getScriptTimeZone(), 'HH:mm:ss') + '] [' + e.category + '] ' + e.msg;
+        });
+        var subject = 'R365 Processor Anomalies — ' + entries.length + ' event(s) — ' +
+          Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'M/d/yyyy');
+        MailApp.sendEmail(to, subject, lines.join('\n'));
+        Logger.log('Sent anomaly digest to ' + to + ' (' + entries.length + ' entries)');
+      } catch (e) {
+        Logger.log('Alerts.send failed: ' + e.toString());
+      }
+    }
+  };
+})();
+
+// ============================================================================
 // MAIN ENTRY POINT
 // ============================================================================
 
@@ -60,18 +97,33 @@ function processAllR365Reports() {
   Logger.log('Starting R365 Report Processing');
   Logger.log('Time: ' + new Date().toLocaleString());
   Logger.log('========================================');
-  
+
+  Alerts.reset();
+
   var today = new Date();
   if (today.getDay() === 2) {
     Logger.log('Tuesday detected - clearing previous week data');
     clearPreviousWeekData();
   }
-  
+
   processWeeklySalesLabor();
   processFlashReport();
   processScheduledToday();
   processLaborReport();
   processOvertimeWarning();
+
+  // OData verification — gated by ENABLE_ODATA_VERIFY script property.
+  // Compares Flash - Daily Sales rows against R365 OData totals for
+  // yesterday and alerts on per-location mismatches > $5 and > 1%.
+  try {
+    var yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    var yReportDate = (yesterday.getMonth() + 1) + '/' + yesterday.getDate() + '/' + yesterday.getFullYear();
+    verifyFlashAgainstOData(yReportDate);
+  } catch (e) {
+    Logger.log('OData verification step failed: ' + e.toString());
+    Alerts.add('ODATA_VERIFY_ERROR', e.toString());
+  }
   
   // Update forecast weather data (fills in temps/conditions for recent + future days)
   try {
@@ -94,6 +146,9 @@ function processAllR365Reports() {
     Logger.log('Warning: Coefficient tuning failed: ' + e.toString());
   }
   
+  // Email anomaly digest (gated by ENABLE_ALERTS script property)
+  Alerts.send();
+
   Logger.log('========================================');
   Logger.log('All R365 Reports Processed');
   Logger.log('========================================');
@@ -381,6 +436,7 @@ function processWeeklyData(data) {
     // location wins. Without this, a stray weekly aggregate row can land in Sheet1.
     if (seenLocations[locationName]) {
       Logger.log('SKIP duplicate location in primary section: "' + locationName + '" (row ' + i + ')');
+      Alerts.add('WEEKLY_DEDUPE', 'Skipped duplicate "' + locationName + '" in Weekly primary section (row ' + i + ')');
       continue;
     }
 
@@ -411,6 +467,7 @@ function processWeeklyData(data) {
       if (seenLocations[s2name]) continue;   // already captured from Section 1
 
       Logger.log('WEEKLY BACKFILL: "' + s2name + '" missing from primary section, sourced from daily-breakdown section');
+      Alerts.add('WEEKLY_BACKFILL', '"' + s2name + '" missing from Weekly primary section — sourced from daily-breakdown section');
       rows.push(buildRowData(s2row, s2name));
       seenLocations[s2name] = true;
       backfilled++;
@@ -810,6 +867,7 @@ function processFlashData(data, emailDate) {
 
         if (!dayOfLocations[ptdLocation]) {
           Logger.log('BACKFILL: "' + ptdLocation + '" missing from Day-of section, writing $0 placeholder row');
+          Alerts.add('FLASH_PTD_BACKFILL', '"' + ptdLocation + '" missing from Flash Day-of for ' + reportDate + ' — wrote $0 placeholder');
           salesRows.push([reportDate, ptdLocation, 0, 0, 0, 0, 0, 0, 0]);
           laborRows.push([reportDate, ptdLocation, 0, 0, '', '', 0, '', '', 0]);
           dayOfLocations[ptdLocation] = true;
