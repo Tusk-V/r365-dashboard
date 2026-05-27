@@ -90,54 +90,44 @@ var R365 = (function() {
     return PropertiesService.getScriptProperties().getProperty('ODATA_BUSINESS_TIMEZONE') || 'America/Chicago';
   }
 
-  // UTC ISO at 00:00 local-business-day in the given timezone, expressed as Z.
-  // Example for CDT: localDayStartIso(date for 2026-05-25, 'America/Chicago')
-  //   → "2026-05-25T05:00:00Z"  (= 00:00 CDT = 05:00 UTC)
-  //
-  // We emit Z notation rather than ±HH:MM offset because some OData parsers
-  // (R365 among them, apparently) only fully honor the UTC form. Returning
-  // an explicit UTC moment is semantically equivalent and unambiguous.
-  function localDayStartIso(date, tz) {
+  // R365 stores `date` (SalesEmployee/SalesDetail) and `dateWorked` (LaborDetail)
+  // as BUSINESS DATES — fixed at 00:00:00Z for the calendar day, NOT real
+  // transaction timestamps. The DSS rollup assigns every ticket on a given
+  // business day the same midnight-UTC value. We discovered this the hard way:
+  // a Central-time filter (start 05:00Z) returned zero rows because every row's
+  // `date` was at 00:00:00Z, before our window opened. Business-date semantics
+  // mean we filter by UTC calendar day, not by local clock time.
+  function businessDateIso(date, tz) {
     tz = tz || businessTimezone();
+    // Use tz to determine which calendar day this Date belongs to (so a Date
+    // representing 11pm Central on the 25th doesn't get reported as the 26th).
     var ymd = Utilities.formatDate(date, tz, 'yyyy-MM-dd');
-    // Compute the timezone offset for that ymd. We probe midday on the ymd
-    // to avoid landing on a DST transition boundary.
-    var probe = new Date(ymd + 'T12:00:00Z');
-    var raw = Utilities.formatDate(probe, tz, 'Z'); // e.g. "-0500"
-    var sign = raw.charAt(0) === '-' ? -1 : 1;
-    var hours = parseInt(raw.slice(1, 3), 10);
-    var mins = parseInt(raw.slice(3, 5), 10);
-    var offsetMinutes = sign * (hours * 60 + mins); // -300 for CDT
-    // local 00:00 in UTC = ymd 00:00:00Z minus the offset.
-    // For CDT: 00:00:00Z - (-300 min) = 00:00:00Z + 300 min = 05:00:00Z.
-    var utcAtLocalMidnight = new Date(ymd + 'T00:00:00Z');
-    utcAtLocalMidnight.setUTCMinutes(utcAtLocalMidnight.getUTCMinutes() - offsetMinutes);
-    return utcAtLocalMidnight.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    return ymd + 'T00:00:00Z';
   }
 
-  function localNextDayStartIso(date, tz) {
+  function nextBusinessDateIso(date, tz) {
     tz = tz || businessTimezone();
     var next = new Date(date.getTime() + 24 * 60 * 60 * 1000);
-    return localDayStartIso(next, tz);
+    return businessDateIso(next, tz);
   }
 
-  // Ticket-header rows for one day. Use this — not SalesDetail — for daily
-  // sales verification: one row per ticket vs many rows per ticket.
+  // Ticket-header rows for one business day. Use this — not SalesDetail — for
+  // daily sales verification: one row per ticket vs many rows per ticket.
   // Schema: salesId, date, netSales, numberofGuests, location (Guid), void, ...
   function fetchSalesEmployeeForDay(date) {
-    var filter = "date ge " + localDayStartIso(date) + " and date lt " + localNextDayStartIso(date);
+    var filter = "date ge " + businessDateIso(date) + " and date lt " + nextBusinessDateIso(date);
     return fetchEntity('SalesEmployee', '$filter=' + encodeURIComponent(filter));
   }
 
-  // Line-item detail for one day. Heavier; reserve for SKU-level analysis.
+  // Line-item detail for one business day. Heavier; reserve for SKU-level analysis.
   function fetchSalesDetailForDay(date) {
-    var filter = "date ge " + localDayStartIso(date) + " and date lt " + localNextDayStartIso(date);
+    var filter = "date ge " + businessDateIso(date) + " and date lt " + nextBusinessDateIso(date);
     return fetchEntity('SalesDetail', '$filter=' + encodeURIComponent(filter));
   }
 
-  // LaborDetail's date field is `dateWorked` (not `date`).
+  // LaborDetail's date field is `dateWorked` (also a business date per R365 conventions).
   function fetchLaborDetailRange(startDate, endDate) {
-    var filter = "dateWorked ge " + localDayStartIso(startDate) + " and dateWorked lt " + localNextDayStartIso(endDate);
+    var filter = "dateWorked ge " + businessDateIso(startDate) + " and dateWorked lt " + nextBusinessDateIso(endDate);
     return fetchEntity('LaborDetail', '$filter=' + encodeURIComponent(filter));
   }
 
