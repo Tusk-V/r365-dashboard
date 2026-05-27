@@ -707,6 +707,172 @@ function stabilizationReport() {
 
 
 // ============================================================================
+// REPLAY: head-to-head comparison of historical predictions vs. current model
+//
+// For each historical row in the last N days with both predicted + actual,
+// re-runs buildPredictionForDate using TODAY's coefficients, multipliers,
+// sports/holiday lookups, and median-baseline logic. Compares the replay
+// prediction to the originally-stored prediction, both vs. the actual.
+//
+// CAVEAT: replay uses the actual realized weather from Forecast Data sheet.
+// The original prediction may have used forecasted weather (from the day it
+// was generated). For 1-2-day-ahead predictions the bias is small; for
+// 7-14-day-ahead predictions the replay has a small unfair "perfect weather"
+// advantage. Read directional signal, not absolute lift.
+// ============================================================================
+
+function replayRecentPredictions(daysBack) {
+  if (!daysBack) daysBack = 28;
+  Logger.log('=== Replaying Last ' + daysBack + ' Days With Current Model ===');
+
+  var ss = SpreadsheetApp.openById(MODEL_CONFIG.SPREADSHEET_ID);
+  var modelSheet = ss.getSheetByName(MODEL_CONFIG.MODEL_FORECAST_SHEET);
+  var forecastDataSheet = ss.getSheetByName(MODEL_CONFIG.FORECAST_DATA_SHEET);
+  if (!modelSheet || !forecastDataSheet) { Logger.log('Missing required sheet'); return; }
+
+  var fcData = forecastDataSheet.getDataRange().getValues();
+  var salesByLocDate = {};
+  for (var i = 1; i < fcData.length; i++) {
+    var dateRaw = fcData[i][0];
+    var location = fcData[i][1] ? fcData[i][1].toString().trim() : '';
+    var sales = parseFloat(fcData[i][2]) || 0;
+    var temp = parseFloat(fcData[i][3]) || null;
+    var conditions = fcData[i][4] ? fcData[i][4].toString().trim() : '';
+    if (!dateRaw || !location) continue;
+    var dateKey = normalizeDateForModel(dateRaw);
+    salesByLocDate[location + '|' + dateKey] = { sales: sales, temp: temp, conditions: conditions };
+  }
+
+  var coefficients = loadModelCoefficients(ss);
+  var multipliers = loadHolidayMultipliers(ss);
+  var dowConfidence = loadDOWConfidence(ss);
+  var sportsEvents = (typeof loadSportsEvents === 'function') ? loadSportsEvents(ss) : {};
+  var sportsMultipliers = (typeof loadSportsMultipliers === 'function') ? loadSportsMultipliers(ss) : { location: {}, market: {}, global: {} };
+
+  var data = modelSheet.getDataRange().getValues();
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - daysBack);
+
+  var rows = [];
+  var oldErrors = [], newErrors = [];
+  var byMethodOld = {}, byMethodNew = {};
+  var wins = 0, losses = 0, ties = 0;
+
+  for (var j = 1; j < data.length; j++) {
+    var dateRaw2 = data[j][0];
+    var location2 = data[j][1] ? data[j][1].toString().trim() : '';
+    var oldPredicted = parseFloat(data[j][2]) || 0;
+    var actual = parseFloat(data[j][3]) || 0;
+    var oldMethod = data[j][10] ? data[j][10].toString().trim() : '';
+
+    if (!dateRaw2 || !location2 || oldPredicted <= 0 || actual <= 0) continue;
+    var d = new Date(dateRaw2);
+    if (isNaN(d.getTime())) continue;
+    d.setHours(0, 0, 0, 0);
+    if (d < cutoff || d >= today) continue;
+
+    var replay = buildPredictionForDate(location2, d, salesByLocDate, coefficients, multipliers, dowConfidence, sportsEvents, sportsMultipliers);
+    if (!replay) continue;
+
+    var newPredicted = replay[2];
+    var newMethod = replay[10];
+    if (newPredicted <= 0) continue;
+
+    var oldErr = Math.abs(oldPredicted - actual) / actual;
+    var newErr = Math.abs(newPredicted - actual) / actual;
+    oldErrors.push(oldErr);
+    newErrors.push(newErr);
+
+    if (!byMethodOld[oldMethod]) byMethodOld[oldMethod] = [];
+    byMethodOld[oldMethod].push(oldErr);
+    if (!byMethodNew[newMethod]) byMethodNew[newMethod] = [];
+    byMethodNew[newMethod].push(newErr);
+
+    if (newErr < oldErr - 0.005) wins++;
+    else if (oldErr < newErr - 0.005) losses++;
+    else ties++;
+
+    rows.push([
+      normalizeDateForModel(d),
+      location2,
+      actual,
+      oldPredicted,
+      Math.round((100 - oldErr * 100) * 10) / 10,
+      newPredicted,
+      Math.round((100 - newErr * 100) * 10) / 10,
+      Math.round((oldErr - newErr) * 1000) / 10,
+      oldMethod,
+      newMethod
+    ]);
+  }
+
+  function avg(arr) {
+    if (!arr || arr.length === 0) return null;
+    var s = 0;
+    for (var i = 0; i < arr.length; i++) s += arr[i];
+    return s / arr.length;
+  }
+  function fmt(v) { return v === null ? '--' : (Math.round(v * 1000) / 10); }
+  function accFmt(v) { return v === null ? '--' : (Math.round((100 - v * 100) * 10) / 10); }
+
+  var oldMape = avg(oldErrors);
+  var newMape = avg(newErrors);
+
+  var sheet = ss.getSheetByName('Replay Comparison');
+  if (!sheet) sheet = ss.insertSheet('Replay Comparison');
+  sheet.clear();
+  sheet.getRange(1, 1, 1, 10).setValues([['Date', 'Location', 'Actual', 'Old Predicted', 'Old Acc %', 'New Predicted', 'New Acc %', 'Delta (pp)', 'Old Method', 'New Method']]);
+  sheet.setFrozenRows(1);
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, 10).setValues(rows);
+  }
+
+  var summaryRow = rows.length + 3;
+  sheet.getRange(summaryRow, 1).setValue('SUMMARY').setFontWeight('bold');
+  sheet.getRange(summaryRow + 1, 1, 7, 2).setValues([
+    ['Window (days)', daysBack],
+    ['Rows compared', rows.length],
+    ['Old model MAPE', fmt(oldMape) + '%'],
+    ['New model MAPE', fmt(newMape) + '%'],
+    ['Old model Accuracy', accFmt(oldMape) + '%'],
+    ['New model Accuracy', accFmt(newMape) + '%'],
+    ['Delta', (newMape !== null && oldMape !== null ? Math.round((oldMape - newMape) * 1000) / 10 : '--') + ' pp']
+  ]);
+
+  var winRow = summaryRow + 9;
+  sheet.getRange(winRow, 1).setValue('Row-level wins').setFontWeight('bold');
+  sheet.getRange(winRow + 1, 1, 3, 2).setValues([
+    ['New model wins', wins],
+    ['Old model wins', losses],
+    ['Ties (within 0.5pp)', ties]
+  ]);
+
+  var methodRow = winRow + 5;
+  sheet.getRange(methodRow, 1).setValue('Per-method accuracy').setFontWeight('bold');
+  sheet.getRange(methodRow + 1, 1, 1, 5).setValues([['Method', 'Old N', 'Old Acc %', 'New N (same method)', 'New Acc %']]).setFontWeight('bold');
+  var methodKeys = {};
+  Object.keys(byMethodOld).forEach(function(k) { methodKeys[k] = true; });
+  Object.keys(byMethodNew).forEach(function(k) { methodKeys[k] = true; });
+  var mList = Object.keys(methodKeys).sort();
+  var mRows = [];
+  for (var mk = 0; mk < mList.length; mk++) {
+    var mName = mList[mk];
+    var oldArr = byMethodOld[mName] || [];
+    var newArr = byMethodNew[mName] || [];
+    mRows.push([mName, oldArr.length, accFmt(avg(oldArr)), newArr.length, accFmt(avg(newArr))]);
+  }
+  if (mRows.length > 0) {
+    sheet.getRange(methodRow + 2, 1, mRows.length, 5).setValues(mRows);
+  }
+
+  Logger.log('Old MAPE: ' + fmt(oldMape) + '%, New MAPE: ' + fmt(newMape) + '% (n=' + rows.length + ')');
+  Logger.log('Old Acc: ' + accFmt(oldMape) + '%, New Acc: ' + accFmt(newMape) + '%');
+  Logger.log('Wins: new=' + wins + ', old=' + losses + ', tie=' + ties);
+  Logger.log('=== Replay Complete ===');
+}
+
+
+// ============================================================================
 // CONVENIENCE WRAPPERS
 // ============================================================================
 
@@ -716,3 +882,6 @@ function testBackfillNoMomentumColumn() { backfillNoMomentumColumn(); }
 function testCompareMomentumImpact() { compareMomentumImpact(); }
 function testLearnDOWFactors() { learnDOWFactors(); }
 function testStabilizationReport() { stabilizationReport(); }
+function testReplayLast7Days() { replayRecentPredictions(7); }
+function testReplayLast28Days() { replayRecentPredictions(28); }
+function testReplayLast90Days() { replayRecentPredictions(90); }
