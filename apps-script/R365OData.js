@@ -157,3 +157,75 @@ function probeODataEntity() {
     Logger.log('Error: ' + e.toString());
   }
 }
+
+// ============================================================================
+// PATH DISCOVERY — try common R365 OData base paths to find the live one.
+// Run from the editor. Whichever path returns 200 (or 401/403 — auth-aware
+// but path-correct) is the one to set as ODATA_BASE_URL.
+// ============================================================================
+
+function discoverODataBaseUrl() {
+  Logger.log('=== R365 OData path discovery ===');
+  var props = PropertiesService.getScriptProperties();
+  var u = props.getProperty('ODATA_USERNAME');
+  var p = props.getProperty('ODATA_PASSWORD');
+  if (!u || !p) {
+    Logger.log('ABORT: set ODATA_USERNAME and ODATA_PASSWORD first.');
+    return;
+  }
+  var auth = 'Basic ' + Utilities.base64Encode(u + ':' + p);
+
+  // Most-likely R365 OData paths, in rough order of popularity. We probe
+  // each with a small $top query against a known-cheap entity name to
+  // distinguish "wrong path" (404) from "right path, wrong entity" (200/400).
+  var candidates = [
+    'https://andys.restaurant365.com/api/odata/v3',
+    'https://andys.restaurant365.com/odata/v3',
+    'https://andys.restaurant365.com/api/odata',
+    'https://andys.restaurant365.com/odata',
+    'https://andys.restaurant365.com/api/ExternalApi',
+    'https://odata.restaurant365.com/odata/v3',
+    'https://odata.restaurant365.com/odata',
+    'https://api.restaurant365.com/odata/v3'
+  ];
+
+  // Probe paths: each entry tries the candidate as a base, fetching a known
+  // R365 entity (Locations) and the root metadata document.
+  var probes = ['Locations?$top=1', '$metadata', ''];
+
+  var winners = [];
+  for (var c = 0; c < candidates.length; c++) {
+    var base = candidates[c];
+    for (var pi = 0; pi < probes.length; pi++) {
+      var url = base + (probes[pi] ? '/' + probes[pi] : '');
+      try {
+        var resp = UrlFetchApp.fetch(url, {
+          method: 'get',
+          headers: { 'Authorization': auth, 'Accept': 'application/json' },
+          muteHttpExceptions: true,
+          followRedirects: true
+        });
+        var code = resp.getResponseCode();
+        var bodyPreview = resp.getContentText().slice(0, 120).replace(/\s+/g, ' ');
+        var marker = (code >= 200 && code < 300) ? '✅ HIT' :
+                     (code === 401 || code === 403) ? '🔐 auth-issue (path likely correct)' :
+                     '❌';
+        Logger.log(marker + ' [' + code + '] ' + url + ' → ' + bodyPreview);
+        if (code >= 200 && code < 300) winners.push(url);
+        else if (code === 401 || code === 403) winners.push(url + ' (auth issue, but path resolves)');
+      } catch (e) {
+        Logger.log('❌ [exception] ' + url + ' → ' + e.toString().slice(0, 120));
+      }
+    }
+  }
+
+  Logger.log('=== Discovery complete ===');
+  if (winners.length > 0) {
+    Logger.log('CANDIDATES THAT RESOLVED:');
+    winners.forEach(function(w) { Logger.log('  ' + w); });
+    Logger.log('Set Script Property ODATA_BASE_URL to whichever returned 200 (strip the entity path).');
+  } else {
+    Logger.log('No paths resolved. R365 OData may be disabled for this tenant, or use a different domain.');
+    Logger.log('Verify in R365: Admin → Integrations → API/OData section. The actual endpoint URL should be listed there.');
+  }
+}
