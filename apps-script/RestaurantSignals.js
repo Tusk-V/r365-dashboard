@@ -27,18 +27,21 @@ var SIGNALS_CONFIG = {
   SPREADSHEET_ID: '1WsHBn5qLczH8QZ1c-CyVGfCWzMuLg2vmx5R5MZdHY20',
   SIGNALS_SHEET: 'R365 Signals',
 
-  // Field name mappings — best guesses for R365 OData property names.
-  // If probeR365FieldNames() shows different names, edit here.
+  // Field name mappings — verified against Andy's R365 tenant schema via
+  // probeR365FieldNames() on 5/27/2026. SalesDetail.category is the product
+  // category ("$ FOOD'S"), not transaction type; salesAccount is checked as
+  // a secondary signal for discount classification.
   FIELDS: {
     salesDetail: {
-      itemType: ['itemType', 'salesType', 'transactionType', 'category'],
-      amount: ['netSales', 'amount', 'total', 'price'],
-      location: ['location', 'locationId']
+      itemType: ['category'],
+      salesAccount: ['salesAccount'],
+      amount: ['amount'],
+      location: ['location']
     },
     laborDetail: {
-      hours: ['hoursWorked', 'hours', 'regularHours'],
-      cost: ['payTotal', 'laborCost', 'totalPay', 'totalCost'],
-      location: ['location', 'locationId']
+      hours: ['hours'],
+      cost: ['total'],
+      location: ['location', 'location_ID']
     }
   },
 
@@ -162,6 +165,7 @@ function computeSignalsForDate_(date) {
     var sdRows = sdData.value || (sdData.d && sdData.d.results) || [];
     if (sdRows.length > 0) {
       var itemTypeField = findFirstField_(sdRows[0], SIGNALS_CONFIG.FIELDS.salesDetail.itemType);
+      var salesAcctField = findFirstField_(sdRows[0], SIGNALS_CONFIG.FIELDS.salesDetail.salesAccount);
       var amountField = findFirstField_(sdRows[0], SIGNALS_CONFIG.FIELDS.salesDetail.amount);
       var locField = findFirstField_(sdRows[0], SIGNALS_CONFIG.FIELDS.salesDetail.location);
 
@@ -172,17 +176,23 @@ function computeSignalsForDate_(date) {
           var b = bucket(name);
           var amount = Number(r[amountField]) || 0;
           var typeLower = (r[itemTypeField] || '').toString().toLowerCase();
+          var acctLower = salesAcctField ? (r[salesAcctField] || '').toString().toLowerCase() : '';
 
           var isDiscount = false;
           for (var t = 0; t < SIGNALS_CONFIG.DISCOUNT_ITEM_TOKENS.length; t++) {
-            if (typeLower.indexOf(SIGNALS_CONFIG.DISCOUNT_ITEM_TOKENS[t]) >= 0) {
+            var token = SIGNALS_CONFIG.DISCOUNT_ITEM_TOKENS[t];
+            if (typeLower.indexOf(token) >= 0 || acctLower.indexOf(token) >= 0) {
               isDiscount = true; break;
             }
+          }
+          // Fallback: any non-void negative-amount line is treated as a discount/comp/refund
+          if (!isDiscount && amount < 0 && !r.void) {
+            isDiscount = true;
           }
 
           if (isDiscount) {
             b.discountAmount += Math.abs(amount);
-          } else {
+          } else if (!r.void) {
             b.grossSales += amount;
           }
         });
