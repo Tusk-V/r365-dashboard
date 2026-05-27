@@ -13,6 +13,7 @@ import { extractDriveTime, extractMood, generateSummary } from '../lib/logbookHe
 import { getDailyLaborGrade } from '../lib/laborGrade';
 import { adjustTimeForTimezone, adjustSingleTime } from '../lib/timezone';
 import { getWeekMonday, getWeatherEmoji, computeForecastForLocation } from '../lib/forecast';
+import TitleBadge from '../components/shared/TitleBadge';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -32,22 +33,6 @@ const PAID_OUTS_SHEET = 'Paid Outs';
 const FORECAST_DATA_SHEET = 'Forecast Data';
 const MODEL_FORECAST_SHEET = 'Model Forecast';
 const MODEL_COEFFICIENTS_SHEET = 'Model Coefficients';
-
-const TitleBadge = ({ title }) => {
-if (!title) return null;
-
-const colors = {
-'GM': 'bg-purple-600 text-white',
-'AGM': 'bg-blue-600 text-white',
-'SL': 'bg-green-600 text-white'
-};
-
-return (
-<span className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded ${colors[title] || 'bg-slate-600 text-white'}`}>
-{title}
-</span>
-);
-};
 
 export default function Home() {
 const { data: session, status } = useSession()
