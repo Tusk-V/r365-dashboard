@@ -88,7 +88,7 @@ var MODEL_CONFIG = {
   
   MOMENTUM: {
     WINDOW_DAYS: 7,
-    CAP: 0.05
+    CAP: 0
   },
   
   HOLIDAY_MULTIPLIERS: {
