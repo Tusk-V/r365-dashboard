@@ -83,7 +83,8 @@ var MODEL_CONFIG = {
     MAX_SINGLE_MOVE: 0.10,
     SIGN_FLIP_MIN_SAMPLES: 30,
     MIN_SAMPLES_FOR_TUNE: 10,
-    MIN_SAMPLES_FOR_RAIN: 5
+    MIN_SAMPLES_FOR_RAIN: 5,
+    OUTLIER_REJECT_THRESHOLD: 0.35
   },
   
   MOMENTUM: {
@@ -1008,9 +1009,10 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
     var outlierThreshold = getCoefficient(coefficients, market, season, 'outlier_threshold');
     var outlierWeight = getCoefficient(coefficients, market, season, 'outlier_pw_weight');
     var avgSum = 0, avgCount = 0;
-    for (var w = 1; w <= 4; w++) {
+    for (var w = 1; w <= 8; w++) {
       var pastDate = new Date(targetDate);
       pastDate.setDate(pastDate.getDate() - (7 * w));
+      if (getModelHoliday(pastDate)) continue;
       var pastKey = location + '|' + normalizeDateForModel(pastDate);
       var pastData = salesByLocDate[pastKey];
       if (pastData && pastData.sales > 0) {
@@ -1100,9 +1102,10 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
   }
   
   var avgSumF = 0, avgCountF = 0;
-  for (var w2 = 1; w2 <= 4; w2++) {
+  for (var w2 = 1; w2 <= 8; w2++) {
     var pastDateF = new Date(targetDate);
     pastDateF.setDate(pastDateF.getDate() - (7 * w2));
+    if (getModelHoliday(pastDateF)) continue;
     var pastKeyF = location + '|' + normalizeDateForModel(pastDateF);
     var pastDataF = salesByLocDate[pastKeyF];
     if (pastDataF && pastDataF.sales > 0) {
@@ -1266,8 +1269,9 @@ function tuneCoefficients() {
   
   var bucketErrors = {};
   var rainErrors = {};
-  var totalRows = 0, usableRows = 0, holidaySkipped = 0, backfillSkipped = 0;
-  
+  var totalRows = 0, usableRows = 0, holidaySkipped = 0, backfillSkipped = 0, outlierSkipped = 0;
+  var outlierThresh = MODEL_CONFIG.TUNING.OUTLIER_REJECT_THRESHOLD;
+
   for (var i = 1; i < data.length; i++) {
     var predicted = parseFloat(data[i][2]) || 0;
     var actual = parseFloat(data[i][3]) || 0;
@@ -1276,19 +1280,23 @@ function tuneCoefficients() {
     var holidayFlag = (data[i].length > 14 && data[i][14]) ? data[i][14].toString().trim() : '';
     var method = data[i][10] ? data[i][10].toString().trim() : '';
     var location = data[i][1] ? data[i][1].toString().trim() : '';
-    
+
     if (!predicted || !actual || predicted <= 0 || actual <= 0) continue;
     totalRows++;
-    
+
     if (method === 'backfill' || method === 'insufficient') { backfillSkipped++; continue; }
-    
+
     var rowDate = new Date(data[i][0]);
     if (holidayFlag || isHolidayAdjacent(rowDate) || getSpringBreakLabel(rowDate)) {
       holidaySkipped++; continue;
     }
-    
+
     if (method.indexOf('holiday') >= 0) continue;
-    
+
+    if (Math.abs(actual - predicted) / actual > outlierThresh) {
+      outlierSkipped++; continue;
+    }
+
     usableRows++;
     
     if (tempDiff === '' || tempDiff === null || tempDiff === undefined) continue;
@@ -1316,7 +1324,7 @@ function tuneCoefficients() {
     }
   }
   
-  Logger.log('Rows with actuals: ' + totalRows + ', usable: ' + usableRows + ', holiday-skipped: ' + holidaySkipped + ', backfill-skipped: ' + backfillSkipped);
+  Logger.log('Rows with actuals: ' + totalRows + ', usable: ' + usableRows + ', holiday-skipped: ' + holidaySkipped + ', backfill-skipped: ' + backfillSkipped + ', outlier-skipped: ' + outlierSkipped);
   
   var maxMove = MODEL_CONFIG.TUNING.MAX_SINGLE_MOVE;
   var minSamples = MODEL_CONFIG.TUNING.MIN_SAMPLES_FOR_TUNE;
