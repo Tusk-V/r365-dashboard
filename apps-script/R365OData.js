@@ -57,6 +57,7 @@ var R365 = (function() {
   function fetchEntity(entity, query) {
     var c = getProps();
     var url = c.baseUrl + '/' + entity + (query ? ('?' + query) : '');
+    Logger.log('OData GET: ' + url);
     var options = {
       method: 'get',
       headers: {
@@ -274,9 +275,16 @@ function verifyFlashAgainstOData(reportDate) {
   }
   Logger.log('--- Verifying Flash sales vs OData for ' + reportDate + ' ---');
   try {
-    // Parse "M/d/yyyy" → Date at midnight local
+    // Parse "M/d/yyyy" → Date at NOON UTC on that calendar day. Using noon
+    // gives a 12-hour buffer in any direction, so when this Date is formatted
+    // in any reasonable timezone (Central, Eastern, etc.) it still lands on
+    // the intended calendar day — avoiding the off-by-one error that happens
+    // when constructing via `new Date(yyyy, mm-1, dd)` in a non-Central script.
     var parts = reportDate.split('/');
-    var d = new Date(parseInt(parts[2], 10), parseInt(parts[0], 10) - 1, parseInt(parts[1], 10));
+    var ymd = parts[2] + '-' +
+              (parts[0].length === 1 ? '0' + parts[0] : parts[0]) + '-' +
+              (parts[1].length === 1 ? '0' + parts[1] : parts[1]);
+    var d = new Date(ymd + 'T12:00:00Z');
     var odataTotals = aggregateSalesByLocation_(d);
     var sheetTotals = readFlashSalesForDate_(reportDate);
     var mismatches = diffLocationTotals_('Flash', reportDate, sheetTotals, odataTotals);
