@@ -7,6 +7,11 @@ import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Ac
 import SwipeNavigation from '../components/SwipeNavigation';
 import MessagesPanel from '../components/MessagesPanel';
 import MessagingPermissions from '../components/MessagingPermissions';
+import { getMarket, sortByMarket } from '../lib/markets';
+import { parseSheetData, parseHistoricalData } from '../lib/sheetParsers';
+import { extractDriveTime, extractMood, generateSummary } from '../lib/logbookHelpers';
+import { getDailyLaborGrade } from '../lib/laborGrade';
+import { adjustTimeForTimezone, adjustSingleTime } from '../lib/timezone';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -41,123 +46,6 @@ return (
 {title}
 </span>
 );
-};
-
-// ============================================================================
-// DAILY LABOR GRADE CALCULATION
-// Grades each day A-F based on how well labor was managed relative to optimal.
-// The sweet spot is AT optimal — deviations in either direction are penalized,
-// but there's a 5% "comfort zone" around optimal where you're still doing great.
-// Being over optimal is weighted more heavily (direct cost waste) than being
-// under (potential lost sales from understaffing).
-//
-// AUTO-F RULE: If the store missed forecast by 5%+ AND went 5%+ over scheduled hours,
-// that's an automatic F — you meaningfully overstaffed and still meaningfully missed sales.
-// Small misses on both sides don't trigger it.
-//
-// forecastVariance comes from Flash - Daily Sales (cross-referenced by location+date).
-// A negative forecastVariance means actual sales were BELOW forecast.
-// ============================================================================
-const getDailyLaborGrade = (day, forecastVariance) => {
-  // Need at least optimal hours to grade meaningfully
-  if (!day.optimalHours || day.optimalHours === 0) return null;
-
-  // --- Determine if store is beating forecast (used to soften "under optimal" penalties) ---
-  let forecastPct = null;
-  const beatingForecast = (() => {
-    if (forecastVariance === null || forecastVariance === undefined || !day.sales || day.sales === 0) return false;
-    forecastPct = (forecastVariance / day.sales) * 100;
-    return forecastPct >= 0;
-  })();
-
-  // --- AUTO-F: Missed forecast by 5%+ AND over scheduled by 5%+ ---
-  if (forecastPct !== null && forecastPct < -5 
-      && day.scheduledHours > 0) {
-    const schOverPct = ((day.actualHours - day.scheduledHours) / day.scheduledHours) * 100;
-    if (schOverPct > 5) {
-      return { letter: 'F', color: 'text-red-400', bg: 'bg-red-900/40 border-red-700', score: 0, autoF: true };
-    }
-  }
-
-  // --- 1. Hours Variance Score (0-100) ---
-  // How close are actual hours to optimal hours?
-  // Within 2% = comfort zone. Beyond that, gradual penalty.
-  // If beating forecast, "under optimal" penalty is reduced (lean & efficient).
-  const hoursVariance = day.actualHours - day.optimalHours;
-  const hoursVariancePct = Math.abs((hoursVariance / day.optimalHours) * 100);
-  let hoursScore = 100;
-  if (hoursVariancePct > 2) {
-    const excessPct = hoursVariancePct - 2;
-    if (hoursVariance > 0) {
-      // Over optimal: lose 6 points per 1%
-      hoursScore = Math.max(0, 100 - (excessPct * 6));
-    } else {
-      // Under optimal: lose 4 pts normally, but only 1.5 pts if beating forecast
-      const penalty = beatingForecast ? 1.5 : 4;
-      hoursScore = Math.max(0, 100 - (excessPct * penalty));
-    }
-  }
-
-  // --- 2. Labor % Variance Score (0-100) ---
-  // How close is actual labor % to optimal labor %?
-  // Within 2% = comfort zone.
-  // If beating forecast, "under optimal" penalty is reduced.
-  const laborPctVar = day.laborPercentVariance; // Act% - Opt%
-  const laborPctVarAbs = Math.abs(laborPctVar);
-  let laborPctScore = 100;
-  if (laborPctVarAbs > 2) {
-    const excessPct = laborPctVarAbs - 2;
-    if (laborPctVar > 0) {
-      // Over optimal %: lose 10 points per 1%
-      laborPctScore = Math.max(0, 100 - (excessPct * 10));
-    } else {
-      // Under optimal %: lose 5 pts normally, but only 2 pts if beating forecast
-      const penalty = beatingForecast ? 2 : 5;
-      laborPctScore = Math.max(0, 100 - (excessPct * penalty));
-    }
-  }
-
-  // --- 3. Scheduled Adherence Score (0-100) --- weight: 10%
-  // Supporting signal only. Optimal is the real target.
-  let schedScore = 100;
-  if (day.scheduledHours > 0) {
-    const schVariance = day.actualHours - day.scheduledHours;
-    const schVariancePctAbs = Math.abs((schVariance / day.scheduledHours) * 100);
-    if (schVariancePctAbs > 2) {
-      const excessPct = schVariancePctAbs - 2;
-      if (schVariance > 0) {
-        schedScore = Math.max(0, 100 - (excessPct * 5));
-      } else {
-        schedScore = Math.max(0, 100 - (excessPct * 3));
-      }
-    }
-  }
-
-  // --- 4. Forecast Sales Modifier ---
-  // Big sales beats = meaningful cushion. Misses = penalty.
-  let forecastModifier = 0;
-  if (forecastPct !== null) {
-    if (forecastPct >= 15) forecastModifier = 15;
-    else if (forecastPct >= 10) forecastModifier = 12;
-    else if (forecastPct >= 5) forecastModifier = 8;
-    else if (forecastPct >= 0) forecastModifier = 3;
-    else if (forecastPct >= -5) forecastModifier = -3;
-    else if (forecastPct >= -10) forecastModifier = -6;
-    else forecastModifier = -8;
-  }
-
-  // --- Weighted composite ---
-  // Labor % is king (50%), hours vs optimal (40%), schedule is just a supporting signal (10%)
-  const composite = Math.min(100, Math.max(0,
-    (laborPctScore * 0.50) + (hoursScore * 0.40) + (schedScore * 0.10) + forecastModifier
-  ));
-
-  // --- Letter grade ---
-  if (composite >= 90) return { letter: 'A', color: 'text-green-400', bg: 'bg-green-900/40 border-green-700', score: composite };
-  if (composite >= 75) return { letter: 'B', color: 'text-blue-400', bg: 'bg-blue-900/40 border-blue-700', score: composite };
-  if (composite >= 60) return { letter: 'C', color: 'text-yellow-400', bg: 'bg-yellow-900/40 border-yellow-700', score: composite };
-  if (composite >= 40) return { letter: 'D', color: 'text-orange-400', bg: 'bg-orange-900/40 border-orange-700', score: composite };
-  return { letter: 'F', color: 'text-red-400', bg: 'bg-red-900/40 border-red-700', score: composite };
 };
 
 export default function Home() {
@@ -296,101 +184,6 @@ const filterPrior7Days = (entries) => {
   });
 };
 
-const getMarket = (locationName) => {
-const tulsa = ['Bixby', 'Yale', 'Broken Arrow', 'Owasso', 'Claremore'];
-const okc = ['Warr Acres', 'Penn', 'Edmond', 'Norman'];
-const dallas = ['Carrollton', 'Frisco #1', 'Frisco #2', 'Frisco #3', 'Lake Highlands', 'Hillcrest Village', 'The Colony', 'Prosper', 'Allen'];
-const orlando = ['Sanford', 'Lakeland', "Hunter's Creek"];
-
-if (tulsa.includes(locationName)) return 'Tulsa';
-if (okc.includes(locationName)) return 'Oklahoma City';
-if (dallas.includes(locationName)) return 'Dallas';
-if (orlando.includes(locationName)) return 'Orlando';
-return 'Other';
-
-};
-
-const marketSortOrder = { 'Tulsa': 0, 'Oklahoma City': 1, 'Dallas': 2, 'Orlando': 3, 'Other': 4 };
-const sortByMarket = (locations) => {
-  return [...locations].sort((a, b) => {
-    const ma = marketSortOrder[getMarket(a)] ?? 4;
-    const mb = marketSortOrder[getMarket(b)] ?? 4;
-    if (ma !== mb) return ma - mb;
-    return a.localeCompare(b);
-  });
-};
-
-// Logbook helper functions
-const extractDriveTime = (comment) => {
-if (!comment) return null;
-const patterns = [
-/DT[:\s]+(\d+:\d+)/i,
-/Drive\s*[-]?\s*Time[s]?[:\s]+(\d+:\d+)/i,
-/Drive\s*[-]?\s*Time[s]?\s+averaged?\s+(\d+:\d+)/i,
-/Drive\s*[-]?\s*Time[s]?\s+of\s+(\d+:\d+)/i,
-/(\d+:\d+)\s+Drive\s*[-]?\s*Time/i,
-/a\s+(\d+:\d+)\s+Drive\s*[-]?\s*Time/i,
-/Drive\s*[-]?\s*through\s+Time[s]?[:\s]+(\d+:\d+)/i,
-/(\d+:\d+)\s+Drive\s*[-]?\s*through\s+Time/i,
-/Drop\s+Time[s]?[:\s]+(\d+:\d+)/i,
-/(\d+:\d+)\s+Drop\s+Time/i,
-/DT\s+was\s+(\d+:\d+)/i,
-/DT\s+at\s+(\d+:\d+)/i,
-/averaged?\s+(\d+:\d+)\s+DT/i,
-/(\d+:\d+)\s+avg/i
-];
-for (const pattern of patterns) {
-const match = comment.match(pattern);
-if (match) return match[1];
-}
-return null;
-};
-
-const extractMood = (comment) => {
-if (!comment) return null;
-const lowerComment = comment.toLowerCase();
-if (/\b(hectic|crazy|insane|nightmare)\b/.test(lowerComment)) return 'Hectic';
-if (/\b(tough|hard|struggled|difficult|short[- ]?staffed)\b/.test(lowerComment)) return 'Tough';
-if (/\b(busy|rush|crowds|packed|slammed)\b/.test(lowerComment)) return 'Busy';
-if (/\b(great|excellent|perfect|flawless|amazing|awesome)\b/.test(lowerComment)) return 'Great';
-if (/\b(good|solid|nice)\b/.test(lowerComment)) return 'Good';
-if (/\b(slow|quiet|light|dead)\b/.test(lowerComment)) return 'Slow';
-if (/\b(smooth|steady|normal|standard|typical)\b/.test(lowerComment)) return 'Normal';
-return null;
-};
-
-const getMoodColor = (mood) => {
-switch (mood) {
-case 'Great':
-case 'Good':
-return 'bg-green-500';
-case 'Normal':
-case 'Smooth':
-case 'Steady':
-return 'bg-slate-500';
-case 'Slow':
-return 'bg-yellow-500';
-case 'Busy':
-case 'Tough':
-return 'bg-orange-500';
-case 'Hectic':
-return 'bg-red-500';
-default:
-return 'bg-slate-500';
-}
-};
-
-const generateSummary = (comment) => {
-if (!comment) return '';
-let cleaned = comment.replace(/^(Sales:.*?\n|DT:.*?\n|Drive Time:.*?\n)/gim, '').trim();
-const sentences = cleaned.split(/[.!?]+/).filter(s => s.trim().length > 0);
-let summary = sentences.slice(0, 2).join('. ').trim();
-if (summary.length > 150) {
-summary = summary.substring(0, 147) + '...';
-}
-return summary || cleaned.substring(0, 150);
-};
-
 const getLogbookDateRange = () => {
 if (filteredLogbook.length === 0) return null;
 const dates = filteredLogbook
@@ -428,145 +221,6 @@ acc[type] = (acc[type] || 0) + (e.amount || 0);
 return acc;
 }, {});
 return { total, byType };
-};
-
-const parseSheetData = (rows) => {
-const parsedData = [];
-
-const parseNumber = (value) => {
-  if (!value) return 0;
-  const cleaned = value.toString().replace(/[$,\s]/g, '');
-  return parseFloat(cleaned) || 0;
-};
-
-const parsePercentage = (value) => {
-  if (!value) return 0;
-  const cleaned = value.toString().replace(/[%\s]/g, '');
-  return parseFloat(cleaned) || 0;
-};
-
-for (let i = 0; i < rows.length; i++) {
-  const row = rows[i];
-  
-  if (!row[0] || row[0].toString().trim() === '') continue;
-  
-  const locationName = row[0].toString();
-  
-  if (locationName.includes('11/') || locationName.toLowerCase().includes('date')) {
-    continue;
-  }
-  
-  const actualSales = parseNumber(row[7]);
-  const forecastSales = parseNumber(row[6]);
-  const priorYearSales = parseNumber(row[9]);
-  const laborPercent = parsePercentage(row[10]);
-  const optimalHours = parseNumber(row[12]);
-  const actualHours = parseNumber(row[13]);
-  const scheduledHours = parseNumber(row[15]);
-  const schVsForLaborVar = parseNumber(row[18]);
-  
-  const salesVariance = actualSales - forecastSales;
-  const pyVariance = actualSales - priorYearSales;
-  const pyVariancePercent = priorYearSales > 0 ? (pyVariance / priorYearSales) * 100 : 0;
-  const actVsOptHours = actualHours - optimalHours;
-  const actVsSchHours = actualHours - scheduledHours;
-  const laborCostPerHour = actualHours > 0 ? (actualSales * (laborPercent / 100)) / actualHours : 0;
-  const optimalLaborPercent = actualSales > 0 ? (optimalHours * laborCostPerHour) / actualSales * 100 : 0;
-  const laborVariance = laborPercent - optimalLaborPercent;
-  
-  let reportDate = 'Current Week';
-  if (row.length > 19 && row[19]) {
-    reportDate = row[19].toString();
-  }
-  
-  parsedData.push({
-    location: locationName,
-    actualSales,
-    forecastSales,
-    salesVariance,
-    priorYearSales,
-    pyVariance,
-    pyVariancePercent,
-    laborPercent,
-    optimalHours,
-    actualHours,
-    scheduledHours,
-    actVsOptHours,
-    actVsSchHours,
-    schVsForLaborVar,
-    laborCostPerHour,
-    optimalLaborPercent,
-    laborVariance,
-    reportDate
-  });
-}
-
-return parsedData;
-
-};
-
-const parseHistoricalData = (rows) => {
-const parsedData = [];
-
-const parseNumber = (value) => {
-  if (!value) return 0;
-  const cleaned = value.toString().replace(/[$,\s]/g, '');
-  return parseFloat(cleaned) || 0;
-};
-
-const parsePercentage = (value) => {
-  if (!value) return 0;
-  const cleaned = value.toString().replace(/[%\s]/g, '');
-  return parseFloat(cleaned) || 0;
-};
-
-for (let i = 0; i < rows.length; i++) {
-  const row = rows[i];
-  
-  const weekEnding = row[0] || '';
-  const locationName = row[1] || '';
-  const actualSales = parseNumber(row[2]);
-  const forecastSales = parseNumber(row[3]);
-  const salesVariance = parseNumber(row[4]);
-  const priorYearSales = parseNumber(row[5]);
-  const laborPercent = parsePercentage(row[6]);
-  const optimalHours = parseNumber(row[7]);
-  const actualHours = parseNumber(row[8]);
-  const scheduledHours = parseNumber(row[9]);
-  const schVsForLaborVar = parseNumber(row[10]);
-  
-  const pyVariance = actualSales - priorYearSales;
-  const pyVariancePercent = priorYearSales > 0 ? (pyVariance / priorYearSales) * 100 : 0;
-  const actVsOptHours = actualHours - optimalHours;
-  const actVsSchHours = actualHours - scheduledHours;
-  const laborCostPerHour = actualHours > 0 ? (actualSales * (laborPercent / 100)) / actualHours : 0;
-  const optimalLaborPercent = actualSales > 0 ? (optimalHours * laborCostPerHour) / actualSales * 100 : 0;
-  const laborVariance = laborPercent - optimalLaborPercent;
-  
-  parsedData.push({
-    location: locationName,
-    actualSales,
-    forecastSales,
-    salesVariance,
-    priorYearSales,
-    pyVariance,
-    pyVariancePercent,
-    laborPercent,
-    optimalHours,
-    actualHours,
-    scheduledHours,
-    actVsOptHours,
-    actVsSchHours,
-    schVsForLaborVar,
-    laborCostPerHour,
-    optimalLaborPercent,
-    laborVariance,
-    reportDate: weekEnding
-  });
-}
-
-return parsedData;
-
 };
 
 const loadDataFromGoogleSheets = async () => {
@@ -704,40 +358,6 @@ try {
   setClockoutsError(err.message);
 } finally {
   setClockoutsLoading(false);
-}
-
-};
-
-const adjustTimeForTimezone = (timeString) => {
-if (!timeString || !timeString.includes(' - ')) return timeString;
-
-try {
-  const parts = timeString.split(' - ');
-  const adjustTime = (timeStr) => {
-    const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (!match) return timeStr;
-    
-    let hours = parseInt(match[1]);
-    const minutes = match[2];
-    const period = match[3].toUpperCase();
-    
-    if (period === 'PM' && hours !== 12) hours += 12;
-    if (period === 'AM' && hours === 12) hours = 0;
-    
-    hours -= 2;
-    
-    if (hours < 0) hours += 24;
-    
-    const newPeriod = hours >= 12 ? 'PM' : 'AM';
-    let displayHours = hours % 12;
-    if (displayHours === 0) displayHours = 12;
-    
-    return `${displayHours}:${minutes} ${newPeriod}`;
-  };
-  
-  return `${adjustTime(parts[0])} - ${adjustTime(parts[1])}`;
-} catch (e) {
-  return timeString;
 }
 
 };
@@ -1424,35 +1044,6 @@ newSet.add(id);
 }
 return newSet;
 });
-};
-
-const adjustSingleTime = (timeString) => {
-if (!timeString) return timeString;
-
-try {
-  const match = timeString.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  if (!match) return timeString;
-  
-  let hours = parseInt(match[1]);
-  const minutes = match[2];
-  const period = match[3].toUpperCase();
-  
-  if (period === 'PM' && hours !== 12) hours += 12;
-  if (period === 'AM' && hours === 12) hours = 0;
-  
-  hours -= 2;
-  
-  if (hours < 0) hours += 24;
-  
-  const newPeriod = hours >= 12 ? 'PM' : 'AM';
-  let displayHours = hours % 12;
-  if (displayHours === 0) displayHours = 12;
-  
-  return `${displayHours}:${minutes} ${newPeriod}`;
-} catch (e) {
-  return timeString;
-}
-
 };
 
 const loadScheduledToday = async () => {
