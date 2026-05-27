@@ -90,14 +90,29 @@ var R365 = (function() {
     return PropertiesService.getScriptProperties().getProperty('ODATA_BUSINESS_TIMEZONE') || 'America/Chicago';
   }
 
-  // ISO 8601 datetime at 00:00 local-business-day in the given timezone.
-  // Example: localDayStartIso(new Date('2026-05-25'), 'America/Chicago')
-  //   → "2026-05-25T00:00:00-05:00"  (CDT)
+  // UTC ISO at 00:00 local-business-day in the given timezone, expressed as Z.
+  // Example for CDT: localDayStartIso(date for 2026-05-25, 'America/Chicago')
+  //   → "2026-05-25T05:00:00Z"  (= 00:00 CDT = 05:00 UTC)
+  //
+  // We emit Z notation rather than ±HH:MM offset because some OData parsers
+  // (R365 among them, apparently) only fully honor the UTC form. Returning
+  // an explicit UTC moment is semantically equivalent and unambiguous.
   function localDayStartIso(date, tz) {
     tz = tz || businessTimezone();
     var ymd = Utilities.formatDate(date, tz, 'yyyy-MM-dd');
-    var offset = Utilities.formatDate(date, tz, 'XXX'); // "-05:00" (ISO 8601)
-    return ymd + 'T00:00:00' + offset;
+    // Compute the timezone offset for that ymd. We probe midday on the ymd
+    // to avoid landing on a DST transition boundary.
+    var probe = new Date(ymd + 'T12:00:00Z');
+    var raw = Utilities.formatDate(probe, tz, 'Z'); // e.g. "-0500"
+    var sign = raw.charAt(0) === '-' ? -1 : 1;
+    var hours = parseInt(raw.slice(1, 3), 10);
+    var mins = parseInt(raw.slice(3, 5), 10);
+    var offsetMinutes = sign * (hours * 60 + mins); // -300 for CDT
+    // local 00:00 in UTC = ymd 00:00:00Z minus the offset.
+    // For CDT: 00:00:00Z - (-300 min) = 00:00:00Z + 300 min = 05:00:00Z.
+    var utcAtLocalMidnight = new Date(ymd + 'T00:00:00Z');
+    utcAtLocalMidnight.setUTCMinutes(utcAtLocalMidnight.getUTCMinutes() - offsetMinutes);
+    return utcAtLocalMidnight.toISOString().replace(/\.\d{3}Z$/, 'Z');
   }
 
   function localNextDayStartIso(date, tz) {
