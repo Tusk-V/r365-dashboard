@@ -111,6 +111,19 @@ function processAllR365Reports() {
   processScheduledToday();
   processLaborReport();
   processOvertimeWarning();
+
+  // OData verification — gated by ENABLE_ODATA_VERIFY script property.
+  // Compares Flash - Daily Sales rows against R365 OData totals for
+  // yesterday and alerts on per-location mismatches > $5 and > 1%.
+  try {
+    var yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    var yReportDate = (yesterday.getMonth() + 1) + '/' + yesterday.getDate() + '/' + yesterday.getFullYear();
+    verifyFlashAgainstOData(yReportDate);
+  } catch (e) {
+    Logger.log('OData verification step failed: ' + e.toString());
+    Alerts.add('ODATA_VERIFY_ERROR', e.toString());
+  }
   
   // Update forecast weather data (fills in temps/conditions for recent + future days)
   try {

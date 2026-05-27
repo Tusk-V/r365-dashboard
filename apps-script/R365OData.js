@@ -79,31 +79,161 @@ var R365 = (function() {
     }
   }
 
-  // SalesDetail must be fetched one day at a time (per CLAUDE.md — multi-day → 500).
-  // `date` is a JS Date for the desired day; filter uses [date, date+1) range.
-  function fetchSalesDetailForDay(date) {
-    var startIso = Utilities.formatDate(date, 'UTC', "yyyy-MM-dd'T'00:00:00'Z'");
-    var endIso = nextDayIso(date);
-    var filter = "DateOfBusiness ge datetime'" + startIso + "' and DateOfBusiness lt datetime'" + endIso + "'";
-    var query = '$filter=' + encodeURIComponent(filter);
-    return fetchEntity('SalesDetail', query);
+  // Date helpers used in filters. R365's OData engine expects ISO-8601
+  // DateTimeOffset literals WITHOUT the `datetime'...'` wrapper (v4 style).
+  function startOfDayIso(date) {
+    return Utilities.formatDate(date, 'UTC', "yyyy-MM-dd'T'00:00:00'Z'");
   }
 
-  // LaborDetail accepts ranges. Pass two JS Dates.
+  // Ticket-header rows for one day. Use this — not SalesDetail — for daily
+  // sales verification: one row per ticket vs many rows per ticket.
+  // Schema: salesId, date, netSales, numberofGuests, location (Guid), void, ...
+  function fetchSalesEmployeeForDay(date) {
+    var filter = "date ge " + startOfDayIso(date) + " and date lt " + nextDayIso(date);
+    return fetchEntity('SalesEmployee', '$filter=' + encodeURIComponent(filter));
+  }
+
+  // Line-item detail for one day. Heavier; reserve for SKU-level analysis.
+  function fetchSalesDetailForDay(date) {
+    var filter = "date ge " + startOfDayIso(date) + " and date lt " + nextDayIso(date);
+    return fetchEntity('SalesDetail', '$filter=' + encodeURIComponent(filter));
+  }
+
+  // LaborDetail's date field is `dateWorked` (not `date`).
   function fetchLaborDetailRange(startDate, endDate) {
-    var startIso = Utilities.formatDate(startDate, 'UTC', "yyyy-MM-dd'T'00:00:00'Z'");
-    var endIso = nextDayIso(endDate);
-    var filter = "DateOfBusiness ge datetime'" + startIso + "' and DateOfBusiness lt datetime'" + endIso + "'";
-    var query = '$filter=' + encodeURIComponent(filter);
-    return fetchEntity('LaborDetail', query);
+    var filter = "dateWorked ge " + startOfDayIso(startDate) + " and dateWorked lt " + nextDayIso(endDate);
+    return fetchEntity('LaborDetail', '$filter=' + encodeURIComponent(filter));
+  }
+
+  function fetchLaborDetailForDay(date) {
+    return fetchLaborDetailRange(date, date);
+  }
+
+  // Cached locationId (Guid) → name map. Built lazily.
+  var _locationMap = null;
+  function getLocationMap() {
+    if (_locationMap) return _locationMap;
+    var data = fetchEntity('Location', '$select=locationId,name');
+    var rows = data.value || (data.d && data.d.results) || [];
+    _locationMap = {};
+    rows.forEach(function(l) { _locationMap[l.locationId] = l.name; });
+    return _locationMap;
   }
 
   return {
     fetchEntity: fetchEntity,
+    fetchSalesEmployeeForDay: fetchSalesEmployeeForDay,
     fetchSalesDetailForDay: fetchSalesDetailForDay,
-    fetchLaborDetailRange: fetchLaborDetailRange
+    fetchLaborDetailRange: fetchLaborDetailRange,
+    fetchLaborDetailForDay: fetchLaborDetailForDay,
+    getLocationMap: getLocationMap
   };
 })();
+
+// ============================================================================
+// PHASE 2: SHEET vs. OData VERIFICATION
+//
+// For a given report date, fetch OData totals per location and compare against
+// what landed in the Flash - Daily Sales sheet. Alert on mismatches greater
+// than a small tolerance ($5 absolute, 1% relative). Gated by ENABLE_ODATA_VERIFY
+// script property so it stays off until validated.
+// ============================================================================
+
+var ODATA_VERIFY_TOLERANCE_USD = 5.0;     // ignore tiny rounding differences
+var ODATA_VERIFY_TOLERANCE_PCT = 0.01;    // 1% relative tolerance
+
+function aggregateSalesByLocation_(date) {
+  var locMap = R365.getLocationMap();
+  var data = R365.fetchSalesEmployeeForDay(date);
+  var rows = data.value || (data.d && data.d.results) || [];
+  var totals = {};
+  rows.forEach(function(r) {
+    if (r.void) return;
+    var name = locMap[r.location] || ('Unknown (' + r.location + ')');
+    if (!totals[name]) totals[name] = { sales: 0, guests: 0, tickets: 0 };
+    totals[name].sales += Number(r.netSales) || 0;
+    totals[name].guests += Number(r.numberofGuests) || 0;
+    totals[name].tickets += 1;
+  });
+  return totals;
+}
+
+function readFlashSalesForDate_(reportDate) {
+  var spreadsheet = SpreadsheetApp.openById(CONFIG.FLASH_SPREADSHEET_ID);
+  var sheet = spreadsheet.getSheetByName(CONFIG.FLASH_SALES_SHEET);
+  if (!sheet) return {};
+  var data = sheet.getDataRange().getValues();
+  var byLocation = {};
+  for (var i = 1; i < data.length; i++) {
+    var rd = data[i][0];
+    var rdStr = (rd instanceof Date) ? ((rd.getMonth()+1)+'/'+rd.getDate()+'/'+rd.getFullYear()) : (rd ? rd.toString().trim() : '');
+    if (rdStr !== reportDate) continue;
+    var loc = data[i][1] ? data[i][1].toString().trim() : '';
+    if (!loc) continue;
+    byLocation[loc] = {
+      sales: Number(data[i][2]) || 0,
+      guests: Number(data[i][6]) || 0
+    };
+  }
+  return byLocation;
+}
+
+// Compare two location-keyed totals maps; emit a single Alerts entry per
+// mismatch beyond tolerance. `sourceLabel` distinguishes which dataset
+// is being verified (e.g. "Flash").
+function diffLocationTotals_(sourceLabel, reportDate, sheetTotals, odataTotals) {
+  var allLocations = {};
+  Object.keys(sheetTotals).forEach(function(k) { allLocations[k] = true; });
+  Object.keys(odataTotals).forEach(function(k) { allLocations[k] = true; });
+
+  var mismatches = 0;
+  Object.keys(allLocations).forEach(function(loc) {
+    var s = sheetTotals[loc] || { sales: 0, guests: 0 };
+    var o = odataTotals[loc] || { sales: 0, guests: 0, tickets: 0 };
+
+    var diff = s.sales - o.sales;
+    var absDiff = Math.abs(diff);
+    var pctDiff = o.sales > 0 ? absDiff / o.sales : (s.sales > 0 ? 1 : 0);
+
+    if (absDiff > ODATA_VERIFY_TOLERANCE_USD && pctDiff > ODATA_VERIFY_TOLERANCE_PCT) {
+      Alerts.add('ODATA_SALES_MISMATCH',
+        sourceLabel + ' ' + reportDate + ' "' + loc + '": ' +
+        'sheet=$' + s.sales.toFixed(2) + ' vs OData=$' + o.sales.toFixed(2) +
+        ' (Δ=$' + diff.toFixed(2) + ', tickets=' + (o.tickets || 0) + ')');
+      mismatches++;
+    }
+  });
+  return mismatches;
+}
+
+function verifyFlashAgainstOData(reportDate) {
+  var enabled = PropertiesService.getScriptProperties().getProperty('ENABLE_ODATA_VERIFY');
+  if (!enabled) {
+    Logger.log('OData verification disabled (set ENABLE_ODATA_VERIFY script property to enable)');
+    return;
+  }
+  Logger.log('--- Verifying Flash sales vs OData for ' + reportDate + ' ---');
+  try {
+    // Parse "M/d/yyyy" → Date at midnight local
+    var parts = reportDate.split('/');
+    var d = new Date(parseInt(parts[2], 10), parseInt(parts[0], 10) - 1, parseInt(parts[1], 10));
+    var odataTotals = aggregateSalesByLocation_(d);
+    var sheetTotals = readFlashSalesForDate_(reportDate);
+    var mismatches = diffLocationTotals_('Flash', reportDate, sheetTotals, odataTotals);
+    Logger.log('Verification complete: ' + mismatches + ' mismatch(es) over tolerance');
+  } catch (e) {
+    Logger.log('OData verification failed: ' + e.toString());
+    Alerts.add('ODATA_VERIFY_ERROR', 'verifyFlashAgainstOData(' + reportDate + ') threw: ' + e.toString());
+  }
+}
+
+// Manual one-shot for ad-hoc verification from the editor.
+function verifyTodayFlash() {
+  var yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  var reportDate = (yesterday.getMonth() + 1) + '/' + yesterday.getDate() + '/' + yesterday.getFullYear();
+  verifyFlashAgainstOData(reportDate);
+}
 
 // ============================================================================
 // CONNECTIVITY TESTS — run these from the Apps Script editor
