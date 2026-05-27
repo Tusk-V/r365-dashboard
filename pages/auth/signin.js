@@ -1,15 +1,56 @@
 // pages/auth/signin.js
 
+import { useState } from 'react';
 import { getProviders, signIn } from 'next-auth/react';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../api/auth/[...nextauth]';
 import Image from 'next/image';
 
 export default function SignIn({ providers }) {
-  // Only keep Google provider
-  const googleProvider = providers 
+  const googleProvider = providers
     ? Object.values(providers).find(provider => provider.id === 'google')
     : null;
+  const emailProvider = providers
+    ? Object.values(providers).find(provider => provider.id === 'email')
+    : null;
+
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const handleEmailSubmit = async (e) => {
+    e.preventDefault();
+    setEmailError('');
+
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) {
+      setEmailError('Email is required.');
+      return;
+    }
+    if (!trimmed.endsWith('@rancherscustard.com')) {
+      setEmailError('Must be a @rancherscustard.com address.');
+      return;
+    }
+
+    setSending(true);
+    try {
+      const result = await signIn('email', {
+        email: trimmed,
+        callbackUrl: '/',
+        redirect: false,
+      });
+      if (result?.error) {
+        setEmailError('Could not send sign-in link. Try again or use Google.');
+      } else {
+        setSent(true);
+      }
+    } catch (err) {
+      setEmailError('Unexpected error. Try again or use Google.');
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#1d2739' }}>
@@ -36,9 +77,69 @@ export default function SignIn({ providers }) {
           </p>
         </div>
 
-        {/* Sign In Button */}
-        <div className="space-y-3">
-          {googleProvider && (
+        {/* Email magic-link form */}
+        {emailProvider && (
+          <div className="space-y-3">
+            {sent ? (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-center">
+                <p className="text-sm font-semibold text-green-800">Check your email</p>
+                <p className="text-xs text-green-700 mt-1">
+                  We sent a sign-in link to <span className="font-semibold">{email}</span>. The link expires in 24 hours.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setSent(false); setEmail(''); }}
+                  className="mt-3 text-xs font-medium text-green-700 hover:text-green-900 underline"
+                >
+                  Use a different email
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleEmailSubmit} className="space-y-2">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  Sign in with email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  placeholder="you@rancherscustard.com"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(''); }}
+                  disabled={sending}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 disabled:opacity-60"
+                />
+                {emailError && (
+                  <p className="text-xs text-red-600">{emailError}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={sending}
+                  className="w-full flex items-center justify-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {sending ? 'Sending link…' : 'Email me a sign-in link'}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* Divider */}
+        {emailProvider && googleProvider && (
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase tracking-wide">
+              <span className="bg-white px-2 text-gray-500">or</span>
+            </div>
+          </div>
+        )}
+
+        {/* Google Sign In Button */}
+        {googleProvider && (
+          <div className="space-y-3">
             <button
               onClick={() => signIn(googleProvider.id, { callbackUrl: '/' })}
               className="w-full flex items-center justify-center px-6 py-3 border border-gray-300 rounded-lg shadow-sm text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
@@ -51,8 +152,8 @@ export default function SignIn({ providers }) {
               </svg>
               Sign in with Google
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -60,14 +161,14 @@ export default function SignIn({ providers }) {
 
 export async function getServerSideProps(context) {
   const session = await getServerSession(context.req, context.res, authOptions);
-  
+
   // If the user is already signed in, redirect them to the home page
   if (session) {
     return { redirect: { destination: '/' } };
   }
 
   const providers = await getProviders();
-  
+
   return {
     props: { providers: providers ?? [] },
   };
