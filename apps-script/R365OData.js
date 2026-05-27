@@ -79,29 +79,49 @@ var R365 = (function() {
     }
   }
 
-  // Date helpers used in filters. R365's OData engine expects ISO-8601
-  // DateTimeOffset literals WITHOUT the `datetime'...'` wrapper (v4 style).
-  function startOfDayIso(date) {
-    return Utilities.formatDate(date, 'UTC', "yyyy-MM-dd'T'00:00:00'Z'");
+  // Date helpers used in filters. R365's OData `date` and `dateWorked` are
+  // DateTimeOffset (timestamp + offset). Andy's stores span US/Central (TUL,
+  // OKC, DAL) and US/Eastern (ORL). For daily verification we use Central
+  // local-day boundaries — Orlando edge transactions (last hour of day)
+  // may straddle and skew totals slightly, but most sales fit the window.
+  // Override via Script Property ODATA_BUSINESS_TIMEZONE if needed.
+  function businessTimezone() {
+    return PropertiesService.getScriptProperties().getProperty('ODATA_BUSINESS_TIMEZONE') || 'America/Chicago';
+  }
+
+  // ISO 8601 datetime at 00:00 local-business-day in the given timezone.
+  // Example: localDayStartIso(new Date('2026-05-25'), 'America/Chicago')
+  //   → "2026-05-25T00:00:00-05:00"  (CDT)
+  function localDayStartIso(date, tz) {
+    tz = tz || businessTimezone();
+    var ymd = Utilities.formatDate(date, tz, 'yyyy-MM-dd');
+    var offset = Utilities.formatDate(date, tz, 'XXX'); // "-05:00" (ISO 8601)
+    return ymd + 'T00:00:00' + offset;
+  }
+
+  function localNextDayStartIso(date, tz) {
+    tz = tz || businessTimezone();
+    var next = new Date(date.getTime() + 24 * 60 * 60 * 1000);
+    return localDayStartIso(next, tz);
   }
 
   // Ticket-header rows for one day. Use this — not SalesDetail — for daily
   // sales verification: one row per ticket vs many rows per ticket.
   // Schema: salesId, date, netSales, numberofGuests, location (Guid), void, ...
   function fetchSalesEmployeeForDay(date) {
-    var filter = "date ge " + startOfDayIso(date) + " and date lt " + nextDayIso(date);
+    var filter = "date ge " + localDayStartIso(date) + " and date lt " + localNextDayStartIso(date);
     return fetchEntity('SalesEmployee', '$filter=' + encodeURIComponent(filter));
   }
 
   // Line-item detail for one day. Heavier; reserve for SKU-level analysis.
   function fetchSalesDetailForDay(date) {
-    var filter = "date ge " + startOfDayIso(date) + " and date lt " + nextDayIso(date);
+    var filter = "date ge " + localDayStartIso(date) + " and date lt " + localNextDayStartIso(date);
     return fetchEntity('SalesDetail', '$filter=' + encodeURIComponent(filter));
   }
 
   // LaborDetail's date field is `dateWorked` (not `date`).
   function fetchLaborDetailRange(startDate, endDate) {
-    var filter = "dateWorked ge " + startOfDayIso(startDate) + " and dateWorked lt " + nextDayIso(endDate);
+    var filter = "dateWorked ge " + localDayStartIso(startDate) + " and dateWorked lt " + localNextDayStartIso(endDate);
     return fetchEntity('LaborDetail', '$filter=' + encodeURIComponent(filter));
   }
 
@@ -181,15 +201,31 @@ function readFlashSalesForDate_(reportDate) {
 // Compare two location-keyed totals maps; emit a single Alerts entry per
 // mismatch beyond tolerance. `sourceLabel` distinguishes which dataset
 // is being verified (e.g. "Flash").
+//
+// Distinguishes two failure modes:
+//   ODATA_DSS_NOT_POSTED — OData has 0 tickets for a location with sheet sales
+//     (the location's Daily Sales Summary hasn't been polled into R365 yet).
+//   ODATA_SALES_MISMATCH — OData has SOME tickets but the total disagrees
+//     beyond tolerance (genuine data anomaly worth investigating).
 function diffLocationTotals_(sourceLabel, reportDate, sheetTotals, odataTotals) {
   var allLocations = {};
   Object.keys(sheetTotals).forEach(function(k) { allLocations[k] = true; });
   Object.keys(odataTotals).forEach(function(k) { allLocations[k] = true; });
 
   var mismatches = 0;
+  var dssMissing = 0;
   Object.keys(allLocations).forEach(function(loc) {
     var s = sheetTotals[loc] || { sales: 0, guests: 0 };
     var o = odataTotals[loc] || { sales: 0, guests: 0, tickets: 0 };
+
+    // Zero tickets in OData but non-zero sheet → DSS hasn't been polled.
+    if ((o.tickets || 0) === 0 && s.sales > 0) {
+      Alerts.add('ODATA_DSS_NOT_POSTED',
+        sourceLabel + ' ' + reportDate + ' "' + loc + '": OData has 0 tickets ' +
+        '(DSS not yet polled). Sheet=$' + s.sales.toFixed(2));
+      dssMissing++;
+      return;
+    }
 
     var diff = s.sales - o.sales;
     var absDiff = Math.abs(diff);
@@ -203,7 +239,31 @@ function diffLocationTotals_(sourceLabel, reportDate, sheetTotals, odataTotals) 
       mismatches++;
     }
   });
+  Logger.log('Mismatches: ' + mismatches + ' | DSS-not-posted: ' + dssMissing);
   return mismatches;
+}
+
+// Diagnostic: show the actual UTC window the filter produces, plus per-location
+// row counts and timestamp samples. Run from the editor to debug.
+function debugODataFilterWindow() {
+  var props = PropertiesService.getScriptProperties();
+  var tz = props.getProperty('ODATA_BUSINESS_TIMEZONE') || 'America/Chicago';
+  var yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(12, 0, 0, 0); // noon, to avoid DST edge confusion
+  Logger.log('Business timezone: ' + tz);
+  Logger.log('Yesterday (as JS Date): ' + yesterday.toString());
+  Logger.log('Yesterday (in ' + tz + '): ' + Utilities.formatDate(yesterday, tz, 'yyyy-MM-dd EEEE'));
+
+  var data = R365.fetchSalesEmployeeForDay(yesterday);
+  var rows = data.value || (data.d && data.d.results) || [];
+  Logger.log('Got ' + rows.length + ' SalesEmployee rows for yesterday');
+  if (rows.length > 0) {
+    // Show earliest and latest transaction timestamps
+    var dates = rows.map(function(r) { return new Date(r.date); }).sort(function(a, b) { return a - b; });
+    Logger.log('Earliest tx: ' + dates[0].toISOString() + ' (in ' + tz + ': ' + Utilities.formatDate(dates[0], tz, 'yyyy-MM-dd HH:mm') + ')');
+    Logger.log('Latest   tx: ' + dates[dates.length-1].toISOString() + ' (in ' + tz + ': ' + Utilities.formatDate(dates[dates.length-1], tz, 'yyyy-MM-dd HH:mm') + ')');
+  }
 }
 
 function verifyFlashAgainstOData(reportDate) {
