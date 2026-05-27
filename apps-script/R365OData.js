@@ -168,7 +168,7 @@ function testODataConnection() {
 // Probe arbitrary entities to discover the OData surface area.
 // Edit the entity name below and run from the editor.
 function probeODataEntity() {
-  var entity = 'Locations'; // <-- change this to explore (Locations, SalesDetail, LaborDetail, etc.)
+  var entity = 'Location'; // <-- change this to explore (Location, SalesDetail, LaborDetail, etc.)
   var query = '$top=3';
   Logger.log('Probing ' + entity + ' with ' + query);
   try {
@@ -177,6 +177,57 @@ function probeODataEntity() {
   } catch (e) {
     Logger.log('Error: ' + e.toString());
   }
+}
+
+// Fetch the OData $metadata document and extract SalesDetail / LaborDetail
+// schema (property names + types). Tells us the exact date field to filter on.
+function probeODataMetadata() {
+  Logger.log('=== Fetching $metadata ===');
+  var props = PropertiesService.getScriptProperties();
+  var u = props.getProperty('ODATA_USERNAME');
+  var p = props.getProperty('ODATA_PASSWORD');
+  if (!u || !p) { Logger.log('ABORT: set ODATA_USERNAME and ODATA_PASSWORD first.'); return; }
+  var base = props.getProperty('ODATA_BASE_URL') || 'https://odata.restaurant365.net/api/v2/views';
+  var auth = 'Basic ' + Utilities.base64Encode(u + ':' + p);
+  try {
+    var resp = UrlFetchApp.fetch(base + '/$metadata', {
+      method: 'get',
+      headers: { 'Authorization': auth, 'Accept': 'application/xml' },
+      muteHttpExceptions: true
+    });
+    var code = resp.getResponseCode();
+    if (code !== 200) {
+      Logger.log('Metadata fetch failed: HTTP ' + code + ' — ' + resp.getContentText().slice(0, 400));
+      return;
+    }
+    var xml = resp.getContentText();
+    Logger.log('Metadata size: ' + xml.length + ' chars');
+
+    // Extract entity types we care about. The XML format uses
+    //   <EntityType Name="SalesDetail"> <Property Name="..." Type="..."/> ...
+    var entitiesOfInterest = ['SalesDetail', 'LaborDetail', 'SalesEmployee', 'SalesPayment', 'PayrollSummary'];
+    entitiesOfInterest.forEach(function(name) {
+      var startTag = '<EntityType Name="' + name + '"';
+      var startIdx = xml.indexOf(startTag);
+      if (startIdx === -1) {
+        Logger.log('— ' + name + ': NOT FOUND in metadata');
+        return;
+      }
+      var endIdx = xml.indexOf('</EntityType>', startIdx);
+      var block = xml.slice(startIdx, endIdx);
+      var props = [];
+      var re = /<Property Name="([^"]+)" Type="([^"]+)"/g;
+      var m;
+      while ((m = re.exec(block)) !== null) {
+        props.push(m[1] + ': ' + m[2].replace('Edm.', ''));
+      }
+      Logger.log('— ' + name + ' (' + props.length + ' props):');
+      props.forEach(function(p) { Logger.log('    ' + p); });
+    });
+  } catch (e) {
+    Logger.log('Exception: ' + e.toString());
+  }
+  Logger.log('=== Metadata probe complete ===');
 }
 
 // ============================================================================
