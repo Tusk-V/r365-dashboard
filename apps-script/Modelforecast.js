@@ -865,6 +865,8 @@ function generateModelForecasts() {
   var coefficients = loadModelCoefficients(ss);
   var multipliers = loadHolidayMultipliers(ss);
   var dowConfidence = loadDOWConfidence(ss);
+  var sportsEvents = (typeof loadSportsEvents === 'function') ? loadSportsEvents(ss) : {};
+  var sportsMultipliers = (typeof loadSportsMultipliers === 'function') ? loadSportsMultipliers(ss) : { location: {}, market: {}, global: {} };
   
   var modelData = modelSheet.getDataRange().getValues();
   var today = new Date();
@@ -961,7 +963,7 @@ function generateModelForecasts() {
       var existKey = location + '|' + targetKey;
       if (existingRows[existKey]) continue;
       
-      var prediction = buildPredictionForDate(location, targetDate, salesByLocDate, coefficients, multipliers, dowConfidence);
+      var prediction = buildPredictionForDate(location, targetDate, salesByLocDate, coefficients, multipliers, dowConfidence, sportsEvents, sportsMultipliers);
       if (prediction) newRows.push(prediction);
     }
   }
@@ -979,18 +981,31 @@ function generateModelForecasts() {
 // PREDICTION BUILDER (v6 — uses all 5 features)
 // ============================================================================
 
-function buildPredictionForDate(location, targetDate, salesByLocDate, coefficients, multipliers, dowConfidence) {
+function buildPredictionForDate(location, targetDate, salesByLocDate, coefficients, multipliers, dowConfidence, sportsEvents, sportsMultipliers) {
   var targetKey = normalizeDateForModel(targetDate);
   var market = getMarketForLocation(location);
   var season = getSeasonForDate(targetDate);
   var dow = targetDate.getDay();
-  
+
   var pwDate = new Date(targetDate);
   pwDate.setDate(pwDate.getDate() - 7);
   var pwKey = location + '|' + normalizeDateForModel(pwDate);
   var pwData = salesByLocDate[pwKey];
-  
+
   var holiday = getModelHoliday(targetDate) || '';
+
+  var sportsTeams = (sportsEvents && typeof getSportsTeamsForLocation === 'function')
+    ? getSportsTeamsForLocation(sportsEvents, location, targetDate) : [];
+  var sportsActive = !holiday && sportsTeams.length > 0;
+  var sportsMult = 1.0;
+  if (sportsActive && sportsMultipliers && typeof getSportsMultiplier === 'function') {
+    var mults = [];
+    for (var st = 0; st < sportsTeams.length; st++) {
+      mults.push(getSportsMultiplier(sportsMultipliers, location, sportsTeams[st]));
+    }
+    sportsMult = (typeof combineSportsMultipliers === 'function') ? combineSportsMultipliers(mults) : mults[0];
+    if (sportsMult === 1.0) sportsActive = false;
+  }
   var generatedAt = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'M/d/yyyy HH:mm');
   
   var versionLabel = '';
@@ -1077,9 +1092,15 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
       }
     }
     
+    if (sportsActive && sportsMult !== 1.0) {
+      predicted = predicted * sportsMult;
+      if (method === 'pw') method = 'pw+sports';
+      else if (method === 'blend') method = 'blend+sports';
+    }
+
     var predictedNoMom = predicted;
 
-    if (!holiday) {
+    if (!holiday && !sportsActive) {
       var momentum = computeMomentum(location, targetDate, salesByLocDate);
       if (momentum !== 0) {
         var combinedAdj = Math.max(-0.30, Math.min(0.30, weatherAdj + momentum));
@@ -1141,8 +1162,11 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
         predictedAvg = avgSales * hMultAvg;
         methodAvg = 'holiday';
       }
+    } else if (sportsActive && sportsMult !== 1.0) {
+      predictedAvg = predictedAvg * sportsMult;
+      methodAvg = 'avg+sports';
     }
-    
+
     return [
       targetKey, location, Math.round(predictedAvg), '', '', '',
       Math.round(avgSales), Math.round(weatherAdjAvg * 100), tempDiffAvg,
@@ -1201,6 +1225,8 @@ function backfillMissingPredictions() {
   var coefficients = loadModelCoefficients(ss);
   var multipliers = loadHolidayMultipliers(ss);
   var dowConfidence = loadDOWConfidence(ss);
+  var sportsEvents = (typeof loadSportsEvents === 'function') ? loadSportsEvents(ss) : {};
+  var sportsMultipliers = (typeof loadSportsMultipliers === 'function') ? loadSportsMultipliers(ss) : { location: {}, market: {}, global: {} };
   
   var today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -1217,7 +1243,7 @@ function backfillMissingPredictions() {
       var existKey = location + '|' + cursorKey;
       if (existing[existKey]) continue;
       
-      var prediction = buildPredictionForDate(location, cursor, salesByLocDate, coefficients, multipliers, dowConfidence);
+      var prediction = buildPredictionForDate(location, cursor, salesByLocDate, coefficients, multipliers, dowConfidence, sportsEvents, sportsMultipliers);
       if (!prediction) continue;
       
       prediction[10] = 'backfill';
@@ -1264,12 +1290,13 @@ function tuneCoefficients() {
   if (!modelSheet) { Logger.log('No Model Forecast sheet.'); return; }
   
   var coefficients = loadModelCoefficients(ss);
+  var sportsEvents = (typeof loadSportsEvents === 'function') ? loadSportsEvents(ss) : {};
   var data = modelSheet.getDataRange().getValues();
   if (data.length < 2) { Logger.log('No data yet.'); return; }
-  
+
   var bucketErrors = {};
   var rainErrors = {};
-  var totalRows = 0, usableRows = 0, holidaySkipped = 0, backfillSkipped = 0, outlierSkipped = 0;
+  var totalRows = 0, usableRows = 0, holidaySkipped = 0, backfillSkipped = 0, outlierSkipped = 0, sportsSkipped = 0;
   var outlierThresh = MODEL_CONFIG.TUNING.OUTLIER_REJECT_THRESHOLD;
 
   for (var i = 1; i < data.length; i++) {
@@ -1292,6 +1319,11 @@ function tuneCoefficients() {
     }
 
     if (method.indexOf('holiday') >= 0) continue;
+
+    if (method.indexOf('sports') >= 0) { sportsSkipped++; continue; }
+    var rowSportsTeams = (typeof getSportsTeamsForLocation === 'function')
+      ? getSportsTeamsForLocation(sportsEvents, location, rowDate) : [];
+    if (rowSportsTeams.length > 0) { sportsSkipped++; continue; }
 
     if (Math.abs(actual - predicted) / actual > outlierThresh) {
       outlierSkipped++; continue;
@@ -1324,7 +1356,7 @@ function tuneCoefficients() {
     }
   }
   
-  Logger.log('Rows with actuals: ' + totalRows + ', usable: ' + usableRows + ', holiday-skipped: ' + holidaySkipped + ', backfill-skipped: ' + backfillSkipped + ', outlier-skipped: ' + outlierSkipped);
+  Logger.log('Rows with actuals: ' + totalRows + ', usable: ' + usableRows + ', holiday-skipped: ' + holidaySkipped + ', sports-skipped: ' + sportsSkipped + ', backfill-skipped: ' + backfillSkipped + ', outlier-skipped: ' + outlierSkipped);
   
   var maxMove = MODEL_CONFIG.TUNING.MAX_SINGLE_MOVE;
   var minSamples = MODEL_CONFIG.TUNING.MIN_SAMPLES_FOR_TUNE;
