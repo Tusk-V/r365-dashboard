@@ -1291,12 +1291,14 @@ function tuneCoefficients() {
   
   var coefficients = loadModelCoefficients(ss);
   var sportsEvents = (typeof loadSportsEvents === 'function') ? loadSportsEvents(ss) : {};
+  var r365Signals = (typeof loadR365Signals === 'function') ? loadR365Signals(ss) : { byKey: {}, medianHours: {} };
   var data = modelSheet.getDataRange().getValues();
   if (data.length < 2) { Logger.log('No data yet.'); return; }
 
   var bucketErrors = {};
   var rainErrors = {};
   var totalRows = 0, usableRows = 0, holidaySkipped = 0, backfillSkipped = 0, outlierSkipped = 0, sportsSkipped = 0;
+  var promoSkipped = 0, capacitySkipped = 0, voidSkipped = 0;
   var outlierThresh = MODEL_CONFIG.TUNING.OUTLIER_REJECT_THRESHOLD;
 
   for (var i = 1; i < data.length; i++) {
@@ -1324,6 +1326,18 @@ function tuneCoefficients() {
     var rowSportsTeams = (typeof getSportsTeamsForLocation === 'function')
       ? getSportsTeamsForLocation(sportsEvents, location, rowDate) : [];
     if (rowSportsTeams.length > 0) { sportsSkipped++; continue; }
+
+    if (r365Signals && r365Signals.byKey && typeof isAbnormalDay === 'function') {
+      var sigKey = location + '|' + normalizeDateForModel(rowDate);
+      var sig = r365Signals.byKey[sigKey];
+      if (sig) {
+        var medHours = r365Signals.medianHours[location];
+        var reason = isAbnormalDay(sig, medHours);
+        if (reason === 'promo') { promoSkipped++; continue; }
+        if (reason === 'capacity') { capacitySkipped++; continue; }
+        if (reason === 'voids') { voidSkipped++; continue; }
+      }
+    }
 
     if (Math.abs(actual - predicted) / actual > outlierThresh) {
       outlierSkipped++; continue;
@@ -1356,7 +1370,7 @@ function tuneCoefficients() {
     }
   }
   
-  Logger.log('Rows with actuals: ' + totalRows + ', usable: ' + usableRows + ', holiday-skipped: ' + holidaySkipped + ', sports-skipped: ' + sportsSkipped + ', backfill-skipped: ' + backfillSkipped + ', outlier-skipped: ' + outlierSkipped);
+  Logger.log('Rows with actuals: ' + totalRows + ', usable: ' + usableRows + ', holiday-skipped: ' + holidaySkipped + ', sports-skipped: ' + sportsSkipped + ', promo-skipped: ' + promoSkipped + ', capacity-skipped: ' + capacitySkipped + ', void-skipped: ' + voidSkipped + ', backfill-skipped: ' + backfillSkipped + ', outlier-skipped: ' + outlierSkipped);
   
   var maxMove = MODEL_CONFIG.TUNING.MAX_SINGLE_MOVE;
   var minSamples = MODEL_CONFIG.TUNING.MIN_SAMPLES_FOR_TUNE;
