@@ -489,6 +489,224 @@ function compareMomentumImpact() {
 
 
 // ============================================================================
+// LEARN: PER-LOCATION DAY-OF-WEEK FACTORS
+// For each location, computes (median of this-DOW sales) / (median of all-day
+// sales) using a recent window. Result: a 7-value profile showing how each
+// location's typical Tuesday compares to its typical day overall. Stable signal
+// because it uses ALL days, not just same-DOW. Useful for spotting PW anomalies
+// (a Tuesday that didn't behave like a typical Tuesday for that location) and
+// for thin-data locations where same-DOW lookback is sparse.
+// ============================================================================
+
+function learnDOWFactors() {
+  Logger.log('=== Learning Day-of-Week Factors ===');
+
+  var ss = SpreadsheetApp.openById(MODEL_CONFIG.SPREADSHEET_ID);
+  var forecastSheet = ss.getSheetByName(MODEL_CONFIG.FORECAST_DATA_SHEET);
+  if (!forecastSheet) { Logger.log('No Forecast Data sheet'); return; }
+
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 180);
+  cutoff.setHours(0, 0, 0, 0);
+
+  var byLocDow = {};
+  var byLocAll = {};
+
+  var data = forecastSheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    var dateRaw = data[i][0];
+    var loc = data[i][1] ? data[i][1].toString().trim() : '';
+    var sales = parseFloat(data[i][2]) || 0;
+    if (!dateRaw || !loc || sales <= 0) continue;
+
+    var d = (dateRaw instanceof Date) ? new Date(dateRaw) : new Date(dateRaw.toString());
+    if (isNaN(d.getTime())) continue;
+    d.setHours(0, 0, 0, 0);
+    if (d < cutoff) continue;
+    if (typeof getModelHoliday === 'function' && getModelHoliday(d)) continue;
+
+    var dow = d.getDay();
+    if (!byLocDow[loc]) byLocDow[loc] = {};
+    if (!byLocDow[loc][dow]) byLocDow[loc][dow] = [];
+    byLocDow[loc][dow].push(sales);
+
+    if (!byLocAll[loc]) byLocAll[loc] = [];
+    byLocAll[loc].push(sales);
+  }
+
+  function median(arr) {
+    if (!arr || arr.length === 0) return 0;
+    var s = arr.slice().sort(function(a, b) { return a - b; });
+    return s[Math.floor(s.length / 2)];
+  }
+
+  var sheet = ss.getSheetByName('DOW Factors');
+  if (!sheet) sheet = ss.insertSheet('DOW Factors');
+  sheet.clear();
+  sheet.getRange(1, 1, 1, 5).setValues([['Location', 'Day of Week', 'DOW Median', 'Overall Median', 'Factor']]);
+  sheet.setFrozenRows(1);
+
+  var dowNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var rows = [];
+  var locKeys = Object.keys(byLocDow);
+  for (var lk = 0; lk < locKeys.length; lk++) {
+    var loc = locKeys[lk];
+    var overall = median(byLocAll[loc]);
+    if (overall <= 0) continue;
+    for (var dow = 0; dow < 7; dow++) {
+      var dowArr = byLocDow[loc][dow];
+      if (!dowArr || dowArr.length < 4) continue;
+      var dowMed = median(dowArr);
+      var factor = Math.round((dowMed / overall) * 1000) / 1000;
+      rows.push([loc, dowNames[dow], Math.round(dowMed), Math.round(overall), factor]);
+    }
+  }
+
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, 5).setValues(rows);
+  }
+
+  Logger.log('Wrote ' + rows.length + ' DOW factor rows for ' + locKeys.length + ' locations');
+  Logger.log('=== DOW Factors Learning Complete ===');
+}
+
+
+// ============================================================================
+// STABILIZATION REPORT
+// Recommends NEW_STORES graduation candidates (consistently high accuracy
+// with low variance) and flags established stores that have started wobbling
+// (accuracy drop or variance spike). Read-only operational hygiene.
+// ============================================================================
+
+function stabilizationReport() {
+  Logger.log('=== Stabilization Report ===');
+
+  var GRADUATE_ACC_MIN = 86;
+  var GRADUATE_STDDEV_MAX = 4.5;
+  var WOBBLE_ACC_MIN = 80;
+  var WOBBLE_STDDEV_MAX = 7.0;
+  var MIN_WEEKS_FOR_DECISION = 4;
+
+  var ss = SpreadsheetApp.openById(MODEL_CONFIG.SPREADSHEET_ID);
+  var modelSheet = ss.getSheetByName(MODEL_CONFIG.MODEL_FORECAST_SHEET);
+  if (!modelSheet) { Logger.log('No Model Forecast sheet'); return; }
+
+  var data = modelSheet.getDataRange().getValues();
+  if (data.length < 2) { Logger.log('No data'); return; }
+
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var c56 = new Date(today); c56.setDate(c56.getDate() - 56);
+  var c28 = new Date(today); c28.setDate(c28.getDate() - 28);
+
+  var perLocWeeks = {};
+
+  for (var i = 1; i < data.length; i++) {
+    var dateRaw = data[i][0];
+    var loc = data[i][1] ? data[i][1].toString().trim() : '';
+    var predicted = parseFloat(data[i][2]) || 0;
+    var actual = parseFloat(data[i][3]) || 0;
+    if (!dateRaw || !loc || predicted <= 0 || actual <= 0) continue;
+
+    var d = new Date(dateRaw);
+    if (isNaN(d.getTime())) continue;
+    d.setHours(0, 0, 0, 0);
+    if (d >= today || d < c56) continue;
+
+    var weekStart = new Date(d);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    var weekKey = weekStart.getTime();
+    var acc = 100 - (Math.abs(predicted - actual) / actual) * 100;
+
+    if (!perLocWeeks[loc]) perLocWeeks[loc] = {};
+    if (!perLocWeeks[loc][weekKey]) perLocWeeks[loc][weekKey] = [];
+    perLocWeeks[loc][weekKey].push(acc);
+  }
+
+  function stddev(arr) {
+    if (arr.length < 2) return 0;
+    var m = 0;
+    for (var i = 0; i < arr.length; i++) m += arr[i];
+    m /= arr.length;
+    var sq = 0;
+    for (var j = 0; j < arr.length; j++) sq += Math.pow(arr[j] - m, 2);
+    return Math.sqrt(sq / arr.length);
+  }
+
+  function meanOf(arr) {
+    if (arr.length === 0) return 0;
+    var s = 0;
+    for (var i = 0; i < arr.length; i++) s += arr[i];
+    return s / arr.length;
+  }
+
+  var newStoresLive = (typeof NEW_STORES !== 'undefined') ? NEW_STORES : [];
+
+  var graduateCandidates = [];
+  var wobbleFlags = [];
+  var stableRows = [];
+
+  var locs = Object.keys(perLocWeeks).sort();
+  for (var l = 0; l < locs.length; l++) {
+    var loc = locs[l];
+    var weekKeys = Object.keys(perLocWeeks[loc]);
+    if (weekKeys.length < MIN_WEEKS_FOR_DECISION) continue;
+
+    var weeklyAccs = [];
+    for (var w = 0; w < weekKeys.length; w++) {
+      var dayAccs = perLocWeeks[loc][weekKeys[w]];
+      weeklyAccs.push(meanOf(dayAccs));
+    }
+    var meanAcc = meanOf(weeklyAccs);
+    var stddevAcc = stddev(weeklyAccs);
+    var isNew = newStoresLive.indexOf(loc) !== -1;
+
+    var status;
+    if (isNew && meanAcc >= GRADUATE_ACC_MIN && stddevAcc <= GRADUATE_STDDEV_MAX) {
+      status = 'GRADUATE — remove from NEW_STORES';
+      graduateCandidates.push(loc);
+    } else if (!isNew && (meanAcc < WOBBLE_ACC_MIN || stddevAcc > WOBBLE_STDDEV_MAX)) {
+      status = 'WOBBLING — investigate';
+      wobbleFlags.push(loc);
+    } else if (isNew) {
+      status = 'new (still ramping)';
+    } else {
+      status = 'stable';
+    }
+
+    stableRows.push([
+      loc,
+      isNew ? 'new' : 'established',
+      weekKeys.length,
+      Math.round(meanAcc * 10) / 10,
+      Math.round(stddevAcc * 10) / 10,
+      status
+    ]);
+  }
+
+  var sheet = ss.getSheetByName('Stabilization Report');
+  if (!sheet) sheet = ss.insertSheet('Stabilization Report');
+  sheet.clear();
+  sheet.getRange(1, 1, 1, 6).setValues([['Location', 'Tier', 'Weeks Sampled', 'Mean Acc %', 'StdDev (pp)', 'Status']]);
+  sheet.setFrozenRows(1);
+  if (stableRows.length > 0) {
+    sheet.getRange(2, 1, stableRows.length, 6).setValues(stableRows);
+  }
+
+  var summaryRow = stableRows.length + 3;
+  sheet.getRange(summaryRow, 1).setValue('SUMMARY').setFontWeight('bold');
+  sheet.getRange(summaryRow + 1, 1, 3, 2).setValues([
+    ['Graduate candidates', graduateCandidates.length > 0 ? graduateCandidates.join(', ') : 'none'],
+    ['Wobble flags', wobbleFlags.length > 0 ? wobbleFlags.join(', ') : 'none'],
+    ['Thresholds', 'graduate: mean≥' + GRADUATE_ACC_MIN + '% & stddev≤' + GRADUATE_STDDEV_MAX + ' | wobble: mean<' + WOBBLE_ACC_MIN + '% or stddev>' + WOBBLE_STDDEV_MAX]
+  ]);
+
+  Logger.log('Graduate candidates: ' + (graduateCandidates.length > 0 ? graduateCandidates.join(', ') : 'none'));
+  Logger.log('Wobble flags: ' + (wobbleFlags.length > 0 ? wobbleFlags.join(', ') : 'none'));
+  Logger.log('=== Stabilization Report Complete ===');
+}
+
+
+// ============================================================================
 // CONVENIENCE WRAPPERS
 // ============================================================================
 
@@ -496,3 +714,5 @@ function testAuditCoefficientCoverage() { auditCoefficientCoverage(); }
 function testSummarizeModelAccuracy() { summarizeModelAccuracy(); }
 function testBackfillNoMomentumColumn() { backfillNoMomentumColumn(); }
 function testCompareMomentumImpact() { compareMomentumImpact(); }
+function testLearnDOWFactors() { learnDOWFactors(); }
+function testStabilizationReport() { stabilizationReport(); }

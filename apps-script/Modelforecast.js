@@ -1023,7 +1023,7 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
     
     var outlierThreshold = getCoefficient(coefficients, market, season, 'outlier_threshold');
     var outlierWeight = getCoefficient(coefficients, market, season, 'outlier_pw_weight');
-    var avgSum = 0, avgCount = 0;
+    var avgSamples = [];
     for (var w = 1; w <= 8; w++) {
       var pastDate = new Date(targetDate);
       pastDate.setDate(pastDate.getDate() - (7 * w));
@@ -1031,13 +1031,15 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
       var pastKey = location + '|' + normalizeDateForModel(pastDate);
       var pastData = salesByLocDate[pastKey];
       if (pastData && pastData.sales > 0) {
-        avgSum += pastData.sales;
-        avgCount++;
+        avgSamples.push(pastData.sales);
       }
     }
-    
+
+    var avgCount = avgSamples.length;
+    var avg = 0;
     if (avgCount >= 2) {
-      var avg = avgSum / avgCount;
+      var sorted = avgSamples.slice().sort(function(a, b) { return a - b; });
+      avg = sorted[Math.floor(sorted.length / 2)];
       var deviation = Math.abs(pwSales - avg) / avg;
       if (deviation > outlierThreshold) {
         pwSales = pwSales * outlierWeight + avg * (1 - outlierWeight);
@@ -1082,8 +1084,7 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
       var hMult = getHolidayMultiplier(multipliers, location, holiday);
       if (hMult !== 1.0) {
         if (avgCount >= 2) {
-          var holidayBase = avgSum / avgCount;
-          predicted = holidayBase * hMult;
+          predicted = avg * hMult;
           method = 'holiday';
         } else {
           predicted = predicted * hMult;
@@ -1122,7 +1123,7 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
     ];
   }
   
-  var avgSumF = 0, avgCountF = 0;
+  var avgSamplesF = [];
   for (var w2 = 1; w2 <= 8; w2++) {
     var pastDateF = new Date(targetDate);
     pastDateF.setDate(pastDateF.getDate() - (7 * w2));
@@ -1130,13 +1131,13 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
     var pastKeyF = location + '|' + normalizeDateForModel(pastDateF);
     var pastDataF = salesByLocDate[pastKeyF];
     if (pastDataF && pastDataF.sales > 0) {
-      avgSumF += pastDataF.sales;
-      avgCountF++;
+      avgSamplesF.push(pastDataF.sales);
     }
   }
-  
-  if (avgCountF > 0) {
-    var avgSales = avgSumF / avgCountF;
+
+  if (avgSamplesF.length > 0) {
+    var sortedF = avgSamplesF.slice().sort(function(a, b) { return a - b; });
+    var avgSales = sortedF[Math.floor(sortedF.length / 2)];
     var targetDataAvg = salesByLocDate[location + '|' + targetKey];
     var weatherAdjAvg = 0;
     var tempDiffAvg = null;
