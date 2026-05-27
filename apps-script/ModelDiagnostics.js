@@ -1,0 +1,887 @@
+// ============================================================================
+// MODEL DIAGNOSTICS — read-only audits for the v6 forecast engine
+//
+// Functions:
+//   auditCoefficientCoverage()  - Sample counts + drift per market×season×bucket
+//   summarizeModelAccuracy()    - MAPE breakdowns by recency/location/method
+//
+// Both write to dedicated sheets and log a compact summary.
+// Run manually from the editor when investigating model behavior.
+// ============================================================================
+
+
+// ============================================================================
+// AUDIT: COEFFICIENT COVERAGE
+// Shows where the auto-tuner has enough data to learn, and where it doesn't.
+// Cells stuck at defaults forever are flagged so you know the model is using
+// a heuristic, not a learned signal, for that slice.
+// ============================================================================
+
+function auditCoefficientCoverage() {
+  Logger.log('=== Auditing Coefficient Coverage ===');
+
+  var ss = SpreadsheetApp.openById(MODEL_CONFIG.SPREADSHEET_ID);
+  var modelSheet = ss.getSheetByName(MODEL_CONFIG.MODEL_FORECAST_SHEET);
+  if (!modelSheet) { Logger.log('No Model Forecast sheet'); return; }
+
+  var coefficients = loadModelCoefficients(ss);
+  var data = modelSheet.getDataRange().getValues();
+  if (data.length < 2) { Logger.log('No data yet'); return; }
+
+  var minSamples = MODEL_CONFIG.TUNING.MIN_SAMPLES_FOR_TUNE;
+  var minRain = MODEL_CONFIG.TUNING.MIN_SAMPLES_FOR_RAIN;
+
+  var bucketCounts = {};
+  var rainCounts = {};
+
+  for (var i = 1; i < data.length; i++) {
+    var predicted = parseFloat(data[i][2]) || 0;
+    var actual = parseFloat(data[i][3]) || 0;
+    var tempDiff = data[i][8];
+    var condChange = data[i][9] ? data[i][9].toString().trim() : '';
+    var holidayFlag = (data[i].length > 14 && data[i][14]) ? data[i][14].toString().trim() : '';
+    var method = data[i][10] ? data[i][10].toString().trim() : '';
+    var location = data[i][1] ? data[i][1].toString().trim() : '';
+
+    if (!predicted || !actual || predicted <= 0 || actual <= 0) continue;
+    if (method === 'backfill' || method === 'insufficient') continue;
+
+    var rowDate = new Date(data[i][0]);
+    if (holidayFlag || isHolidayAdjacent(rowDate) || getSpringBreakLabel(rowDate)) continue;
+    if (method.indexOf('holiday') >= 0) continue;
+    if (tempDiff === '' || tempDiff === null || tempDiff === undefined) continue;
+
+    tempDiff = parseFloat(tempDiff);
+    if (isNaN(tempDiff)) continue;
+
+    var market = getMarketForLocation(location);
+    var season = getSeasonForDate(rowDate);
+    var bucket = getModelTempBucket(tempDiff);
+
+    if (!bucketCounts[market]) bucketCounts[market] = {};
+    if (!bucketCounts[market][season]) bucketCounts[market][season] = {};
+    bucketCounts[market][season][bucket] = (bucketCounts[market][season][bucket] || 0) + 1;
+
+    if (condChange.indexOf('Rain') >= 0 || condChange.indexOf('Dry') >= 0) {
+      if (!rainCounts[market]) rainCounts[market] = {};
+      if (!rainCounts[market][season]) rainCounts[market][season] = { rain_new: 0, rain_cleared: 0 };
+      if (condChange.indexOf('Dry') === 0) rainCounts[market][season].rain_new++;
+      else if (condChange.indexOf('Rain') === 0) rainCounts[market][season].rain_cleared++;
+    }
+  }
+
+  var defaults = MODEL_CONFIG.DEFAULT_COEFFICIENTS;
+  var tempBuckets = [
+    'temp_15plus', 'temp_10to15', 'temp_5to10', 'temp_3to5', 'temp_similar',
+    'temp_neg3to5', 'temp_neg5to10', 'temp_neg10to15', 'temp_neg15plus'
+  ];
+
+  var sheet = ss.getSheetByName('Coefficient Audit');
+  if (!sheet) sheet = ss.insertSheet('Coefficient Audit');
+  sheet.clear();
+  sheet.getRange(1, 1, 1, 8).setValues([['Market', 'Season', 'Coefficient', 'Current', 'Default', 'Drift', 'Samples', 'Status']]);
+  sheet.setFrozenRows(1);
+
+  var rows = [];
+  var tuned = 0, stuckDefault = 0, insufficient = 0;
+  var totalCells = 0;
+
+  for (var mIdx = 0; mIdx < MODEL_CONFIG.ALL_MARKETS.length; mIdx++) {
+    var mkt = MODEL_CONFIG.ALL_MARKETS[mIdx];
+    for (var sIdx = 0; sIdx < MODEL_CONFIG.ALL_SEASONS.length; sIdx++) {
+      var ssn = MODEL_CONFIG.ALL_SEASONS[sIdx];
+
+      var keys = tempBuckets.concat(['rain_new', 'rain_cleared']);
+      for (var k = 0; k < keys.length; k++) {
+        var key = keys[k];
+        var current = (coefficients[mkt] && coefficients[mkt][ssn] && coefficients[mkt][ssn][key] !== undefined)
+          ? coefficients[mkt][ssn][key] : defaults[key];
+        var def = defaults[key];
+        var drift = Math.round((current - def) * 1000) / 1000;
+
+        var samples = 0;
+        if (key === 'rain_new' || key === 'rain_cleared') {
+          samples = (rainCounts[mkt] && rainCounts[mkt][ssn]) ? rainCounts[mkt][ssn][key] : 0;
+        } else {
+          samples = (bucketCounts[mkt] && bucketCounts[mkt][ssn] && bucketCounts[mkt][ssn][key]) || 0;
+        }
+
+        var threshold = (key === 'rain_new' || key === 'rain_cleared') ? minRain : minSamples;
+        var status;
+        if (Math.abs(drift) > 0.001) {
+          status = 'tuned';
+          tuned++;
+        } else if (samples >= threshold) {
+          status = 'at default (had data)';
+          stuckDefault++;
+        } else {
+          status = 'insufficient samples';
+          insufficient++;
+        }
+        totalCells++;
+
+        rows.push([mkt, ssn, key, current, def, drift, samples, status]);
+      }
+    }
+  }
+
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, 8).setValues(rows);
+  }
+
+  var summaryRow = rows.length + 3;
+  sheet.getRange(summaryRow, 1).setValue('SUMMARY');
+  sheet.getRange(summaryRow, 1).setFontWeight('bold');
+  sheet.getRange(summaryRow + 1, 1, 4, 2).setValues([
+    ['Total cells', totalCells],
+    ['Tuned (drifted from default)', tuned],
+    ['At default despite having data', stuckDefault],
+    ['Insufficient samples to tune', insufficient]
+  ]);
+
+  Logger.log('Coverage: ' + tuned + ' tuned / ' + stuckDefault + ' at default (had data) / ' + insufficient + ' insufficient — of ' + totalCells + ' cells');
+  Logger.log('=== Coverage Audit Complete ===');
+}
+
+
+// ============================================================================
+// SUMMARY: MODEL ACCURACY
+// MAPE-style breakdowns. Useful for answering "is the model actually getting
+// better?" and "which slices are worst?" without scrolling through the sheet.
+// ============================================================================
+
+function summarizeModelAccuracy() {
+  Logger.log('=== Summarizing Model Accuracy ===');
+
+  var ss = SpreadsheetApp.openById(MODEL_CONFIG.SPREADSHEET_ID);
+  var modelSheet = ss.getSheetByName(MODEL_CONFIG.MODEL_FORECAST_SHEET);
+  if (!modelSheet) { Logger.log('No Model Forecast sheet'); return; }
+
+  var data = modelSheet.getDataRange().getValues();
+  if (data.length < 2) { Logger.log('No data yet'); return; }
+
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  var c7 = new Date(today);  c7.setDate(c7.getDate() - 7);
+  var c28 = new Date(today); c28.setDate(c28.getDate() - 28);
+  var c90 = new Date(today); c90.setDate(c90.getDate() - 90);
+
+  function bucket() {
+    return { d7: [], d28: [], d90: [], all: [] };
+  }
+
+  var overall = bucket();
+  var byLocation = {};
+  var byMethod = {};
+  var byMarket = {};
+  var bySeason = {};
+  var byMarketSeason = {};
+
+  for (var i = 1; i < data.length; i++) {
+    var dateRaw = data[i][0];
+    var location = data[i][1] ? data[i][1].toString().trim() : '';
+    var predicted = parseFloat(data[i][2]) || 0;
+    var actual = parseFloat(data[i][3]) || 0;
+    var method = data[i][10] ? data[i][10].toString().trim() : 'unknown';
+
+    if (!dateRaw || !location || predicted <= 0 || actual <= 0) continue;
+
+    var d = new Date(dateRaw);
+    if (isNaN(d.getTime())) continue;
+    d.setHours(0, 0, 0, 0);
+    if (d >= today) continue;
+
+    var absPctErr = Math.abs(predicted - actual) / actual;
+    var market = getMarketForLocation(location);
+    var season = getSeasonForDate(d);
+    var mktSsn = market + ' ' + season;
+
+    overall.all.push(absPctErr);
+    if (d >= c90) overall.d90.push(absPctErr);
+    if (d >= c28) overall.d28.push(absPctErr);
+    if (d >= c7) overall.d7.push(absPctErr);
+
+    if (!byLocation[location]) byLocation[location] = bucket();
+    byLocation[location].all.push(absPctErr);
+    if (d >= c28) byLocation[location].d28.push(absPctErr);
+
+    if (!byMethod[method]) byMethod[method] = bucket();
+    byMethod[method].all.push(absPctErr);
+    if (d >= c28) byMethod[method].d28.push(absPctErr);
+
+    if (!byMarket[market]) byMarket[market] = bucket();
+    byMarket[market].all.push(absPctErr);
+    if (d >= c28) byMarket[market].d28.push(absPctErr);
+
+    if (!bySeason[season]) bySeason[season] = bucket();
+    bySeason[season].all.push(absPctErr);
+
+    if (!byMarketSeason[mktSsn]) byMarketSeason[mktSsn] = bucket();
+    byMarketSeason[mktSsn].all.push(absPctErr);
+  }
+
+  function stats(arr) {
+    if (!arr || arr.length === 0) return { n: 0, mape: null, median: null };
+    var sum = 0;
+    for (var i = 0; i < arr.length; i++) sum += arr[i];
+    var mape = sum / arr.length;
+    var sorted = arr.slice().sort(function(a, b) { return a - b; });
+    var median = sorted[Math.floor(sorted.length / 2)];
+    return {
+      n: arr.length,
+      mape: Math.round(mape * 1000) / 10,
+      median: Math.round(median * 1000) / 10
+    };
+  }
+
+  function accPct(mape) {
+    return mape === null ? '--' : Math.round((100 - mape) * 10) / 10;
+  }
+
+  var sheet = ss.getSheetByName('Accuracy Summary');
+  if (!sheet) sheet = ss.insertSheet('Accuracy Summary');
+  sheet.clear();
+
+  var row = 1;
+  function writeSection(title, headers, dataRows) {
+    sheet.getRange(row, 1).setValue(title).setFontWeight('bold');
+    row++;
+    sheet.getRange(row, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    row++;
+    if (dataRows.length > 0) {
+      sheet.getRange(row, 1, dataRows.length, headers.length).setValues(dataRows);
+      row += dataRows.length;
+    }
+    row += 1;
+  }
+
+  var s7 = stats(overall.d7), s28 = stats(overall.d28), s90 = stats(overall.d90), sAll = stats(overall.all);
+  writeSection('Overall', ['Window', 'N', 'MAPE %', 'Accuracy %', 'Median Err %'], [
+    ['Last 7d',  s7.n,  s7.mape  === null ? '' : s7.mape,  accPct(s7.mape),  s7.median  === null ? '' : s7.median],
+    ['Last 28d', s28.n, s28.mape === null ? '' : s28.mape, accPct(s28.mape), s28.median === null ? '' : s28.median],
+    ['Last 90d', s90.n, s90.mape === null ? '' : s90.mape, accPct(s90.mape), s90.median === null ? '' : s90.median],
+    ['All time', sAll.n, sAll.mape === null ? '' : sAll.mape, accPct(sAll.mape), sAll.median === null ? '' : sAll.median]
+  ]);
+
+  var locRows = [];
+  var locKeys = Object.keys(byLocation).sort();
+  for (var l = 0; l < locKeys.length; l++) {
+    var s28L = stats(byLocation[locKeys[l]].d28);
+    var sAllL = stats(byLocation[locKeys[l]].all);
+    locRows.push([locKeys[l], s28L.n, accPct(s28L.mape), sAllL.n, accPct(sAllL.mape)]);
+  }
+  locRows.sort(function(a, b) {
+    var av = (a[2] === '--') ? -1 : a[2];
+    var bv = (b[2] === '--') ? -1 : b[2];
+    return bv - av;
+  });
+  writeSection('Per Location', ['Location', 'N (28d)', 'Acc % (28d)', 'N (all)', 'Acc % (all)'], locRows);
+
+  var mktRows = [];
+  var mktKeys = Object.keys(byMarket).sort();
+  for (var m = 0; m < mktKeys.length; m++) {
+    var s28M = stats(byMarket[mktKeys[m]].d28);
+    var sAllM = stats(byMarket[mktKeys[m]].all);
+    mktRows.push([mktKeys[m], s28M.n, accPct(s28M.mape), sAllM.n, accPct(sAllM.mape)]);
+  }
+  writeSection('Per Market', ['Market', 'N (28d)', 'Acc % (28d)', 'N (all)', 'Acc % (all)'], mktRows);
+
+  var methodRows = [];
+  var methodKeys = Object.keys(byMethod).sort();
+  for (var mt = 0; mt < methodKeys.length; mt++) {
+    var s28T = stats(byMethod[methodKeys[mt]].d28);
+    var sAllT = stats(byMethod[methodKeys[mt]].all);
+    methodRows.push([methodKeys[mt], s28T.n, accPct(s28T.mape), sAllT.n, accPct(sAllT.mape)]);
+  }
+  writeSection('Per Method', ['Method', 'N (28d)', 'Acc % (28d)', 'N (all)', 'Acc % (all)'], methodRows);
+
+  var seasonRows = [];
+  var seasonKeys = Object.keys(bySeason).sort();
+  for (var sn = 0; sn < seasonKeys.length; sn++) {
+    var sAllS = stats(bySeason[seasonKeys[sn]].all);
+    seasonRows.push([seasonKeys[sn], sAllS.n, accPct(sAllS.mape), sAllS.median === null ? '' : sAllS.median]);
+  }
+  writeSection('Per Season (all-time)', ['Season', 'N', 'Acc %', 'Median Err %'], seasonRows);
+
+  var msRows = [];
+  var msKeys = Object.keys(byMarketSeason).sort();
+  for (var ms = 0; ms < msKeys.length; ms++) {
+    var sMS = stats(byMarketSeason[msKeys[ms]].all);
+    msRows.push([msKeys[ms], sMS.n, accPct(sMS.mape), sMS.median === null ? '' : sMS.median]);
+  }
+  writeSection('Per Market × Season (all-time)', ['Market Season', 'N', 'Acc %', 'Median Err %'], msRows);
+
+  Logger.log('Overall (28d): ' + s28.n + ' rows, ' + accPct(s28.mape) + '% accuracy, ' + s28.mape + '% MAPE');
+  Logger.log('Overall (all): ' + sAll.n + ' rows, ' + accPct(sAll.mape) + '% accuracy, ' + sAll.mape + '% MAPE');
+  Logger.log('=== Accuracy Summary Complete ===');
+}
+
+
+// ============================================================================
+// BACKFILL: PREDICTED (NO MOM) COLUMN
+// Reconstructs the no-momentum prediction for historical rows using the stored
+// PW Sales (col 7) and Weather Adj % (col 8). Lets us A/B momentum impact
+// without waiting weeks of fresh data.
+// ============================================================================
+
+function backfillNoMomentumColumn() {
+  Logger.log('=== Backfilling Predicted (no mom) ===');
+
+  var ss = SpreadsheetApp.openById(MODEL_CONFIG.SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(MODEL_CONFIG.MODEL_FORECAST_SHEET);
+  if (!sheet) { Logger.log('No Model Forecast sheet'); return; }
+
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) { Logger.log('No data'); return; }
+
+  if (data[0].length < 16 || data[0][15] !== 'Predicted (no mom)') {
+    sheet.getRange(1, 16).setValue('Predicted (no mom)');
+  }
+
+  var lastRow = sheet.getLastRow();
+  var values = sheet.getRange(2, 1, lastRow - 1, 16).getValues();
+  var updates = [];
+  var filled = 0, alreadySet = 0, skipped = 0;
+
+  for (var i = 0; i < values.length; i++) {
+    var existing = values[i][15];
+    var predicted = parseFloat(values[i][2]) || 0;
+    var pwSales = parseFloat(values[i][6]) || 0;
+    var weatherAdjPct = parseFloat(values[i][7]);
+    var method = values[i][10] ? values[i][10].toString().trim() : '';
+
+    if (existing !== '' && existing !== null && existing !== undefined && !isNaN(parseFloat(existing))) {
+      updates.push([existing]);
+      alreadySet++;
+      continue;
+    }
+
+    if (method.indexOf('mom') < 0) {
+      if (predicted > 0) {
+        updates.push([predicted]);
+        filled++;
+      } else {
+        updates.push(['']);
+        skipped++;
+      }
+      continue;
+    }
+
+    if (pwSales > 0 && !isNaN(weatherAdjPct)) {
+      var noMom = Math.round(pwSales * (1 + weatherAdjPct / 100));
+      updates.push([noMom]);
+      filled++;
+    } else {
+      updates.push(['']);
+      skipped++;
+    }
+  }
+
+  sheet.getRange(2, 16, updates.length, 1).setValues(updates);
+  Logger.log('Backfilled: ' + filled + ', already set: ' + alreadySet + ', skipped: ' + skipped);
+  Logger.log('=== Backfill Complete ===');
+}
+
+
+// ============================================================================
+// COMPARE: MOMENTUM IMPACT
+// For pw+mom / blend+mom rows with actuals, computes accuracy with and
+// without momentum side by side. Single-number answer to "is momentum helping?"
+// ============================================================================
+
+function compareMomentumImpact() {
+  Logger.log('=== Comparing Momentum Impact ===');
+
+  var ss = SpreadsheetApp.openById(MODEL_CONFIG.SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(MODEL_CONFIG.MODEL_FORECAST_SHEET);
+  if (!sheet) { Logger.log('No Model Forecast sheet'); return; }
+
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2 || data[0].length < 16) {
+    Logger.log('Sheet missing Predicted (no mom) column — run backfillNoMomentumColumn first');
+    return;
+  }
+
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var c28 = new Date(today); c28.setDate(c28.getDate() - 28);
+
+  var errWithAll = [], errNoMomAll = [];
+  var errWith28 = [], errNoMom28 = [];
+  var momentumDeltas = [];
+  var winsWithMom = 0, winsNoMom = 0, ties = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var dateRaw = data[i][0];
+    var predicted = parseFloat(data[i][2]) || 0;
+    var actual = parseFloat(data[i][3]) || 0;
+    var method = data[i][10] ? data[i][10].toString().trim() : '';
+    var noMom = parseFloat(data[i][15]) || 0;
+
+    if (!dateRaw || predicted <= 0 || actual <= 0 || noMom <= 0) continue;
+    if (method.indexOf('mom') < 0) continue;
+
+    var d = new Date(dateRaw);
+    if (isNaN(d.getTime())) continue;
+    d.setHours(0, 0, 0, 0);
+    if (d >= today) continue;
+
+    var eWith = Math.abs(predicted - actual) / actual;
+    var eNo = Math.abs(noMom - actual) / actual;
+
+    errWithAll.push(eWith); errNoMomAll.push(eNo);
+    if (d >= c28) { errWith28.push(eWith); errNoMom28.push(eNo); }
+
+    momentumDeltas.push(predicted - noMom);
+
+    if (eWith < eNo - 0.005) winsWithMom++;
+    else if (eNo < eWith - 0.005) winsNoMom++;
+    else ties++;
+  }
+
+  function avg(arr) {
+    if (arr.length === 0) return null;
+    var s = 0;
+    for (var i = 0; i < arr.length; i++) s += arr[i];
+    return s / arr.length;
+  }
+
+  var mWithAll = avg(errWithAll);
+  var mNoAll = avg(errNoMomAll);
+  var mWith28 = avg(errWith28);
+  var mNo28 = avg(errNoMom28);
+  var avgDelta = avg(momentumDeltas);
+
+  function fmt(v) { return v === null ? '--' : (Math.round(v * 1000) / 10); }
+
+  var rows = [
+    ['Window', 'N', 'MAPE w/ momentum', 'MAPE w/o momentum', 'Delta (pp)', 'Accuracy w/ mom', 'Accuracy w/o mom'],
+    ['Last 28d', errWith28.length, fmt(mWith28), fmt(mNo28),
+      mWith28 !== null ? Math.round((mWith28 - mNo28) * 1000) / 10 : '--',
+      mWith28 !== null ? Math.round((100 - mWith28 * 100) * 10) / 10 : '--',
+      mNo28 !== null ? Math.round((100 - mNo28 * 100) * 10) / 10 : '--'],
+    ['All time', errWithAll.length, fmt(mWithAll), fmt(mNoAll),
+      mWithAll !== null ? Math.round((mWithAll - mNoAll) * 1000) / 10 : '--',
+      mWithAll !== null ? Math.round((100 - mWithAll * 100) * 10) / 10 : '--',
+      mNoAll !== null ? Math.round((100 - mNoAll * 100) * 10) / 10 : '--']
+  ];
+
+  var out = ss.getSheetByName('Momentum Impact');
+  if (!out) out = ss.insertSheet('Momentum Impact');
+  out.clear();
+  out.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  out.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
+  out.setFrozenRows(1);
+
+  var winRow = rows.length + 2;
+  out.getRange(winRow, 1).setValue('Row-level comparison (all time)').setFontWeight('bold');
+  out.getRange(winRow + 1, 1, 4, 2).setValues([
+    ['Momentum helped', winsWithMom],
+    ['Momentum hurt', winsNoMom],
+    ['Tie (within 0.5pp)', ties],
+    ['Avg momentum adjustment ($)', avgDelta !== null ? Math.round(avgDelta) : '--']
+  ]);
+
+  Logger.log('All-time: w/ mom MAPE ' + fmt(mWithAll) + '% vs w/o mom MAPE ' + fmt(mNoAll) + '% (n=' + errWithAll.length + ')');
+  Logger.log('28d: w/ mom MAPE ' + fmt(mWith28) + '% vs w/o mom MAPE ' + fmt(mNo28) + '% (n=' + errWith28.length + ')');
+  Logger.log('Wins: w/mom=' + winsWithMom + ', w/o mom=' + winsNoMom + ', ties=' + ties);
+  Logger.log('=== Momentum Impact Complete ===');
+}
+
+
+// ============================================================================
+// LEARN: PER-LOCATION DAY-OF-WEEK FACTORS
+// For each location, computes (median of this-DOW sales) / (median of all-day
+// sales) using a recent window. Result: a 7-value profile showing how each
+// location's typical Tuesday compares to its typical day overall. Stable signal
+// because it uses ALL days, not just same-DOW. Useful for spotting PW anomalies
+// (a Tuesday that didn't behave like a typical Tuesday for that location) and
+// for thin-data locations where same-DOW lookback is sparse.
+// ============================================================================
+
+function learnDOWFactors() {
+  Logger.log('=== Learning Day-of-Week Factors ===');
+
+  var ss = SpreadsheetApp.openById(MODEL_CONFIG.SPREADSHEET_ID);
+  var forecastSheet = ss.getSheetByName(MODEL_CONFIG.FORECAST_DATA_SHEET);
+  if (!forecastSheet) { Logger.log('No Forecast Data sheet'); return; }
+
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 180);
+  cutoff.setHours(0, 0, 0, 0);
+
+  var byLocDow = {};
+  var byLocAll = {};
+
+  var data = forecastSheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    var dateRaw = data[i][0];
+    var loc = data[i][1] ? data[i][1].toString().trim() : '';
+    var sales = parseFloat(data[i][2]) || 0;
+    if (!dateRaw || !loc || sales <= 0) continue;
+
+    var d = (dateRaw instanceof Date) ? new Date(dateRaw) : new Date(dateRaw.toString());
+    if (isNaN(d.getTime())) continue;
+    d.setHours(0, 0, 0, 0);
+    if (d < cutoff) continue;
+    if (typeof getModelHoliday === 'function' && getModelHoliday(d)) continue;
+
+    var dow = d.getDay();
+    if (!byLocDow[loc]) byLocDow[loc] = {};
+    if (!byLocDow[loc][dow]) byLocDow[loc][dow] = [];
+    byLocDow[loc][dow].push(sales);
+
+    if (!byLocAll[loc]) byLocAll[loc] = [];
+    byLocAll[loc].push(sales);
+  }
+
+  function median(arr) {
+    if (!arr || arr.length === 0) return 0;
+    var s = arr.slice().sort(function(a, b) { return a - b; });
+    return s[Math.floor(s.length / 2)];
+  }
+
+  var sheet = ss.getSheetByName('DOW Factors');
+  if (!sheet) sheet = ss.insertSheet('DOW Factors');
+  sheet.clear();
+  sheet.getRange(1, 1, 1, 5).setValues([['Location', 'Day of Week', 'DOW Median', 'Overall Median', 'Factor']]);
+  sheet.setFrozenRows(1);
+
+  var dowNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var rows = [];
+  var locKeys = Object.keys(byLocDow);
+  for (var lk = 0; lk < locKeys.length; lk++) {
+    var loc = locKeys[lk];
+    var overall = median(byLocAll[loc]);
+    if (overall <= 0) continue;
+    for (var dow = 0; dow < 7; dow++) {
+      var dowArr = byLocDow[loc][dow];
+      if (!dowArr || dowArr.length < 4) continue;
+      var dowMed = median(dowArr);
+      var factor = Math.round((dowMed / overall) * 1000) / 1000;
+      rows.push([loc, dowNames[dow], Math.round(dowMed), Math.round(overall), factor]);
+    }
+  }
+
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, 5).setValues(rows);
+  }
+
+  Logger.log('Wrote ' + rows.length + ' DOW factor rows for ' + locKeys.length + ' locations');
+  Logger.log('=== DOW Factors Learning Complete ===');
+}
+
+
+// ============================================================================
+// STABILIZATION REPORT
+// Recommends NEW_STORES graduation candidates (consistently high accuracy
+// with low variance) and flags established stores that have started wobbling
+// (accuracy drop or variance spike). Read-only operational hygiene.
+// ============================================================================
+
+function stabilizationReport() {
+  Logger.log('=== Stabilization Report ===');
+
+  var GRADUATE_ACC_MIN = 86;
+  var GRADUATE_STDDEV_MAX = 4.5;
+  var WOBBLE_ACC_MIN = 80;
+  var WOBBLE_STDDEV_MAX = 7.0;
+  var MIN_WEEKS_FOR_DECISION = 4;
+
+  var ss = SpreadsheetApp.openById(MODEL_CONFIG.SPREADSHEET_ID);
+  var modelSheet = ss.getSheetByName(MODEL_CONFIG.MODEL_FORECAST_SHEET);
+  if (!modelSheet) { Logger.log('No Model Forecast sheet'); return; }
+
+  var data = modelSheet.getDataRange().getValues();
+  if (data.length < 2) { Logger.log('No data'); return; }
+
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var c56 = new Date(today); c56.setDate(c56.getDate() - 56);
+  var c28 = new Date(today); c28.setDate(c28.getDate() - 28);
+
+  var perLocWeeks = {};
+
+  for (var i = 1; i < data.length; i++) {
+    var dateRaw = data[i][0];
+    var loc = data[i][1] ? data[i][1].toString().trim() : '';
+    var predicted = parseFloat(data[i][2]) || 0;
+    var actual = parseFloat(data[i][3]) || 0;
+    if (!dateRaw || !loc || predicted <= 0 || actual <= 0) continue;
+
+    var d = new Date(dateRaw);
+    if (isNaN(d.getTime())) continue;
+    d.setHours(0, 0, 0, 0);
+    if (d >= today || d < c56) continue;
+
+    var weekStart = new Date(d);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    var weekKey = weekStart.getTime();
+    var acc = 100 - (Math.abs(predicted - actual) / actual) * 100;
+
+    if (!perLocWeeks[loc]) perLocWeeks[loc] = {};
+    if (!perLocWeeks[loc][weekKey]) perLocWeeks[loc][weekKey] = [];
+    perLocWeeks[loc][weekKey].push(acc);
+  }
+
+  function stddev(arr) {
+    if (arr.length < 2) return 0;
+    var m = 0;
+    for (var i = 0; i < arr.length; i++) m += arr[i];
+    m /= arr.length;
+    var sq = 0;
+    for (var j = 0; j < arr.length; j++) sq += Math.pow(arr[j] - m, 2);
+    return Math.sqrt(sq / arr.length);
+  }
+
+  function meanOf(arr) {
+    if (arr.length === 0) return 0;
+    var s = 0;
+    for (var i = 0; i < arr.length; i++) s += arr[i];
+    return s / arr.length;
+  }
+
+  var newStoresLive = (typeof NEW_STORES !== 'undefined') ? NEW_STORES : [];
+
+  var graduateCandidates = [];
+  var wobbleFlags = [];
+  var stableRows = [];
+
+  var locs = Object.keys(perLocWeeks).sort();
+  for (var l = 0; l < locs.length; l++) {
+    var loc = locs[l];
+    var weekKeys = Object.keys(perLocWeeks[loc]);
+    if (weekKeys.length < MIN_WEEKS_FOR_DECISION) continue;
+
+    var weeklyAccs = [];
+    for (var w = 0; w < weekKeys.length; w++) {
+      var dayAccs = perLocWeeks[loc][weekKeys[w]];
+      weeklyAccs.push(meanOf(dayAccs));
+    }
+    var meanAcc = meanOf(weeklyAccs);
+    var stddevAcc = stddev(weeklyAccs);
+    var isNew = newStoresLive.indexOf(loc) !== -1;
+
+    var status;
+    if (isNew && meanAcc >= GRADUATE_ACC_MIN && stddevAcc <= GRADUATE_STDDEV_MAX) {
+      status = 'GRADUATE — remove from NEW_STORES';
+      graduateCandidates.push(loc);
+    } else if (!isNew && (meanAcc < WOBBLE_ACC_MIN || stddevAcc > WOBBLE_STDDEV_MAX)) {
+      status = 'WOBBLING — investigate';
+      wobbleFlags.push(loc);
+    } else if (isNew) {
+      status = 'new (still ramping)';
+    } else {
+      status = 'stable';
+    }
+
+    stableRows.push([
+      loc,
+      isNew ? 'new' : 'established',
+      weekKeys.length,
+      Math.round(meanAcc * 10) / 10,
+      Math.round(stddevAcc * 10) / 10,
+      status
+    ]);
+  }
+
+  var sheet = ss.getSheetByName('Stabilization Report');
+  if (!sheet) sheet = ss.insertSheet('Stabilization Report');
+  sheet.clear();
+  sheet.getRange(1, 1, 1, 6).setValues([['Location', 'Tier', 'Weeks Sampled', 'Mean Acc %', 'StdDev (pp)', 'Status']]);
+  sheet.setFrozenRows(1);
+  if (stableRows.length > 0) {
+    sheet.getRange(2, 1, stableRows.length, 6).setValues(stableRows);
+  }
+
+  var summaryRow = stableRows.length + 3;
+  sheet.getRange(summaryRow, 1).setValue('SUMMARY').setFontWeight('bold');
+  sheet.getRange(summaryRow + 1, 1, 3, 2).setValues([
+    ['Graduate candidates', graduateCandidates.length > 0 ? graduateCandidates.join(', ') : 'none'],
+    ['Wobble flags', wobbleFlags.length > 0 ? wobbleFlags.join(', ') : 'none'],
+    ['Thresholds', 'graduate: mean≥' + GRADUATE_ACC_MIN + '% & stddev≤' + GRADUATE_STDDEV_MAX + ' | wobble: mean<' + WOBBLE_ACC_MIN + '% or stddev>' + WOBBLE_STDDEV_MAX]
+  ]);
+
+  Logger.log('Graduate candidates: ' + (graduateCandidates.length > 0 ? graduateCandidates.join(', ') : 'none'));
+  Logger.log('Wobble flags: ' + (wobbleFlags.length > 0 ? wobbleFlags.join(', ') : 'none'));
+  Logger.log('=== Stabilization Report Complete ===');
+}
+
+
+// ============================================================================
+// REPLAY: head-to-head comparison of historical predictions vs. current model
+//
+// For each historical row in the last N days with both predicted + actual,
+// re-runs buildPredictionForDate using TODAY's coefficients, multipliers,
+// sports/holiday lookups, and median-baseline logic. Compares the replay
+// prediction to the originally-stored prediction, both vs. the actual.
+//
+// CAVEAT: replay uses the actual realized weather from Forecast Data sheet.
+// The original prediction may have used forecasted weather (from the day it
+// was generated). For 1-2-day-ahead predictions the bias is small; for
+// 7-14-day-ahead predictions the replay has a small unfair "perfect weather"
+// advantage. Read directional signal, not absolute lift.
+// ============================================================================
+
+function replayRecentPredictions(daysBack) {
+  if (!daysBack) daysBack = 28;
+  Logger.log('=== Replaying Last ' + daysBack + ' Days With Current Model ===');
+
+  var ss = SpreadsheetApp.openById(MODEL_CONFIG.SPREADSHEET_ID);
+  var modelSheet = ss.getSheetByName(MODEL_CONFIG.MODEL_FORECAST_SHEET);
+  var forecastDataSheet = ss.getSheetByName(MODEL_CONFIG.FORECAST_DATA_SHEET);
+  if (!modelSheet || !forecastDataSheet) { Logger.log('Missing required sheet'); return; }
+
+  var fcData = forecastDataSheet.getDataRange().getValues();
+  var salesByLocDate = {};
+  for (var i = 1; i < fcData.length; i++) {
+    var dateRaw = fcData[i][0];
+    var location = fcData[i][1] ? fcData[i][1].toString().trim() : '';
+    var sales = parseFloat(fcData[i][2]) || 0;
+    var temp = parseFloat(fcData[i][3]) || null;
+    var conditions = fcData[i][4] ? fcData[i][4].toString().trim() : '';
+    if (!dateRaw || !location) continue;
+    var dateKey = normalizeDateForModel(dateRaw);
+    salesByLocDate[location + '|' + dateKey] = { sales: sales, temp: temp, conditions: conditions };
+  }
+
+  var coefficients = loadModelCoefficients(ss);
+  var multipliers = loadHolidayMultipliers(ss);
+  var dowConfidence = loadDOWConfidence(ss);
+  var sportsEvents = (typeof loadSportsEvents === 'function') ? loadSportsEvents(ss) : {};
+  var sportsMultipliers = (typeof loadSportsMultipliers === 'function') ? loadSportsMultipliers(ss) : { location: {}, market: {}, global: {} };
+
+  var data = modelSheet.getDataRange().getValues();
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - daysBack);
+
+  var rows = [];
+  var oldErrors = [], newErrors = [];
+  var byMethodOld = {}, byMethodNew = {};
+  var wins = 0, losses = 0, ties = 0;
+
+  for (var j = 1; j < data.length; j++) {
+    var dateRaw2 = data[j][0];
+    var location2 = data[j][1] ? data[j][1].toString().trim() : '';
+    var oldPredicted = parseFloat(data[j][2]) || 0;
+    var actual = parseFloat(data[j][3]) || 0;
+    var oldMethod = data[j][10] ? data[j][10].toString().trim() : '';
+
+    if (!dateRaw2 || !location2 || oldPredicted <= 0 || actual <= 0) continue;
+    var d = new Date(dateRaw2);
+    if (isNaN(d.getTime())) continue;
+    d.setHours(0, 0, 0, 0);
+    if (d < cutoff || d >= today) continue;
+
+    var replay = buildPredictionForDate(location2, d, salesByLocDate, coefficients, multipliers, dowConfidence, sportsEvents, sportsMultipliers);
+    if (!replay) continue;
+
+    var newPredicted = replay[2];
+    var newMethod = replay[10];
+    if (newPredicted <= 0) continue;
+
+    var oldErr = Math.abs(oldPredicted - actual) / actual;
+    var newErr = Math.abs(newPredicted - actual) / actual;
+    oldErrors.push(oldErr);
+    newErrors.push(newErr);
+
+    if (!byMethodOld[oldMethod]) byMethodOld[oldMethod] = [];
+    byMethodOld[oldMethod].push(oldErr);
+    if (!byMethodNew[newMethod]) byMethodNew[newMethod] = [];
+    byMethodNew[newMethod].push(newErr);
+
+    if (newErr < oldErr - 0.005) wins++;
+    else if (oldErr < newErr - 0.005) losses++;
+    else ties++;
+
+    rows.push([
+      normalizeDateForModel(d),
+      location2,
+      actual,
+      oldPredicted,
+      Math.round((100 - oldErr * 100) * 10) / 10,
+      newPredicted,
+      Math.round((100 - newErr * 100) * 10) / 10,
+      Math.round((oldErr - newErr) * 1000) / 10,
+      oldMethod,
+      newMethod
+    ]);
+  }
+
+  function avg(arr) {
+    if (!arr || arr.length === 0) return null;
+    var s = 0;
+    for (var i = 0; i < arr.length; i++) s += arr[i];
+    return s / arr.length;
+  }
+  function fmt(v) { return v === null ? '--' : (Math.round(v * 1000) / 10); }
+  function accFmt(v) { return v === null ? '--' : (Math.round((100 - v * 100) * 10) / 10); }
+
+  var oldMape = avg(oldErrors);
+  var newMape = avg(newErrors);
+
+  var sheet = ss.getSheetByName('Replay Comparison');
+  if (!sheet) sheet = ss.insertSheet('Replay Comparison');
+  sheet.clear();
+  sheet.getRange(1, 1, 1, 10).setValues([['Date', 'Location', 'Actual', 'Old Predicted', 'Old Acc %', 'New Predicted', 'New Acc %', 'Delta (pp)', 'Old Method', 'New Method']]);
+  sheet.setFrozenRows(1);
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, 10).setValues(rows);
+  }
+
+  var summaryRow = rows.length + 3;
+  sheet.getRange(summaryRow, 1).setValue('SUMMARY').setFontWeight('bold');
+  sheet.getRange(summaryRow + 1, 1, 7, 2).setValues([
+    ['Window (days)', daysBack],
+    ['Rows compared', rows.length],
+    ['Old model MAPE', fmt(oldMape) + '%'],
+    ['New model MAPE', fmt(newMape) + '%'],
+    ['Old model Accuracy', accFmt(oldMape) + '%'],
+    ['New model Accuracy', accFmt(newMape) + '%'],
+    ['Delta', (newMape !== null && oldMape !== null ? Math.round((oldMape - newMape) * 1000) / 10 : '--') + ' pp']
+  ]);
+
+  var winRow = summaryRow + 9;
+  sheet.getRange(winRow, 1).setValue('Row-level wins').setFontWeight('bold');
+  sheet.getRange(winRow + 1, 1, 3, 2).setValues([
+    ['New model wins', wins],
+    ['Old model wins', losses],
+    ['Ties (within 0.5pp)', ties]
+  ]);
+
+  var methodRow = winRow + 5;
+  sheet.getRange(methodRow, 1).setValue('Per-method accuracy').setFontWeight('bold');
+  sheet.getRange(methodRow + 1, 1, 1, 5).setValues([['Method', 'Old N', 'Old Acc %', 'New N (same method)', 'New Acc %']]).setFontWeight('bold');
+  var methodKeys = {};
+  Object.keys(byMethodOld).forEach(function(k) { methodKeys[k] = true; });
+  Object.keys(byMethodNew).forEach(function(k) { methodKeys[k] = true; });
+  var mList = Object.keys(methodKeys).sort();
+  var mRows = [];
+  for (var mk = 0; mk < mList.length; mk++) {
+    var mName = mList[mk];
+    var oldArr = byMethodOld[mName] || [];
+    var newArr = byMethodNew[mName] || [];
+    mRows.push([mName, oldArr.length, accFmt(avg(oldArr)), newArr.length, accFmt(avg(newArr))]);
+  }
+  if (mRows.length > 0) {
+    sheet.getRange(methodRow + 2, 1, mRows.length, 5).setValues(mRows);
+  }
+
+  Logger.log('Old MAPE: ' + fmt(oldMape) + '%, New MAPE: ' + fmt(newMape) + '% (n=' + rows.length + ')');
+  Logger.log('Old Acc: ' + accFmt(oldMape) + '%, New Acc: ' + accFmt(newMape) + '%');
+  Logger.log('Wins: new=' + wins + ', old=' + losses + ', tie=' + ties);
+  Logger.log('=== Replay Complete ===');
+}
+
+
+// ============================================================================
+// CONVENIENCE WRAPPERS
+// ============================================================================
+
+function testAuditCoefficientCoverage() { auditCoefficientCoverage(); }
+function testSummarizeModelAccuracy() { summarizeModelAccuracy(); }
+function testBackfillNoMomentumColumn() { backfillNoMomentumColumn(); }
+function testCompareMomentumImpact() { compareMomentumImpact(); }
+function testLearnDOWFactors() { learnDOWFactors(); }
+function testStabilizationReport() { stabilizationReport(); }
+function testReplayLast7Days() { replayRecentPredictions(7); }
+function testReplayLast28Days() { replayRecentPredictions(28); }
+function testReplayLast90Days() { replayRecentPredictions(90); }

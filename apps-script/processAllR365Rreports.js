@@ -131,7 +131,14 @@ function processAllR365Reports() {
   } catch (e) {
     Logger.log('Warning: Forecast weather update failed: ' + e.toString());
   }
-  
+
+  // Refresh yesterday's R365-derived signals (discounts, voids, labor) for forecast hygiene
+  try {
+    if (typeof refreshYesterdayR365Signals === 'function') refreshYesterdayR365Signals();
+  } catch (e) {
+    Logger.log('Warning: R365 signal refresh failed: ' + e.toString());
+  }
+
   // Generate model forecasts (writes predictions to Model Forecast sheet, fills actuals)
   try {
     generateModelForecasts();

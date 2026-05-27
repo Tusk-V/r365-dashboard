@@ -13,7 +13,7 @@
 // - Auto-clockout = reported hours OVERSTATED (actual hours worked were LESS)
 // - Weekly excess cost only counts hours beyond 5% buffer over optimal
 // - Constructive tone — direct but not harsh. Frame problems as areas to improve.
-// - Hunter's Creek and Claremore are new stores — give grace period on metrics.
+// - Claremore is a new store — give grace period on metrics.
 //
 // SETUP:
 //   1. Add as new script file "RanchersWeeklyDebrief" in your Apps Script project
@@ -46,7 +46,7 @@ var WEEKLY_WATCH_LIST = ['Allen', 'Frisco #3'];
 
 // New stores in ramp-up period — mention context in debrief, don't critique harshly.
 // Remove a store from this list once it's been open ~2 months and is stabilized.
-var WEEKLY_NEW_STORES = ['Hunter\'s Creek', 'Claremore'];
+var WEEKLY_NEW_STORES = ['Claremore'];
 
 var WEEKLY_MARKETS = {
   'Tulsa':   ['Bixby', 'Yale', 'Broken Arrow', 'Owasso', 'Claremore'],

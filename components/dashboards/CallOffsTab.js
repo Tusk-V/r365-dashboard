@@ -1,0 +1,98 @@
+import { AlertCircle } from 'lucide-react';
+
+export default function CallOffsTab({ filteredCallOffs, callOffsLoading, callOffsError, getDataDateRange }) {
+  return (
+    <>
+      {/* Header with date range */}
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-white">Call-Offs</h2>
+            {filteredCallOffs.length > 0 && (
+              <p className="text-sm text-slate-400">
+                Showing data for: {getDataDateRange(filteredCallOffs)}
+              </p>
+            )}
+          </div>
+          <div className="text-right">
+            <span className="text-2xl font-bold text-orange-400">{filteredCallOffs.length}</span>
+            <p className="text-xs text-slate-400">Total</p>
+          </div>
+        </div>
+      </div>
+
+      {callOffsError && (
+        <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+          <strong>Error:</strong> {callOffsError}
+        </div>
+      )}
+
+      {callOffsLoading ? (
+        <div className="flex justify-center items-center py-20">
+          <div className="text-white text-lg">Loading call-offs...</div>
+        </div>
+      ) : filteredCallOffs.length === 0 ? (
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+          <AlertCircle className="mx-auto mb-3 text-green-400" size={48} />
+          <h3 className="text-xl font-bold text-white mb-2">No Call-Offs Found</h3>
+          <p className="text-slate-400">All scheduled employees showed up!</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {(() => {
+            // Group call-offs by date
+            const groupedByDate = filteredCallOffs.reduce((acc, callOff) => {
+              if (!acc[callOff.reportDate]) {
+                acc[callOff.reportDate] = [];
+              }
+              acc[callOff.reportDate].push(callOff);
+              return acc;
+            }, {});
+
+            // Sort dates in descending order (most recent first)
+            const sortedDates = Object.keys(groupedByDate).sort((a, b) => new Date(b) - new Date(a));
+
+            return sortedDates.map((date) => {
+              const callOffs = groupedByDate[date];
+              return (
+                <div key={date} className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
+                  <div className="bg-slate-900 p-3 border-b border-slate-700">
+                    <h3 className="text-lg font-bold text-white">{date}</h3>
+                    <p className="text-xs text-slate-400">{callOffs.length} call-off{callOffs.length !== 1 ? 's' : ''}</p>
+                  </div>
+
+                  {/* Desktop Header */}
+                  <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-3 border-b border-slate-700 bg-slate-800" style={{gridTemplateColumns: '1fr 120px 150px'}}>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
+                    <div className="text-slate-400 text-xs md:text-sm font-semibold">Scheduled Time</div>
+                  </div>
+
+                  <div className="divide-y divide-slate-700">
+                    {callOffs.map((callOff, idx) => (
+                      <div key={idx}>
+                        {/* Desktop Layout */}
+                        <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-3 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '1fr 120px 150px'}}>
+                          <div className="text-white font-medium text-xs md:text-sm">{callOff.employee}</div>
+                          <div className="text-slate-300 text-xs md:text-sm">{callOff.location}</div>
+                          <div className="text-slate-300 text-xs md:text-sm">{callOff.scheduledTime}</div>
+                        </div>
+
+                        {/* Mobile Layout - All on one row */}
+                        <div className="md:hidden p-2 flex items-center justify-between gap-2 text-xs">
+                          <div className="text-white font-medium flex-1">{callOff.employee}</div>
+                          <div className="text-slate-300">{callOff.location}</div>
+                          <div className="text-slate-400">{callOff.scheduledTime}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            });
+          })()}
+        </div>
+      )}
+    </>
+  );
+}

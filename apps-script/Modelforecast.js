@@ -83,16 +83,17 @@ var MODEL_CONFIG = {
     MAX_SINGLE_MOVE: 0.10,
     SIGN_FLIP_MIN_SAMPLES: 30,
     MIN_SAMPLES_FOR_TUNE: 10,
-    MIN_SAMPLES_FOR_RAIN: 5
+    MIN_SAMPLES_FOR_RAIN: 5,
+    OUTLIER_REJECT_THRESHOLD: 0.35
   },
   
   MOMENTUM: {
     WINDOW_DAYS: 7,
-    CAP: 0.08
+    CAP: 0
   },
   
   HOLIDAY_MULTIPLIERS: {
-    MIN_LOCATION_SAMPLES: 2,
+    MIN_LOCATION_SAMPLES: 3,
     BASELINE_WINDOW_DAYS: 28
   },
   
@@ -827,15 +828,18 @@ function generateModelForecasts() {
       'Date', 'Location', 'Predicted Sales', 'Actual Sales', 'Variance',
       'Accuracy %', 'PW Sales Used', 'Weather Adj %', 'Temp Diff',
       'Conditions Change', 'Forecast Method', 'Confidence',
-      'Coefficients Version', 'Generated At', 'Holiday'
+      'Coefficients Version', 'Generated At', 'Holiday', 'Predicted (no mom)'
     ];
     modelSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     modelSheet.setFrozenRows(1);
   }
-  
+
   var headerRow = modelSheet.getRange(1, 1, 1, modelSheet.getLastColumn()).getValues()[0];
   if (headerRow.length < 15 || headerRow[14] !== 'Holiday') {
     modelSheet.getRange(1, 15).setValue('Holiday');
+  }
+  if (headerRow.length < 16 || headerRow[15] !== 'Predicted (no mom)') {
+    modelSheet.getRange(1, 16).setValue('Predicted (no mom)');
   }
   
   var forecastDataSheet = ss.getSheetByName(MODEL_CONFIG.FORECAST_DATA_SHEET);
@@ -861,6 +865,8 @@ function generateModelForecasts() {
   var coefficients = loadModelCoefficients(ss);
   var multipliers = loadHolidayMultipliers(ss);
   var dowConfidence = loadDOWConfidence(ss);
+  var sportsEvents = (typeof loadSportsEvents === 'function') ? loadSportsEvents(ss) : {};
+  var sportsMultipliers = (typeof loadSportsMultipliers === 'function') ? loadSportsMultipliers(ss) : { location: {}, market: {}, global: {} };
   
   var modelData = modelSheet.getDataRange().getValues();
   var today = new Date();
@@ -895,9 +901,24 @@ function generateModelForecasts() {
   
   if (rowsToDelete.length > 0) {
     Logger.log('Removing ' + rowsToDelete.length + ' future predictions for regeneration');
-    rowsToDelete.sort(function(a, b) { return b - a; });
-    for (var d = 0; d < rowsToDelete.length; d++) {
-      modelSheet.deleteRow(rowsToDelete[d]);
+    rowsToDelete.sort(function(a, b) { return a - b; });
+
+    var ranges = [];
+    var rangeStart = rowsToDelete[0];
+    var rangeEnd = rowsToDelete[0];
+    for (var d = 1; d < rowsToDelete.length; d++) {
+      if (rowsToDelete[d] === rangeEnd + 1) {
+        rangeEnd = rowsToDelete[d];
+      } else {
+        ranges.push({ start: rangeStart, count: rangeEnd - rangeStart + 1 });
+        rangeStart = rowsToDelete[d];
+        rangeEnd = rowsToDelete[d];
+      }
+    }
+    ranges.push({ start: rangeStart, count: rangeEnd - rangeStart + 1 });
+
+    for (var r = ranges.length - 1; r >= 0; r--) {
+      modelSheet.deleteRows(ranges[r].start, ranges[r].count);
     }
   }
   
@@ -942,7 +963,7 @@ function generateModelForecasts() {
       var existKey = location + '|' + targetKey;
       if (existingRows[existKey]) continue;
       
-      var prediction = buildPredictionForDate(location, targetDate, salesByLocDate, coefficients, multipliers, dowConfidence);
+      var prediction = buildPredictionForDate(location, targetDate, salesByLocDate, coefficients, multipliers, dowConfidence, sportsEvents, sportsMultipliers);
       if (prediction) newRows.push(prediction);
     }
   }
@@ -960,18 +981,31 @@ function generateModelForecasts() {
 // PREDICTION BUILDER (v6 — uses all 5 features)
 // ============================================================================
 
-function buildPredictionForDate(location, targetDate, salesByLocDate, coefficients, multipliers, dowConfidence) {
+function buildPredictionForDate(location, targetDate, salesByLocDate, coefficients, multipliers, dowConfidence, sportsEvents, sportsMultipliers) {
   var targetKey = normalizeDateForModel(targetDate);
   var market = getMarketForLocation(location);
   var season = getSeasonForDate(targetDate);
   var dow = targetDate.getDay();
-  
+
   var pwDate = new Date(targetDate);
   pwDate.setDate(pwDate.getDate() - 7);
   var pwKey = location + '|' + normalizeDateForModel(pwDate);
   var pwData = salesByLocDate[pwKey];
-  
+
   var holiday = getModelHoliday(targetDate) || '';
+
+  var sportsTeams = (sportsEvents && typeof getSportsTeamsForLocation === 'function')
+    ? getSportsTeamsForLocation(sportsEvents, location, targetDate) : [];
+  var sportsActive = !holiday && sportsTeams.length > 0;
+  var sportsMult = 1.0;
+  if (sportsActive && sportsMultipliers && typeof getSportsMultiplier === 'function') {
+    var mults = [];
+    for (var st = 0; st < sportsTeams.length; st++) {
+      mults.push(getSportsMultiplier(sportsMultipliers, location, sportsTeams[st]));
+    }
+    sportsMult = (typeof combineSportsMultipliers === 'function') ? combineSportsMultipliers(mults) : mults[0];
+    if (sportsMult === 1.0) sportsActive = false;
+  }
   var generatedAt = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'M/d/yyyy HH:mm');
   
   var versionLabel = '';
@@ -989,20 +1023,23 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
     
     var outlierThreshold = getCoefficient(coefficients, market, season, 'outlier_threshold');
     var outlierWeight = getCoefficient(coefficients, market, season, 'outlier_pw_weight');
-    var avgSum = 0, avgCount = 0;
-    for (var w = 1; w <= 4; w++) {
+    var avgSamples = [];
+    for (var w = 1; w <= 8; w++) {
       var pastDate = new Date(targetDate);
       pastDate.setDate(pastDate.getDate() - (7 * w));
+      if (getModelHoliday(pastDate)) continue;
       var pastKey = location + '|' + normalizeDateForModel(pastDate);
       var pastData = salesByLocDate[pastKey];
       if (pastData && pastData.sales > 0) {
-        avgSum += pastData.sales;
-        avgCount++;
+        avgSamples.push(pastData.sales);
       }
     }
-    
+
+    var avgCount = avgSamples.length;
+    var avg = 0;
     if (avgCount >= 2) {
-      var avg = avgSum / avgCount;
+      var sorted = avgSamples.slice().sort(function(a, b) { return a - b; });
+      avg = sorted[Math.floor(sorted.length / 2)];
       var deviation = Math.abs(pwSales - avg) / avg;
       if (deviation > outlierThreshold) {
         pwSales = pwSales * outlierWeight + avg * (1 - outlierWeight);
@@ -1047,8 +1084,7 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
       var hMult = getHolidayMultiplier(multipliers, location, holiday);
       if (hMult !== 1.0) {
         if (avgCount >= 2) {
-          var holidayBase = avgSum / avgCount;
-          predicted = holidayBase * hMult;
+          predicted = avg * hMult;
           method = 'holiday';
         } else {
           predicted = predicted * hMult;
@@ -1057,40 +1093,51 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
       }
     }
     
-    if (!holiday) {
+    if (sportsActive && sportsMult !== 1.0) {
+      predicted = predicted * sportsMult;
+      if (method === 'pw') method = 'pw+sports';
+      else if (method === 'blend') method = 'blend+sports';
+    }
+
+    var predictedNoMom = predicted;
+
+    if (!holiday && !sportsActive) {
       var momentum = computeMomentum(location, targetDate, salesByLocDate);
       if (momentum !== 0) {
-        predicted = predicted * (1 + momentum);
+        var combinedAdj = Math.max(-0.30, Math.min(0.30, weatherAdj + momentum));
+        predicted = pwSales * (1 + combinedAdj);
         if (method === 'pw') method = 'pw+mom';
         else if (method === 'blend') method = 'blend+mom';
       }
     }
-    
+
     predicted = Math.round(predicted);
+    predictedNoMom = Math.round(predictedNoMom);
     var weatherAdjPct = Math.round(weatherAdj * 100);
-    
+
     return [
       targetKey, location, predicted, '', '', '',
       Math.round(pwSales), weatherAdjPct, tempDiff,
       condChange, method, dowConf,
-      versionLabel, generatedAt, holiday
+      versionLabel, generatedAt, holiday, predictedNoMom
     ];
   }
   
-  var avgSumF = 0, avgCountF = 0;
-  for (var w2 = 1; w2 <= 4; w2++) {
+  var avgSamplesF = [];
+  for (var w2 = 1; w2 <= 8; w2++) {
     var pastDateF = new Date(targetDate);
     pastDateF.setDate(pastDateF.getDate() - (7 * w2));
+    if (getModelHoliday(pastDateF)) continue;
     var pastKeyF = location + '|' + normalizeDateForModel(pastDateF);
     var pastDataF = salesByLocDate[pastKeyF];
     if (pastDataF && pastDataF.sales > 0) {
-      avgSumF += pastDataF.sales;
-      avgCountF++;
+      avgSamplesF.push(pastDataF.sales);
     }
   }
-  
-  if (avgCountF > 0) {
-    var avgSales = avgSumF / avgCountF;
+
+  if (avgSamplesF.length > 0) {
+    var sortedF = avgSamplesF.slice().sort(function(a, b) { return a - b; });
+    var avgSales = sortedF[Math.floor(sortedF.length / 2)];
     var targetDataAvg = salesByLocDate[location + '|' + targetKey];
     var weatherAdjAvg = 0;
     var tempDiffAvg = null;
@@ -1116,21 +1163,24 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
         predictedAvg = avgSales * hMultAvg;
         methodAvg = 'holiday';
       }
+    } else if (sportsActive && sportsMult !== 1.0) {
+      predictedAvg = predictedAvg * sportsMult;
+      methodAvg = 'avg+sports';
     }
-    
+
     return [
       targetKey, location, Math.round(predictedAvg), '', '', '',
       Math.round(avgSales), Math.round(weatherAdjAvg * 100), tempDiffAvg,
       '', methodAvg, 'low',
-      versionLabel, generatedAt, holiday
+      versionLabel, generatedAt, holiday, Math.round(predictedAvg)
     ];
   }
-  
+
   return [
     targetKey, location, 0, '', '', '',
     0, 0, null,
     '', 'insufficient', 'low',
-    versionLabel, generatedAt, holiday
+    versionLabel, generatedAt, holiday, 0
   ];
 }
 
@@ -1176,6 +1226,8 @@ function backfillMissingPredictions() {
   var coefficients = loadModelCoefficients(ss);
   var multipliers = loadHolidayMultipliers(ss);
   var dowConfidence = loadDOWConfidence(ss);
+  var sportsEvents = (typeof loadSportsEvents === 'function') ? loadSportsEvents(ss) : {};
+  var sportsMultipliers = (typeof loadSportsMultipliers === 'function') ? loadSportsMultipliers(ss) : { location: {}, market: {}, global: {} };
   
   var today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -1192,7 +1244,7 @@ function backfillMissingPredictions() {
       var existKey = location + '|' + cursorKey;
       if (existing[existKey]) continue;
       
-      var prediction = buildPredictionForDate(location, cursor, salesByLocDate, coefficients, multipliers, dowConfidence);
+      var prediction = buildPredictionForDate(location, cursor, salesByLocDate, coefficients, multipliers, dowConfidence, sportsEvents, sportsMultipliers);
       if (!prediction) continue;
       
       prediction[10] = 'backfill';
@@ -1239,13 +1291,17 @@ function tuneCoefficients() {
   if (!modelSheet) { Logger.log('No Model Forecast sheet.'); return; }
   
   var coefficients = loadModelCoefficients(ss);
+  var sportsEvents = (typeof loadSportsEvents === 'function') ? loadSportsEvents(ss) : {};
+  var r365Signals = (typeof loadR365Signals === 'function') ? loadR365Signals(ss) : { byKey: {}, medianHours: {} };
   var data = modelSheet.getDataRange().getValues();
   if (data.length < 2) { Logger.log('No data yet.'); return; }
-  
+
   var bucketErrors = {};
   var rainErrors = {};
-  var totalRows = 0, usableRows = 0, holidaySkipped = 0, backfillSkipped = 0;
-  
+  var totalRows = 0, usableRows = 0, holidaySkipped = 0, backfillSkipped = 0, outlierSkipped = 0, sportsSkipped = 0;
+  var promoSkipped = 0, capacitySkipped = 0, voidSkipped = 0;
+  var outlierThresh = MODEL_CONFIG.TUNING.OUTLIER_REJECT_THRESHOLD;
+
   for (var i = 1; i < data.length; i++) {
     var predicted = parseFloat(data[i][2]) || 0;
     var actual = parseFloat(data[i][3]) || 0;
@@ -1254,19 +1310,40 @@ function tuneCoefficients() {
     var holidayFlag = (data[i].length > 14 && data[i][14]) ? data[i][14].toString().trim() : '';
     var method = data[i][10] ? data[i][10].toString().trim() : '';
     var location = data[i][1] ? data[i][1].toString().trim() : '';
-    
+
     if (!predicted || !actual || predicted <= 0 || actual <= 0) continue;
     totalRows++;
-    
+
     if (method === 'backfill' || method === 'insufficient') { backfillSkipped++; continue; }
-    
+
     var rowDate = new Date(data[i][0]);
     if (holidayFlag || isHolidayAdjacent(rowDate) || getSpringBreakLabel(rowDate)) {
       holidaySkipped++; continue;
     }
-    
+
     if (method.indexOf('holiday') >= 0) continue;
-    
+
+    if (method.indexOf('sports') >= 0) { sportsSkipped++; continue; }
+    var rowSportsTeams = (typeof getSportsTeamsForLocation === 'function')
+      ? getSportsTeamsForLocation(sportsEvents, location, rowDate) : [];
+    if (rowSportsTeams.length > 0) { sportsSkipped++; continue; }
+
+    if (r365Signals && r365Signals.byKey && typeof isAbnormalDay === 'function') {
+      var sigKey = location + '|' + normalizeDateForModel(rowDate);
+      var sig = r365Signals.byKey[sigKey];
+      if (sig) {
+        var medHours = r365Signals.medianHours[location];
+        var reason = isAbnormalDay(sig, medHours);
+        if (reason === 'promo') { promoSkipped++; continue; }
+        if (reason === 'capacity') { capacitySkipped++; continue; }
+        if (reason === 'voids') { voidSkipped++; continue; }
+      }
+    }
+
+    if (Math.abs(actual - predicted) / actual > outlierThresh) {
+      outlierSkipped++; continue;
+    }
+
     usableRows++;
     
     if (tempDiff === '' || tempDiff === null || tempDiff === undefined) continue;
@@ -1294,7 +1371,7 @@ function tuneCoefficients() {
     }
   }
   
-  Logger.log('Rows with actuals: ' + totalRows + ', usable: ' + usableRows + ', holiday-skipped: ' + holidaySkipped + ', backfill-skipped: ' + backfillSkipped);
+  Logger.log('Rows with actuals: ' + totalRows + ', usable: ' + usableRows + ', holiday-skipped: ' + holidaySkipped + ', sports-skipped: ' + sportsSkipped + ', promo-skipped: ' + promoSkipped + ', capacity-skipped: ' + capacitySkipped + ', void-skipped: ' + voidSkipped + ', backfill-skipped: ' + backfillSkipped + ', outlier-skipped: ' + outlierSkipped);
   
   var maxMove = MODEL_CONFIG.TUNING.MAX_SINGLE_MOVE;
   var minSamples = MODEL_CONFIG.TUNING.MIN_SAMPLES_FOR_TUNE;
