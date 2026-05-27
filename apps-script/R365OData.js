@@ -14,7 +14,12 @@
 // ============================================================================
 
 var R365 = (function() {
-  var DEFAULT_BASE = 'https://andys.restaurant365.com/api/ExternalApi';
+  // Official R365 OData base URL per
+  // https://docs.restaurant365.com/docs/restaurant365-odata-connector
+  // Auth format: <tenant>\<username> (so andys\claude).
+  // Available entities include: SalesDetail, SalesEmployee, SalesPayment,
+  // LaborDetail, PayrollSummary, Location, Company, Employee, Item, GLAccount.
+  var DEFAULT_BASE = 'https://odata.restaurant365.net/api/v2/views';
 
   function getProps() {
     var p = PropertiesService.getScriptProperties();
@@ -116,18 +121,15 @@ function testODataConnection() {
     return;
   }
 
-  // Try yesterday's SalesDetail. Adjust if R365 uses a different entity name —
-  // we'll log the error verbatim so you can see what R365 returned.
-  var yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  yesterday.setHours(0, 0, 0, 0);
-  Logger.log('Fetching SalesDetail for: ' + yesterday.toDateString());
-
+  // Start with the simplest possible call: a few rows of Location to confirm
+  // connectivity + auth + entity-name correctness. Once this works we can
+  // explore SalesDetail's actual field names (date field, location field, etc.).
+  Logger.log('Probing Location with $top=3 ...');
   try {
-    var data = R365.fetchSalesDetailForDay(yesterday);
-    var rows = data.value || data.d?.results || data;
+    var data = R365.fetchEntity('Location', '$top=3');
+    var rows = data.value || (data.d && data.d.results) || data;
     var count = Array.isArray(rows) ? rows.length : 'unknown';
-    Logger.log('SUCCESS — received ' + count + ' rows');
+    Logger.log('SUCCESS — received ' + count + ' row(s) from Location');
     if (Array.isArray(rows) && rows.length > 0) {
       Logger.log('First row keys: ' + Object.keys(rows[0]).join(', '));
       Logger.log('First row sample: ' + JSON.stringify(rows[0]).slice(0, 500));
@@ -136,11 +138,30 @@ function testODataConnection() {
     }
   } catch (e) {
     Logger.log('FAILED: ' + e.toString());
-    Logger.log('Common causes:');
-    Logger.log('  - Wrong entity name (try fetchEntity("Locations") via custom function to probe)');
-    Logger.log('  - Backslash in ODATA_USERNAME not escaped (Script Properties stores "andys\\claude" as "andys\\claude" — that is correct)');
-    Logger.log('  - Subdomain different from andys.restaurant365.com — set ODATA_BASE_URL to override');
+    Logger.log('Diagnostics:');
+    Logger.log('  - Username format must be tenant\\user (e.g. "andys\\claude")');
+    Logger.log('  - User must have role "Accounting Clerk" or "Full Access" in R365');
+    Logger.log('  - Override ODATA_BASE_URL via Script Property if your tenant uses a non-standard endpoint');
+    return;
   }
+
+  // Once Location works, peek at SalesDetail with no filter ($top=1) to see
+  // its column names — informs the date/location filter syntax for Phase 2.
+  Logger.log('---');
+  Logger.log('Probing SalesDetail with $top=1 ...');
+  try {
+    var sd = R365.fetchEntity('SalesDetail', '$top=1');
+    var sdRows = sd.value || (sd.d && sd.d.results) || sd;
+    if (Array.isArray(sdRows) && sdRows.length > 0) {
+      Logger.log('SalesDetail keys: ' + Object.keys(sdRows[0]).join(', '));
+      Logger.log('Sample: ' + JSON.stringify(sdRows[0]).slice(0, 500));
+    } else {
+      Logger.log('SalesDetail returned no rows (no recent sales?): ' + JSON.stringify(sd).slice(0, 400));
+    }
+  } catch (e) {
+    Logger.log('SalesDetail probe failed: ' + e.toString());
+  }
+
   Logger.log('=== test complete ===');
 }
 
