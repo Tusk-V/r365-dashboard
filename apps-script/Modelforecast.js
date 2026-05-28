@@ -1084,7 +1084,10 @@ function buildPredictionForDate(location, targetDate, salesByLocDate, coefficien
       var hMult = getHolidayMultiplier(multipliers, location, holiday);
       if (hMult !== 1.0) {
         if (avgCount >= 2) {
-          predicted = avg * hMult;
+          // Blend PW with 8-week median so a strong PW signal isn't fully
+          // discarded. Replay showed pure avg-based holiday method ran 2.5pp
+          // behind the pw baseline.
+          predicted = ((pwSales + avg) / 2) * hMult;
           method = 'holiday';
         } else {
           predicted = predicted * hMult;
