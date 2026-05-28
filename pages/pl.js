@@ -3,6 +3,7 @@ import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { ChevronDown, ChevronRight, RefreshCw, Upload, Printer } from 'lucide-react';
+import DashboardSelect from '../components/shared/DashboardSelect';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -1019,32 +1020,11 @@ export default function PLDashboard() {
               
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
-                <select
+                <DashboardSelect
                   value="pl"
-                  onChange={(e) => {
-                    if (e.target.value === 'bonus') {
-                      router.push('/bonus');
-                    } else if (e.target.value !== 'pl') {
-                      router.push('/');
-                      if (typeof window !== 'undefined') {
-                        sessionStorage.setItem('pendingTab', e.target.value);
-                      }
-                    }
-                  }}
                   className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                >
-                  <option value="sales">Weekly Sales & Labor</option>
-                  <option value="daily-sales">Daily Sales</option>
-                  <option value="daily-labor">Daily Labor</option>
-                  <option value="clockouts">Auto-Clockouts</option>
-                  <option value="call-offs">Call-Offs</option>
-                  <option value="overtime">OT Warnings</option>
-                  <option value="logbook">Logbook</option>
-                  <option value="scheduled-today">Scheduled Today</option>
-                  <option value="pl">Profit & Loss</option>
-                  <option value="bonus">Quarterly Bonus</option>
-                </select>
-                
+                />
+
                 <button
                   onClick={handleRefresh}
                   className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
@@ -1106,31 +1086,10 @@ export default function PLDashboard() {
                 </div>
               </div>
               
-              <select
+              <DashboardSelect
                 value="pl"
-                onChange={(e) => {
-                  if (e.target.value === 'bonus') {
-                    router.push('/bonus');
-                  } else if (e.target.value !== 'pl') {
-                    router.push('/');
-                    if (typeof window !== 'undefined') {
-                      sessionStorage.setItem('pendingTab', e.target.value);
-                    }
-                  }
-                }}
                 className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-              >
-                <option value="sales">Weekly Sales & Labor</option>
-                <option value="daily-sales">Daily Sales</option>
-                <option value="daily-labor">Daily Labor</option>
-                <option value="clockouts">Auto-Clockouts</option>
-                <option value="call-offs">Call-Offs</option>
-                <option value="overtime">OT Warnings</option>
-                <option value="logbook">Logbook</option>
-                <option value="scheduled-today">Scheduled Today</option>
-                <option value="pl">Profit & Loss</option>
-                <option value="bonus">Quarterly Bonus</option>
-              </select>
+              />
             </div>
           </div>
 

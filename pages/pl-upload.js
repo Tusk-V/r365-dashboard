@@ -3,6 +3,7 @@ import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { Upload, Trash2, CheckCircle, XCircle, FileSpreadsheet, RefreshCw, Users } from 'lucide-react';
+import DashboardSelect from '../components/shared/DashboardSelect';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -185,30 +186,10 @@ export default function PLUpload() {
               
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
-                <select
+                <DashboardSelect
                   value="pl"
-                  onChange={(e) => {
-                    if (e.target.value === 'pl') {
-                      router.push('/pl');
-                    } else {
-                      router.push('/');
-                      if (typeof window !== 'undefined') {
-                        sessionStorage.setItem('pendingTab', e.target.value);
-                      }
-                    }
-                  }}
                   className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                >
-                  <option value="sales">Weekly Sales & Labor</option>
-                  <option value="daily-sales">Daily Sales</option>
-                  <option value="daily-labor">Daily Labor</option>
-                  <option value="clockouts">Auto-Clockouts</option>
-                  <option value="call-offs">Call-Offs</option>
-                  <option value="overtime">OT Warnings</option>
-                  <option value="logbook">Logbook</option>
-                  <option value="scheduled-today">Scheduled Today</option>
-                  <option value="pl">Profit & Loss</option>
-                </select>
+                />
                 
                 <button
                   onClick={loadExistingData}
@@ -259,27 +240,10 @@ export default function PLUpload() {
             </div>
 
             <div className="md:hidden flex items-center gap-2">
-              <select
+              <DashboardSelect
                 value="pl"
-                onChange={(e) => {
-                  if (e.target.value === 'pl') {
-                    router.push('/pl');
-                  } else {
-                    router.push('/');
-                  }
-                }}
                 className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white"
-              >
-                <option value="sales">Weekly Sales & Labor</option>
-                <option value="daily-sales">Daily Sales</option>
-                <option value="daily-labor">Daily Labor</option>
-                <option value="clockouts">Auto-Clockouts</option>
-                <option value="call-offs">Call-Offs</option>
-                <option value="overtime">OT Warnings</option>
-                <option value="logbook">Logbook</option>
-                <option value="scheduled-today">Scheduled Today</option>
-                <option value="pl">Profit & Loss</option>
-              </select>
+              />
               
               <button
                 onClick={loadExistingData}
