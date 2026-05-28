@@ -20,9 +20,10 @@ export default async function handler(req, res) {
     try {
       // Admin always has full access
       if (isAdmin) {
-        return res.status(200).json({ 
+        return res.status(200).json({
           dashboardAccess: { type: 'all', locations: [] },
           plAccess: { type: 'all', locations: [] },
+          bonusAccess: { type: 'all', locations: [] },
           role: 'Admin',
           isAdmin: true
         });
@@ -32,17 +33,19 @@ export default async function handler(req, res) {
       const user = await db.collection('users').findOne({ email: userEmail });
 
       if (!user) {
-        return res.status(200).json({ 
+        return res.status(200).json({
           dashboardAccess: { type: 'none', locations: [] },
           plAccess: { type: 'none', locations: [] },
+          bonusAccess: { type: 'none', locations: [] },
           role: 'User',
           isAdmin: false
         });
       }
 
-      return res.status(200).json({ 
+      return res.status(200).json({
         dashboardAccess: user.dashboardAccess || { type: 'none', locations: [] },
         plAccess: user.plAccess || { type: 'none', locations: [] },
+        bonusAccess: user.bonusAccess || { type: 'none', locations: [] },
         role: user.role || 'User',
         isAdmin: false
       });

@@ -14,6 +14,7 @@ import { getDailyLaborGrade } from '../lib/laborGrade';
 import { adjustTimeForTimezone, adjustSingleTime } from '../lib/timezone';
 import { getWeekMonday, getWeatherEmoji, computeForecastForLocation } from '../lib/forecast';
 import TitleBadge from '../components/shared/TitleBadge';
+import DashboardSelect from '../components/shared/DashboardSelect';
 import ClockoutModal from '../components/modals/ClockoutModal';
 import CallOffModal from '../components/modals/CallOffModal';
 import OvertimeTab from '../components/dashboards/OvertimeTab';
@@ -1378,7 +1379,7 @@ className="h-16"
 
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
-            <select
+            <DashboardSelect
               value={activeTab}
               onChange={(e) => {
                 if (e.target.value === 'pl') {
@@ -1390,20 +1391,7 @@ className="h-16"
                 }
               }}
               className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-            >
-              <option value="sales">Weekly Sales & Labor</option>
-              <option value="daily-sales">Daily Sales</option>
-              <option value="daily-labor">Daily Labor</option>
-              <option value="clockouts">Auto-Clockouts</option>
-              <option value="call-offs">Call-Offs</option>
-              <option value="overtime">OT Warnings</option>
-              <option value="logbook">Logbook</option>
-              <option value="paid-outs">Paid Outs</option>
-              <option value="scheduled-today">Scheduled Today</option>
-              <option value="forecast">Forecasting</option>
-              <option value="pl">Profit & Loss</option>
-              <option value="bonus">Quarterly Bonus</option>
-            </select>
+            />
             
             <button
               onClick={() => {
@@ -1496,7 +1484,7 @@ loadModelCoefficients();
         </div>
 
         <div className="md:hidden flex items-center gap-2">
-          <select
+          <DashboardSelect
             value={activeTab}
             onChange={(e) => {
               if (e.target.value === 'pl') {
@@ -1508,20 +1496,7 @@ loadModelCoefficients();
               }
             }}
             className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-          >
-            <option value="sales">Weekly Sales & Labor</option>
-            <option value="daily-sales">Daily Sales</option>
-            <option value="daily-labor">Daily Labor</option>
-            <option value="clockouts">Auto-Clockouts</option>
-            <option value="call-offs">Call-Offs</option>
-            <option value="overtime">OT Warnings</option>
-            <option value="logbook">Logbook</option>
-            <option value="paid-outs">Paid Outs</option>
-            <option value="scheduled-today">Scheduled Today</option>
-            <option value="forecast">Forecasting</option>
-            <option value="pl">Profit & Loss</option>
-            <option value="bonus">Quarterly Bonus</option>
-          </select>
+          />
           
           <button
             onClick={() => {
