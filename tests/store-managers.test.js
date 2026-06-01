@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { isAuthorized, extractManagers, isStoreMailbox, invertToLocationMap } = require('../lib/storeManagers');
+const { isAuthorized, extractManagers, isStoreMailbox, invertToLocationMap, managersToRoster, rosterToManagers, validateRecipients } = require('../lib/storeManagers');
 
 test('isAuthorized: correct bearer token passes', () => {
   assert.equal(isAuthorized('Bearer secret123', 'secret123'), true);
@@ -71,4 +71,66 @@ test('invertToLocationMap handles empty / malformed input', () => {
   assert.deepEqual(invertToLocationMap(undefined), []);
   assert.deepEqual(invertToLocationMap([]), []);
   assert.deepEqual(invertToLocationMap([{ name: 'X' }]), []); // no email/locations
+});
+
+test('managersToRoster groups managers into per-location recipients (seed shape)', () => {
+  const managers = [
+    { name: 'Ashley', email: 'ashley@r.com', locations: ['Bixby'] },
+    { name: 'Chris', email: 'chris@r.com', locations: ['Bixby', 'Owasso'] },
+  ];
+  assert.deepEqual(managersToRoster(managers), [
+    { location: 'Bixby', recipients: [{ email: 'ashley@r.com', name: 'Ashley' }, { email: 'chris@r.com', name: 'Chris' }] },
+    { location: 'Owasso', recipients: [{ email: 'chris@r.com', name: 'Chris' }] },
+  ]);
+  assert.deepEqual(managersToRoster(null), []);
+});
+
+test('rosterToManagers inverts roster docs to managers grouped by email', () => {
+  const docs = [
+    { location: 'Bixby', recipients: [{ email: 'ashley@r.com', name: 'Ashley' }, { email: 'chris@r.com', name: 'Chris' }] },
+    { location: 'Owasso', recipients: [{ email: 'chris@r.com', name: 'Chris' }] },
+  ];
+  assert.deepEqual(rosterToManagers(docs), [
+    { name: 'Ashley', email: 'ashley@r.com', locations: ['Bixby'] },
+    { name: 'Chris', email: 'chris@r.com', locations: ['Bixby', 'Owasso'] },
+  ]);
+  assert.deepEqual(rosterToManagers(undefined), []);
+});
+
+test('rosterToManagers skips malformed docs and recipients', () => {
+  const docs = [
+    { location: 'Bixby', recipients: [{ email: 'a@r.com', name: '' }, { name: 'no email' }] },
+    { location: 'NoArray' },
+  ];
+  assert.deepEqual(rosterToManagers(docs), [
+    { name: '', email: 'a@r.com', locations: ['Bixby'] },
+  ]);
+});
+
+test('validateRecipients returns emails not in the known set', () => {
+  const input = [
+    { location: 'Bixby', recipients: [{ email: 'known@r.com' }, { email: 'ghost@r.com' }] },
+    { location: 'Owasso', recipients: [{ name: 'missing email' }] },
+  ];
+  assert.deepEqual(validateRecipients(input, ['known@r.com']), ['ghost@r.com', '(missing email)']);
+  assert.deepEqual(validateRecipients([], ['known@r.com']), []);
+});
+
+test('managersToRoster dedupes a repeated email within a location', () => {
+  const managers = [
+    { name: 'Chris', email: 'chris@r.com', locations: ['Bixby'] },
+    { name: 'Chris Dup', email: 'chris@r.com', locations: ['Bixby'] },
+  ];
+  assert.deepEqual(managersToRoster(managers), [
+    { location: 'Bixby', recipients: [{ email: 'chris@r.com', name: 'Chris' }] },
+  ]);
+});
+
+test('validateRecipients dedupes and tolerates non-array input', () => {
+  const input = [
+    { location: 'Bixby', recipients: [{ email: 'ghost@r.com' }] },
+    { location: 'Owasso', recipients: [{ email: 'ghost@r.com' }] },
+  ];
+  assert.deepEqual(validateRecipients(input, ['known@r.com']), ['ghost@r.com']);
+  assert.deepEqual(validateRecipients(null, ['known@r.com']), []);
 });
