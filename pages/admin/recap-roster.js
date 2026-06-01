@@ -13,6 +13,7 @@ export default function RecapRoster() {
   const [recipientCount, setRecipientCount] = useState(0);
   const [locationCount, setLocationCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -26,16 +27,21 @@ export default function RecapRoster() {
 
   const loadRoster = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch('/api/admin/recap-roster');
       const data = await res.json();
       if (res.ok) {
+        setError(null);
         setLocations(data.locations || []);
         setRecipientCount(data.recipientCount || 0);
         setLocationCount(data.locationCount || 0);
+      } else {
+        setError(data?.error || 'Failed to load roster.');
       }
     } catch (err) {
       console.error('Error loading recap roster:', err);
+      setError('Failed to load roster.');
     } finally {
       setLoading(false);
     }
@@ -109,6 +115,7 @@ export default function RecapRoster() {
                   onClick={loadRoster}
                   className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
                   title="Refresh"
+                  aria-label="Refresh"
                 >
                   <RefreshCw size={16} className="text-white" />
                 </button>
@@ -133,6 +140,7 @@ export default function RecapRoster() {
                   <button
                     onClick={loadRoster}
                     className="p-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                    aria-label="Refresh"
                   >
                     <RefreshCw size={14} className="text-white" />
                   </button>
@@ -170,6 +178,13 @@ export default function RecapRoster() {
             {locationCount} location{locationCount !== 1 ? 's' : ''} &middot; {recipientCount} recipient{recipientCount !== 1 ? 's' : ''}
           </div>
 
+          {/* Error banner */}
+          {error && (
+            <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-3 mb-3 text-sm text-red-300">
+              {error}
+            </div>
+          )}
+
           {/* Roster list */}
           <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-700 bg-slate-700/50">
@@ -178,7 +193,7 @@ export default function RecapRoster() {
               </span>
             </div>
 
-            {locations.length === 0 ? (
+            {locations.length === 0 && !error ? (
               <div className="p-8 text-center text-slate-400">
                 No managers assigned yet.
               </div>
