@@ -162,9 +162,12 @@ function buildLocationRecipientMap(managers, locationNames) {
 // True only when a store warrants an exception email: under forecast by more
 // than forecastMissPct, actual hours at least overSchedPct above scheduled, no
 // auto-clockouts that day, and not a ramp-up store.
+// NOTE: This is an intentionally STRICTER, separate gate from the debrief's
+// loc.missedFcAndOverSch flag (which uses 2%-of-sales and >2% hours). Do not
+// assume the two describe the same set of stores.
 function qualifiesForRecap(loc, autoClockouts, forecastMissPct, overSchedPct) {
   if (!loc || loc.isNewStore) return false;
-  if (autoClockouts && autoClockouts > 0) return false;
+  if (autoClockouts > 0) return false;
   if (loc.schHrs == null || loc.schHrs <= 0 || loc.actHrs == null) return false;
   if (loc.forecastVariance == null || loc.sales == null) return false;
   var forecast = loc.sales - loc.forecastVariance;

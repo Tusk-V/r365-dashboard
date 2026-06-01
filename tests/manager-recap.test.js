@@ -142,3 +142,15 @@ test('qualifiesForRecap: missing labor data does not qualify', () => {
   const loc = { sales: 950, forecastVariance: -50, schHrs: null, actHrs: null, isNewStore: false };
   assert.equal(m.qualifiesForRecap(loc, 0, 0.03, 0.05), false);
 });
+
+test('qualifiesForRecap: exactly 5% over scheduled qualifies (miss >3%)', () => {
+  // forecast 1000, sales 950 (-5% miss); scheduled 100, actual 105 (exactly +5%)
+  const loc = { sales: 950, forecastVariance: -50, schHrs: 100, actHrs: 105, isNewStore: false };
+  assert.equal(m.qualifiesForRecap(loc, 0, 0.03, 0.05), true);
+});
+
+test('qualifiesForRecap: exactly 3% under forecast does NOT qualify', () => {
+  // forecast 1000, sales 970 (exactly -3%); scheduled 100, actual 110 (+10%)
+  const loc = { sales: 970, forecastVariance: -30, schHrs: 100, actHrs: 110, isNewStore: false };
+  assert.equal(m.qualifiesForRecap(loc, 0, 0.03, 0.05), false);
+});
