@@ -301,35 +301,44 @@ function createManagerRecapDrafts() {
     var groups = buildRecipientGroups(roster, locations);
     if (groups.length === 0) { Logger.log('No recipients have data — nothing to draft.'); return; }
 
+    var clockoutCounts = getClockoutCounts(ss, yesterday);
     var ccStr = parseRecapCcList(
       PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC')
     ).join(',');
 
+    var drafted = 0;
     groups.forEach(function(g) {
-      var facts  = g.stores.map(buildManagerStoreFacts);
+      var qualifying = g.stores.filter(function(loc) {
+        return qualifiesForRecap(loc, clockoutCounts[loc.location] || 0,
+          RECAP_CONFIG.FORECAST_MISS_PCT, RECAP_CONFIG.OVER_SCHEDULED_PCT);
+      });
+      if (qualifying.length === 0) return;
+
+      var facts  = qualifying.map(buildManagerStoreFacts);
       var body   = writeManagerNarrative(g.firstName, facts);
       var html   = buildManagerRecapHtml(body, yesterday);
       var status = 'Drafted';
       try {
         var opts = { htmlBody: html };
         if (ccStr) opts.cc = ccStr;
-        GmailApp.createDraft(g.email, 'Quick recap — ' + fmtDisplayDate(yesterday), '', opts);
+        GmailApp.createDraft(g.email, 'Yesterday — labor over schedule', '', opts);
       } catch (e) {
         status = 'Failed: ' + e.toString();
         Logger.log('Draft failed for ' + g.email + ': ' + e.toString());
       }
+      drafted++;
       logManagerRecap(ss, {
         date:   yesterday,
         name:   g.name,
         email:  g.email,
-        stores: g.stores.map(function(s) { return s.location; }).join(', '),
+        stores: qualifying.map(function(s) { return s.location; }).join(', '),
         cc:     ccStr,
         status: status,
         body:   body
       });
     });
 
-    Logger.log('Manager recap drafts created: ' + groups.length + ' recipient(s).');
+    Logger.log('Manager recap drafts created: ' + drafted + ' of ' + groups.length + ' recipient(s) had a flagged store.');
   } catch (e) {
     Logger.log('Error in createManagerRecapDrafts: ' + e.toString());
   }
@@ -362,34 +371,41 @@ function testManagerRecaps() {
     if (!roster) { Logger.log('Roster fetch failed.'); return; }
 
     var groups = buildRecipientGroups(roster, locations);
-    Logger.log('Preview drafts: ' + groups.length);
-
+    var clockoutCounts = getClockoutCounts(ss, yesterday);
     var ccStr = parseRecapCcList(
       PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC')
     ).join(',');
 
+    var previewed = 0;
     groups.forEach(function(g) {
-      var facts = g.stores.map(buildManagerStoreFacts);
+      var qualifying = g.stores.filter(function(loc) {
+        return qualifiesForRecap(loc, clockoutCounts[loc.location] || 0,
+          RECAP_CONFIG.FORECAST_MISS_PCT, RECAP_CONFIG.OVER_SCHEDULED_PCT);
+      });
+      if (qualifying.length === 0) return;
+
+      var facts = qualifying.map(buildManagerStoreFacts);
       var body  = writeManagerNarrative(g.firstName, facts);
       var html  = buildManagerRecapHtml(body, yesterday);
       GmailApp.createDraft(
         'dalton@rancherscustard.com',
-        '[TEST -> ' + g.email + '] Quick recap — ' + fmtDisplayDate(yesterday),
+        '[TEST -> ' + g.email + '] Yesterday — labor over schedule',
         '',
         { htmlBody: html }
       );
+      previewed++;
       logManagerRecap(ss, {
         date:   yesterday,
         name:   g.name,
         email:  g.email,
-        stores: g.stores.map(function(s) { return s.location; }).join(', '),
+        stores: qualifying.map(function(s) { return s.location; }).join(', '),
         cc:     ccStr,
         status: 'Preview',
         body:   body
       });
     });
 
-    Logger.log('Preview drafts created in dalton\'s account.');
+    Logger.log('Preview drafts created: ' + previewed + ' recipient(s) with a flagged store.');
   } catch (e) {
     Logger.log('Error in testManagerRecaps: ' + e.toString());
   }
