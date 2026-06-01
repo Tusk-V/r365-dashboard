@@ -215,21 +215,20 @@ function writeManagerNarrative(firstName, storeFactsList) {
 }
 
 function managerFallback(firstName, storeFactsList) {
-  var parts = ['Good morning ' + firstName + ',', ''];
+  var greeting = 'Good morning' + (firstName ? ' ' + firstName : '') + ',';
+  var parts = [greeting, ''];
   storeFactsList.forEach(function(s) {
     var bits = [];
-    if (s.sales)          bits.push('came in at ' + s.sales);
+    if (s.sales)          bits.push(s.sales);
     if (s.vsForecast)     bits.push(s.vsForecast + ' vs forecast');
-    if (s.vsPriorYear)    bits.push(s.vsPriorYear + ' vs last year');
     if (s.hrsVsScheduled) bits.push(s.hrsVsScheduled);
-    var line = '**' + s.store + '** — Yesterday '
-      + (bits.length ? bits.join(', ') : 'numbers are still coming in') + '.';
+    var line = '**' + s.store + '** — ' + (bits.length ? bits.join(', ') + '.' : 'numbers coming in.');
     if (s.missedForecastAndOverScheduled) {
-      line += ' Sales were under forecast while hours ran over what was scheduled — worth a look at how the day played out. When you get a sec, send me a quick recap.';
+      line += ' Missed forecast and ran over scheduled hours — what happened? Quick recap when you can.';
     } else if (s.isNewStore) {
-      line += ' Still early days as the store finds its rhythm — how did it feel on the ground? A quick recap would be great.';
+      line += ' Still finding its rhythm — how did it feel? Quick recap appreciated.';
     } else {
-      line += ' How did yesterday go? Send a quick recap when you can.';
+      line += ' How did it go? Quick recap when you can.';
     }
     parts.push(line, '');
   });
@@ -242,20 +241,26 @@ function buildManagerRecapHtml(bodyText, dateStr) {
     .filter(function(l) { return l.length > 0; });
 
   var body = paras.map(function(p) {
-    return '<p style="margin:0 0 14px;line-height:1.75;color:#1a1a1a;font-size:15px;">'
+    return '<p style="margin:0 0 12px;line-height:1.5;color:#222;font-size:14px;">'
       + p.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') + '</p>';
   }).join('');
 
-  return '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Arial,sans-serif;">'
-    + '<div style="max-width:620px;margin:24px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">'
-    + '<div style="background:#1a2e4a;padding:24px 32px;">'
-    + '<h1 style="color:#ffffff;font-size:22px;font-weight:700;margin:0 0 4px;">Good Morning</h1>'
-    + '<p style="color:#a0b8d0;font-size:13px;margin:0;">' + fmtDisplayDate(dateStr) + '</p>'
-    + '</div>'
-    + '<div style="padding:28px 32px;border-bottom:3px solid #1a2e4a;">' + body + '</div>'
-    + '<div style="padding:14px 32px;text-align:center;background:#f8f9fa;">'
-    + '<p style="color:#888;font-size:12px;margin:0;">Andy\'s Dashboard &nbsp;&middot;&nbsp; <a href="https://andysdashboard.com" style="color:#1a2e4a;text-decoration:none;">andysdashboard.com</a></p>'
-    + '</div></div></body></html>';
+  var sigText = String(RECAP_CONFIG.SIGNATURE_TEXT || '').split('\n')
+    .map(function(l) { return l.trim(); })
+    .filter(function(l) { return l.length > 0; })
+    .join('<br>');
+
+  var signature =
+    '<div style="margin-top:18px;">'
+    + (RECAP_CONFIG.SIGNATURE_IMG_URL
+        ? '<img src="' + RECAP_CONFIG.SIGNATURE_IMG_URL + '" alt="" style="max-width:320px;height:auto;display:block;margin-bottom:6px;">'
+        : '')
+    + (sigText ? '<div style="color:#444;font-size:13px;line-height:1.4;">' + sigText + '</div>' : '')
+    + '</div>';
+
+  return '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Arial,sans-serif;color:#222;font-size:14px;">'
+    + body + signature
+    + '</div>';
 }
 
 // Append one row per recipient to the 'Manager Recap Log' tab (auto-created).
