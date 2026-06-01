@@ -31,8 +31,8 @@ var RECAP_CONFIG = {
   LOG_SHEET:       'Manager Recap Log',
   // Always CC'd on recap drafts. Override with the MANAGER_RECAP_CC Script Property.
   CC_DEFAULT:      'josh@rancherscustard.com,eric@rancherscustard.com,kandacegiles@rancherscustard.com',
-  SIGNATURE_IMG_URL: 'https://ci3.googleusercontent.com/mail-sig/AIorK4zYQoLW7nhXQU1EvNY5LJL02mU8weD5RJN3G9VpcHFfHabY6AFsa5h87yz5x7OVU4q4DJu2LFw',
-  SIGNATURE_TEXT:  'Dalton Owens\nOwner/Operator\nRanchers Custard Company, LLC\nAndy\'s Frozen Custard Franchisee',
+  // The owner/sender is never a recipient (guards against accidental self-adds).
+  OWNER_EMAIL:     'dalton@rancherscustard.com',
   FORECAST_MISS_PCT:   0.03,  // must be MORE than 3% under forecast to flag
   OVER_SCHEDULED_PCT:  0.05   // AND 5%+ actual hours over scheduled
 };
@@ -106,17 +106,18 @@ function buildManagerPrompt(firstName, storeFactsList) {
   var greeting = (firstName ? firstName : 'Hi') + ',';
 
   var prompt =
-    'Write a short, direct email from the owner to a store manager about YESTERDAY. '
-    + 'Every store listed came in under its sales forecast AND ran over its scheduled labor hours. '
-    + 'The point is to ask, plainly and professionally, why labor was over when sales were soft and they should have been cutting.\n\n'
+    'Write a short, professional email from the owner to a store manager about YESTERDAY. '
+    + 'Each store listed came in under its sales forecast and ran over its scheduled labor hours. '
+    + 'The point is to check in and understand what happened with the labor when sales were tracking soft.\n\n'
     + 'RULES:\n'
     + '- Start with exactly: "' + greeting + '"\n'
-    + '- Tone: straightforward and professional — owner to employee. Not chummy, not harsh. No "good morning", no small talk, no praise.\n'
-    + '- For each store: state the sales-vs-forecast and the hours over scheduled in one sentence, then directly ask why they ran over when they should have been cutting labor.\n'
+    + '- Tone: professional and respectful — owner to manager. Clear and matter-of-fact, but not stiff or accusatory. No small talk, no effusive praise.\n'
+    + '- For each store: state the sales-vs-forecast and the hours over scheduled in one sentence, then ask what drove the labor running over when sales were coming in under.\n'
     + '- Keep it tight: two or three sentences per store, maximum.\n'
     + '- Use only the numbers in the data; never invent figures.\n'
     + '- One short paragraph per store. With multiple stores, start each paragraph with the store name in plain text (no bold, no asterisks), e.g. "Bixby:".\n'
-    + '- No grades, no labor rates, no internal flag names. No subject line, title, or signature.\n\n'
+    + '- No grades, no labor rates, no internal flag names. No subject line or title.\n'
+    + '- End the entire email with a final line that says exactly: "Thanks," (nothing after it — no name, no signature).\n\n'
     + 'Data:\n' + JSON.stringify({ stores: storeFactsList }, null, 2);
 
   return prompt;
@@ -235,9 +236,10 @@ function managerFallback(firstName, storeFactsList) {
     if (s.hrsVsScheduled) bits.push(s.hrsVsScheduled);
     var stats = bits.length ? ' (' + bits.join(', ') + ')' : '';
     var line = s.store + stats
-      + ' — sales came in under forecast and hours ran over schedule. Why weren\'t we cutting labor as the day came in soft?';
+      + ' — sales came in under forecast and hours ran over schedule. What drove the labor running over as the day came in soft?';
     parts.push(line, '');
   });
+  parts.push('Thanks,');
   return parts.join('\n').trim();
 }
 
@@ -251,21 +253,10 @@ function buildManagerRecapHtml(bodyText, dateStr) {
       + p.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') + '</p>';
   }).join('');
 
-  var sigText = String(RECAP_CONFIG.SIGNATURE_TEXT || '').split('\n')
-    .map(function(l) { return l.trim(); })
-    .filter(function(l) { return l.length > 0; })
-    .join('<br>');
-
-  var signature =
-    '<div style="margin-top:18px;">'
-    + (RECAP_CONFIG.SIGNATURE_IMG_URL
-        ? '<img src="' + RECAP_CONFIG.SIGNATURE_IMG_URL + '" alt="" style="max-width:320px;height:auto;display:block;margin-bottom:6px;">'
-        : '')
-    + (sigText ? '<div style="color:#444;font-size:13px;line-height:1.4;">' + sigText + '</div>' : '')
-    + '</div>';
-
+  // No signature is embedded — Dalton inserts his own via the Gmail signature
+  // button when reviewing the draft. The body ends with "Thanks,".
   return '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Arial,sans-serif;color:#222;font-size:14px;">'
-    + body + signature
+    + body
     + '</div>';
 }
 
@@ -310,6 +301,7 @@ function createManagerRecapDrafts() {
 
     var drafted = 0;
     groups.forEach(function(g) {
+      if (g.email && g.email.toLowerCase() === RECAP_CONFIG.OWNER_EMAIL) return;  // never email the owner
       var qualifying = g.stores.filter(function(loc) {
         return qualifiesForRecap(loc, clockoutCounts[loc.location] || 0,
           RECAP_CONFIG.FORECAST_MISS_PCT, RECAP_CONFIG.OVER_SCHEDULED_PCT);
@@ -380,6 +372,7 @@ function testManagerRecaps() {
 
     var previewed = 0;
     groups.forEach(function(g) {
+      if (g.email && g.email.toLowerCase() === RECAP_CONFIG.OWNER_EMAIL) return;  // never email the owner
       var qualifying = g.stores.filter(function(loc) {
         return qualifiesForRecap(loc, clockoutCounts[loc.location] || 0,
           RECAP_CONFIG.FORECAST_MISS_PCT, RECAP_CONFIG.OVER_SCHEDULED_PCT);
