@@ -115,3 +115,22 @@ test('validateRecipients returns emails not in the known set', () => {
   assert.deepEqual(validateRecipients(input, ['known@r.com']), ['ghost@r.com', '(missing email)']);
   assert.deepEqual(validateRecipients([], ['known@r.com']), []);
 });
+
+test('managersToRoster dedupes a repeated email within a location', () => {
+  const managers = [
+    { name: 'Chris', email: 'chris@r.com', locations: ['Bixby'] },
+    { name: 'Chris Dup', email: 'chris@r.com', locations: ['Bixby'] },
+  ];
+  assert.deepEqual(managersToRoster(managers), [
+    { location: 'Bixby', recipients: [{ email: 'chris@r.com', name: 'Chris' }] },
+  ]);
+});
+
+test('validateRecipients dedupes and tolerates non-array input', () => {
+  const input = [
+    { location: 'Bixby', recipients: [{ email: 'ghost@r.com' }] },
+    { location: 'Owasso', recipients: [{ email: 'ghost@r.com' }] },
+  ];
+  assert.deepEqual(validateRecipients(input, ['known@r.com']), ['ghost@r.com']);
+  assert.deepEqual(validateRecipients(null, ['known@r.com']), []);
+});
