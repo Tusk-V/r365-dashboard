@@ -30,7 +30,9 @@ var RECAP_CONFIG = {
   SEND_MINUTE:     15,
   LOG_SHEET:       'Manager Recap Log',
   SIGNATURE_IMG_URL: 'https://ci3.googleusercontent.com/mail-sig/AIorK4zYQoLW7nhXQU1EvNY5LJL02mU8weD5RJN3G9VpcHFfHabY6AFsa5h87yz5x7OVU4q4DJu2LFw',
-  SIGNATURE_TEXT:  'Dalton Owens\nOwner/Operator\nRanchers Custard Company, LLC\nAndy\'s Frozen Custard Franchisee'
+  SIGNATURE_TEXT:  'Dalton Owens\nOwner/Operator\nRanchers Custard Company, LLC\nAndy\'s Frozen Custard Franchisee',
+  FORECAST_MISS_PCT:   0.03,  // must be MORE than 3% under forecast to flag
+  OVER_SCHEDULED_PCT:  0.05   // AND 5%+ actual hours over scheduled
 };
 
 // --- pure helpers (unit-tested) --------------------------------------------
@@ -99,26 +101,20 @@ function buildManagerStoreFacts(loc) {
 
 // Build the Claude prompt for one recipient.
 function buildManagerPrompt(firstName, storeFactsList) {
-  var anyEscalation = storeFactsList.some(function(s) { return s.missedForecastAndOverScheduled; });
-  var greeting = 'Good morning' + (firstName ? ' ' + firstName : '') + ',';
+  var greeting = (firstName ? firstName : 'Hi') + ',';
 
   var prompt =
-    'Write a short, personal good-morning email about how this manager\'s store(s) did YESTERDAY. '
-    + 'Sound like a real person who glanced at the numbers — not a report.\n\n'
+    'Write a short, direct email from the owner to a store manager about YESTERDAY. '
+    + 'Every store listed came in under its sales forecast AND ran over its scheduled labor hours. '
+    + 'The point is to ask, plainly and professionally, why labor was over when sales were soft and they should have been cutting.\n\n'
     + 'RULES:\n'
     + '- Start with exactly: "' + greeting + '"\n'
-    + '- Keep it short: one or two sentences per store. No filler.\n'
-    + '- Work the key numbers into the sentence naturally; never list stats or use a table.\n'
-    + '- Use only numbers from the data; never invent figures.\n'
-    + '- Vary the wording; never sound templated.\n'
+    + '- Tone: straightforward and professional — owner to employee. Not chummy, not harsh. No "good morning", no small talk, no praise.\n'
+    + '- For each store: state the sales-vs-forecast and the hours over scheduled in one sentence, then directly ask why they ran over when they should have been cutting labor.\n'
+    + '- Keep it tight: two or three sentences per store, maximum.\n'
+    + '- Use only the numbers in the data; never invent figures.\n'
     + '- One short paragraph per store. With multiple stores, start each paragraph with the store name in **double asterisks**.\n'
-    + '- Close each store by asking for a quick reply on how it went.\n'
-    + '- No grades, no labor rates, no internal flag names.\n'
-    + (anyEscalation
-        ? '- For a store flagged "missedForecastAndOverScheduled": it missed forecast AND ran over scheduled hours — gently ask what happened, never critical.\n'
-        : '')
-    + '- For a store flagged "isNewStore": still ramping up; be encouraging, not critical.\n'
-    + '- No subject line, title, or signature.\n\n'
+    + '- No grades, no labor rates, no internal flag names. No subject line, title, or signature.\n\n'
     + 'Data:\n' + JSON.stringify({ stores: storeFactsList }, null, 2);
 
   return prompt;
@@ -155,6 +151,26 @@ function buildLocationRecipientMap(managers, locationNames) {
     .map(function(e) { return e.location; });
 
   return { map: map, unassigned: unassigned };
+}
+
+// True only when a store warrants an exception email: under forecast by more
+// than forecastMissPct, actual hours at least overSchedPct above scheduled, no
+// auto-clockouts that day, and not a ramp-up store.
+// NOTE: This is an intentionally STRICTER, separate gate from the debrief's
+// loc.missedFcAndOverSch flag (which uses 2%-of-sales and >2% hours). Do not
+// assume the two describe the same set of stores.
+function qualifiesForRecap(loc, autoClockouts, forecastMissPct, overSchedPct) {
+  if (!loc || loc.isNewStore) return false;
+  if (autoClockouts > 0) return false;
+  if (loc.schHrs == null || loc.schHrs <= 0 || loc.actHrs == null) return false;
+  if (loc.forecastVariance == null || loc.sales == null) return false;
+  var forecast = loc.sales - loc.forecastVariance;
+  if (forecast <= 0) return false;
+  var missPct = (-loc.forecastVariance) / forecast;
+  if (missPct <= forecastMissPct) return false;
+  var overPct = (loc.actHrs - loc.schHrs) / loc.schHrs;
+  if (overPct < overSchedPct) return false;
+  return true;
 }
 
 // --- orchestration (runs in Apps Script only) ------------------------------
@@ -208,21 +224,16 @@ function writeManagerNarrative(firstName, storeFactsList) {
 }
 
 function managerFallback(firstName, storeFactsList) {
-  var greeting = 'Good morning' + (firstName ? ' ' + firstName : '') + ',';
+  var greeting = (firstName ? firstName : 'Hi') + ',';
   var parts = [greeting, ''];
   storeFactsList.forEach(function(s) {
     var bits = [];
     if (s.sales)          bits.push(s.sales);
     if (s.vsForecast)     bits.push(s.vsForecast + ' vs forecast');
     if (s.hrsVsScheduled) bits.push(s.hrsVsScheduled);
-    var line = '**' + s.store + '** — ' + (bits.length ? bits.join(', ') + '.' : 'numbers coming in.');
-    if (s.missedForecastAndOverScheduled) {
-      line += ' Missed forecast and ran over scheduled hours — what happened? Quick recap when you can.';
-    } else if (s.isNewStore) {
-      line += ' Still finding its rhythm — how did it feel? Quick recap appreciated.';
-    } else {
-      line += ' How did it go? Quick recap when you can.';
-    }
+    var stats = bits.length ? ' (' + bits.join(', ') + ')' : '';
+    var line = '**' + s.store + '**' + stats
+      + ' — sales came in under forecast and hours ran over schedule. Why weren\'t we cutting labor as the day came in soft?';
     parts.push(line, '');
   });
   return parts.join('\n').trim();
@@ -290,35 +301,44 @@ function createManagerRecapDrafts() {
     var groups = buildRecipientGroups(roster, locations);
     if (groups.length === 0) { Logger.log('No recipients have data — nothing to draft.'); return; }
 
+    var clockoutCounts = getClockoutCounts(ss, yesterday);
     var ccStr = parseRecapCcList(
       PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC')
     ).join(',');
 
+    var drafted = 0;
     groups.forEach(function(g) {
-      var facts  = g.stores.map(buildManagerStoreFacts);
+      var qualifying = g.stores.filter(function(loc) {
+        return qualifiesForRecap(loc, clockoutCounts[loc.location] || 0,
+          RECAP_CONFIG.FORECAST_MISS_PCT, RECAP_CONFIG.OVER_SCHEDULED_PCT);
+      });
+      if (qualifying.length === 0) return;
+
+      var facts  = qualifying.map(buildManagerStoreFacts);
       var body   = writeManagerNarrative(g.firstName, facts);
       var html   = buildManagerRecapHtml(body, yesterday);
       var status = 'Drafted';
       try {
         var opts = { htmlBody: html };
         if (ccStr) opts.cc = ccStr;
-        GmailApp.createDraft(g.email, 'Quick recap — ' + fmtDisplayDate(yesterday), '', opts);
+        GmailApp.createDraft(g.email, 'Yesterday — labor over schedule', '', opts);
       } catch (e) {
         status = 'Failed: ' + e.toString();
         Logger.log('Draft failed for ' + g.email + ': ' + e.toString());
       }
+      drafted++;
       logManagerRecap(ss, {
         date:   yesterday,
         name:   g.name,
         email:  g.email,
-        stores: g.stores.map(function(s) { return s.location; }).join(', '),
+        stores: qualifying.map(function(s) { return s.location; }).join(', '),
         cc:     ccStr,
         status: status,
         body:   body
       });
     });
 
-    Logger.log('Manager recap drafts created: ' + groups.length + ' recipient(s).');
+    Logger.log('Manager recap drafts created: ' + drafted + ' of ' + groups.length + ' recipient(s) had a flagged store.');
   } catch (e) {
     Logger.log('Error in createManagerRecapDrafts: ' + e.toString());
   }
@@ -351,34 +371,41 @@ function testManagerRecaps() {
     if (!roster) { Logger.log('Roster fetch failed.'); return; }
 
     var groups = buildRecipientGroups(roster, locations);
-    Logger.log('Preview drafts: ' + groups.length);
-
+    var clockoutCounts = getClockoutCounts(ss, yesterday);
     var ccStr = parseRecapCcList(
       PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC')
     ).join(',');
 
+    var previewed = 0;
     groups.forEach(function(g) {
-      var facts = g.stores.map(buildManagerStoreFacts);
+      var qualifying = g.stores.filter(function(loc) {
+        return qualifiesForRecap(loc, clockoutCounts[loc.location] || 0,
+          RECAP_CONFIG.FORECAST_MISS_PCT, RECAP_CONFIG.OVER_SCHEDULED_PCT);
+      });
+      if (qualifying.length === 0) return;
+
+      var facts = qualifying.map(buildManagerStoreFacts);
       var body  = writeManagerNarrative(g.firstName, facts);
       var html  = buildManagerRecapHtml(body, yesterday);
       GmailApp.createDraft(
         'dalton@rancherscustard.com',
-        '[TEST -> ' + g.email + '] Quick recap — ' + fmtDisplayDate(yesterday),
+        '[TEST -> ' + g.email + '] Yesterday — labor over schedule',
         '',
         { htmlBody: html }
       );
+      previewed++;
       logManagerRecap(ss, {
         date:   yesterday,
         name:   g.name,
         email:  g.email,
-        stores: g.stores.map(function(s) { return s.location; }).join(', '),
+        stores: qualifying.map(function(s) { return s.location; }).join(', '),
         cc:     ccStr,
         status: 'Preview',
         body:   body
       });
     });
 
-    Logger.log('Preview drafts created in dalton\'s account.');
+    Logger.log('Preview drafts created: ' + previewed + ' recipient(s) with a flagged store.');
   } catch (e) {
     Logger.log('Error in testManagerRecaps: ' + e.toString());
   }
