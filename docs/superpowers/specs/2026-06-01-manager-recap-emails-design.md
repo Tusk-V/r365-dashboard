@@ -132,6 +132,11 @@ Two independent, editable controls — neither needs a developer:
    `MANAGER_RECAP_REPLY_TO`, edited in the same UI. Defaults to Dalton, Josh,
    Eric, Kandace when unset.
 
+**Auditing the mapping:** there is no static location→email file — the map is
+derived live from admin/users. Run `previewRecapRoster()` (read-only, sends
+nothing) any time to log a **location → recipient emails** readout and a flag
+for any location that had data yesterday but has no manager assigned.
+
 **Volume note:** because each manager gets an individual email, a visible CC
 means each leadership address on `MANAGER_RECAP_CC` receives one copy per
 manager email — roughly one per staffed store each morning (~15–20). This is

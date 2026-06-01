@@ -129,6 +129,39 @@ function buildManagerPrompt(firstName, storeFactsList) {
   return prompt;
 }
 
+// Invert the roster into a location -> recipient-emails map for auditing.
+// managers: [{name, email, locations:[...]}]; locationNames: store names that
+// have data. Returns { map: [{location, emails:[...]}] (all locations, sorted),
+// unassigned: [names] } where unassigned = locations WITH data but NO recipient.
+function buildLocationRecipientMap(managers, locationNames) {
+  var emailsByLoc = {};
+  (managers || []).forEach(function(mgr) {
+    if (!mgr || !mgr.email || !mgr.locations) return;
+    mgr.locations.forEach(function(locName) {
+      if (!emailsByLoc[locName]) emailsByLoc[locName] = [];
+      if (emailsByLoc[locName].indexOf(mgr.email) === -1) emailsByLoc[locName].push(mgr.email);
+    });
+  });
+
+  var allLocs = {};
+  (locationNames || []).forEach(function(n) { allLocs[n] = true; });
+  Object.keys(emailsByLoc).forEach(function(n) { allLocs[n] = true; });
+
+  var map = Object.keys(allLocs)
+    .sort(function(a, b) { return a.localeCompare(b); })
+    .map(function(loc) {
+      return { location: loc, emails: (emailsByLoc[loc] || []).slice().sort() };
+    });
+
+  var dataSet = {};
+  (locationNames || []).forEach(function(n) { dataSet[n] = true; });
+  var unassigned = map
+    .filter(function(e) { return dataSet[e.location] && e.emails.length === 0; })
+    .map(function(e) { return e.location; });
+
+  return { map: map, unassigned: unassigned };
+}
+
 // --- orchestration (runs in Apps Script only) ------------------------------
 
 function fetchManagerRoster() {
@@ -355,5 +388,34 @@ function testManagerRecaps() {
     Logger.log('Preview sent to dalton only.');
   } catch (e) {
     Logger.log('Error in testManagerRecaps: ' + e.toString());
+  }
+}
+
+// Read-only audit: log which email addresses each location's recap goes to.
+// Sends nothing. Flags locations that had data yesterday but have no manager
+// assigned (the gap to fix before a morning send).
+function previewRecapRoster() {
+  try {
+    var roster = fetchManagerRoster();
+    if (!roster) { Logger.log('Roster fetch failed — cannot preview roster.'); return; }
+
+    var ss        = SpreadsheetApp.openById(DAILY_CONFIG.SPREADSHEET_ID);
+    var yesterday = getYesterdayStr();
+    var locationNames = buildDailyLocationData(ss, yesterday)
+      .map(function(l) { return l.location; });
+
+    var result = buildLocationRecipientMap(roster, locationNames);
+
+    Logger.log('=== Manager Recap Roster (location -> recipients) ===');
+    result.map.forEach(function(e) {
+      Logger.log(e.location + ': ' + (e.emails.length ? e.emails.join(', ') : '(no manager assigned)'));
+    });
+    if (result.unassigned.length) {
+      Logger.log('--- Had data yesterday but NO manager assigned: ' + result.unassigned.join(', '));
+    } else {
+      Logger.log('--- Every location with data yesterday has at least one recipient.');
+    }
+  } catch (e) {
+    Logger.log('Error in previewRecapRoster: ' + e.toString());
   }
 }

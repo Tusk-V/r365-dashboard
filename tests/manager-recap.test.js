@@ -76,3 +76,28 @@ test('buildManagerPrompt includes name + recap invite always, escalation only wh
   assert.ok(clean.includes('quick reply recapping'));
   assert.ok(!clean.includes('help me understand the day'));
 });
+
+test('buildLocationRecipientMap inverts roster, dedupes, sorts, and flags unassigned data locations', () => {
+  const managers = [
+    { name: 'Jane Doe', email: 'jane@r.com', locations: ['Bixby', 'Owasso'] },
+    { name: 'Bob Roe', email: 'bob@r.com', locations: ['Bixby'] },        // shares Bixby with Jane
+    { name: 'Dup', email: 'jane@r.com', locations: ['Owasso'] },          // duplicate email on Owasso
+  ];
+  // Bixby, Owasso, Edmond have data; Edmond has no manager -> unassigned.
+  const result = m.buildLocationRecipientMap(managers, ['Edmond', 'Bixby', 'Owasso']);
+
+  // map is sorted by location and emails are deduped + sorted
+  assert.deepEqual(Array.from(result.map.map((e) => e.location)), ['Bixby', 'Edmond', 'Owasso']);
+  assert.deepEqual(Array.from(result.map[0].emails), ['bob@r.com', 'jane@r.com']); // Bixby
+  assert.deepEqual(Array.from(result.map[1].emails), []);                          // Edmond
+  assert.deepEqual(Array.from(result.map[2].emails), ['jane@r.com']);              // Owasso (deduped)
+
+  // Edmond had data but no recipient -> flagged; Bixby/Owasso are covered
+  assert.deepEqual(Array.from(result.unassigned), ['Edmond']);
+});
+
+test('buildLocationRecipientMap handles empty/missing inputs', () => {
+  const empty = m.buildLocationRecipientMap(null, null);
+  assert.deepEqual(Array.from(empty.map), []);
+  assert.deepEqual(Array.from(empty.unassigned), []);
+});
