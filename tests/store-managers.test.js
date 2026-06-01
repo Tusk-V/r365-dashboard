@@ -107,13 +107,13 @@ test('rosterToManagers skips malformed docs and recipients', () => {
   ]);
 });
 
-test('validateRecipients returns emails not in the known set', () => {
+test('validateRecipients flags only malformed/missing emails (any valid address allowed)', () => {
   const input = [
-    { location: 'Bixby', recipients: [{ email: 'known@r.com' }, { email: 'ghost@r.com' }] },
-    { location: 'Owasso', recipients: [{ name: 'missing email' }] },
+    { location: 'Bixby', recipients: [{ email: 'anyone@example.com' }, { email: 'not-an-email' }] },
+    { location: 'Owasso', recipients: [{ name: 'no email' }] },
   ];
-  assert.deepEqual(validateRecipients(input, ['known@r.com']), ['ghost@r.com', '(missing email)']);
-  assert.deepEqual(validateRecipients([], ['known@r.com']), []);
+  assert.deepEqual(validateRecipients(input), ['not-an-email', '(missing email)']);
+  assert.deepEqual(validateRecipients([]), []);
 });
 
 test('managersToRoster dedupes a repeated email within a location', () => {
@@ -128,9 +128,9 @@ test('managersToRoster dedupes a repeated email within a location', () => {
 
 test('validateRecipients dedupes and tolerates non-array input', () => {
   const input = [
-    { location: 'Bixby', recipients: [{ email: 'ghost@r.com' }] },
-    { location: 'Owasso', recipients: [{ email: 'ghost@r.com' }] },
+    { location: 'Bixby', recipients: [{ email: 'bad' }] },
+    { location: 'Owasso', recipients: [{ email: 'bad' }] },
   ];
-  assert.deepEqual(validateRecipients(input, ['known@r.com']), ['ghost@r.com']);
-  assert.deepEqual(validateRecipients(null, ['known@r.com']), []);
+  assert.deepEqual(validateRecipients(input), ['bad']);
+  assert.deepEqual(validateRecipients(null), []);
 });

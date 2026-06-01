@@ -64,6 +64,22 @@ export default function RecapRoster() {
     setSaveMsg(null);
   };
 
+  const addFreeRecipient = (location, email, name) => {
+    const e = (email || '').trim();
+    if (!e) return false;
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!re.test(e)) { setError(`"${e}" is not a valid email.`); return false; }
+    let added = true;
+    setLocations((prev) => prev.map((l) => {
+      if (l.location !== location) return l;
+      if (l.recipients.some((r) => r.email === e)) { added = false; return l; }
+      return { ...l, recipients: [...l.recipients, { email: e, name: (name || '').trim() }] };
+    }));
+    setError(null);
+    setSaveMsg(null);
+    return added;
+  };
+
   const removeRecipient = (location, email) => {
     setLocations((prev) => prev.map((l) =>
       l.location === location
@@ -212,57 +228,103 @@ export default function RecapRoster() {
               {locations.map(({ location, recipients }) => {
                 const remaining = availableUsers.filter((u) => !recipients.some((r) => r.email === u.email));
                 return (
-                  <div key={location} className="px-4 py-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-medium text-white">{location}</span>
-                      <span className="inline-flex items-center px-2 py-0.5 bg-blue-900/50 text-blue-400 rounded text-xs">
-                        {recipients.length} {recipients.length === 1 ? 'recipient' : 'recipients'}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {recipients.length === 0 && (
-                        <span className="text-xs text-slate-500 italic">No recipients</span>
-                      )}
-                      {recipients.map((r) => (
-                        <span
-                          key={r.email}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-700 text-slate-200 rounded text-xs"
-                        >
-                          <span>{r.name ? `${r.name} ` : ''}<span className="font-mono text-slate-400">{r.email}</span></span>
-                          <button
-                            onClick={() => removeRecipient(location, r.email)}
-                            className="text-slate-400 hover:text-red-400"
-                            aria-label={`Remove ${r.email} from ${location}`}
-                          >
-                            <X size={13} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                    <select
-                      value=""
-                      onChange={(e) => { addRecipient(location, e.target.value); e.target.value = ''; }}
-                      className="bg-slate-700 border border-slate-600 text-slate-200 text-xs rounded px-2 py-1.5 focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">+ Add recipient…</option>
-                      {remaining.map((u) => (
-                        <option key={u.email} value={u.email}>
-                          {u.name ? `${u.name} (${u.email})` : u.email}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <RosterRow
+                    key={location}
+                    location={location}
+                    recipients={recipients}
+                    remaining={remaining}
+                    onAddUser={addRecipient}
+                    onAddFree={addFreeRecipient}
+                    onRemove={removeRecipient}
+                  />
                 );
               })}
             </div>
           </div>
 
           <p className="mt-3 text-xs text-slate-500 text-center">
-            Recipients are chosen from existing app users. Changes take effect after you Save.
+            Add recipients from existing app users or by typing any email address. Changes take effect after you Save.
           </p>
 
         </div>
       </div>
     </>
+  );
+}
+
+function RosterRow({ location, recipients, remaining, onAddUser, onAddFree, onRemove }) {
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+
+  const submitFree = () => {
+    if (onAddFree(location, email, name)) { setEmail(''); setName(''); }
+  };
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="font-medium text-white">{location}</span>
+        <span className="inline-flex items-center px-2 py-0.5 bg-blue-900/50 text-blue-400 rounded text-xs">
+          {recipients.length} {recipients.length === 1 ? 'recipient' : 'recipients'}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {recipients.length === 0 && (
+          <span className="text-xs text-slate-500 italic">No recipients</span>
+        )}
+        {recipients.map((r) => (
+          <span
+            key={r.email}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-700 text-slate-200 rounded text-xs"
+          >
+            <span>{r.name ? `${r.name} ` : ''}<span className="font-mono text-slate-400">{r.email}</span></span>
+            <button
+              onClick={() => onRemove(location, r.email)}
+              className="text-slate-400 hover:text-red-400"
+              aria-label={`Remove ${r.email} from ${location}`}
+            >
+              <X size={13} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value=""
+          onChange={(e) => { onAddUser(location, e.target.value); }}
+          className="bg-slate-700 border border-slate-600 text-slate-200 text-xs rounded px-2 py-1.5 focus:outline-none focus:border-blue-500"
+        >
+          <option value="">+ Add app user…</option>
+          {remaining.map((u) => (
+            <option key={u.email} value={u.email}>
+              {u.name ? `${u.name} (${u.email})` : u.email}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-slate-500">or</span>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') submitFree(); }}
+          placeholder="email@address.com"
+          className="bg-slate-700 border border-slate-600 text-slate-200 text-xs rounded px-2 py-1.5 focus:outline-none focus:border-blue-500"
+        />
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') submitFree(); }}
+          placeholder="name (optional)"
+          className="bg-slate-700 border border-slate-600 text-slate-200 text-xs rounded px-2 py-1.5 focus:outline-none focus:border-blue-500"
+        />
+        <button
+          onClick={submitFree}
+          className="px-2.5 py-1.5 bg-slate-600 hover:bg-slate-500 text-white text-xs rounded transition-colors"
+        >
+          Add
+        </button>
+      </div>
+    </div>
   );
 }
