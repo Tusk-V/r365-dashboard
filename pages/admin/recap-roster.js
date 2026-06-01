@@ -75,6 +75,7 @@ export default function RecapRoster() {
       if (l.recipients.some((r) => r.email === e)) { added = false; return l; }
       return { ...l, recipients: [...l.recipients, { email: e, name: (name || '').trim() }] };
     }));
+    setError(null);
     setSaveMsg(null);
     return added;
   };
