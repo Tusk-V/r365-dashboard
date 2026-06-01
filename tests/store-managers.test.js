@@ -11,6 +11,8 @@ test('isAuthorized: wrong / missing / empty-config all fail', () => {
   assert.equal(isAuthorized(undefined, 'secret123'), false);
   assert.equal(isAuthorized('Bearer ', ''), false);   // unset env must never authorize
   assert.equal(isAuthorized('Bearer secret123', ''), false);
+  // Same-length wrong token — exercises the timingSafeEqual path (not the length guard)
+  assert.equal(isAuthorized('Bearer aaaaaaaaa', 'secret123'), false);
 });
 
 test('extractManagers: keeps only specific-access users with locations', () => {
