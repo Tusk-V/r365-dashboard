@@ -1,9 +1,9 @@
 // pages/api/admin/recap-roster.js
 // Session-gated admin endpoint for the manager-recap roster.
-//   GET  -> { locations:[{location,recipients:[{email,name}]}], availableUsers:[{email,name}], seeded }
-//           Returns persisted recapRoster if present; otherwise the derived
-//           list as an unsaved seed (seeded:false). Every canonical store is
-//           present (empty recipients if none).
+//   GET  -> { locations:[{location,recipients:[{email,name}]}], availableUsers:[{email,name}], persisted }
+//           Returns persisted recapRoster if present (persisted:true); otherwise
+//           the derived list as an unsaved seed (persisted:false). Every
+//           canonical store is present (empty recipients if none).
 //   POST  -> upserts one recapRoster doc per location. Rejects recipients that
 //           are not known app users.
 
@@ -40,13 +40,13 @@ export default async function handler(req, res) {
 
       const rosterDocs = await db.collection('recapRoster').find({}).toArray();
       let baseLocations;
-      let seeded;
+      let persisted;
       if (rosterDocs.length > 0) {
         baseLocations = rosterDocs.map((d) => ({ location: d.location, recipients: d.recipients || [] }));
-        seeded = true;
+        persisted = true;
       } else {
         baseLocations = managersToRoster(extractManagers(users));
-        seeded = false;
+        persisted = false;
       }
 
       const byLoc = {};
@@ -56,7 +56,7 @@ export default async function handler(req, res) {
         .sort((a, b) => a.localeCompare(b))
         .map((location) => ({ location, recipients: byLoc[location] || [] }));
 
-      return res.status(200).json({ locations, availableUsers, seeded });
+      return res.status(200).json({ locations, availableUsers, persisted });
     } catch (error) {
       console.error('recap-roster GET error:', error);
       return res.status(500).json({ error: 'Internal server error' });
@@ -79,8 +79,10 @@ export default async function handler(req, res) {
 
       const now = new Date();
       const coll = db.collection('recapRoster');
+      let written = 0;
       for (const l of incoming) {
         if (!l || !l.location) continue;
+        if (!ALL_LOCATIONS.includes(l.location)) continue;
         const recipients = Array.isArray(l.recipients)
           ? l.recipients
               .filter((r) => r && r.email)
@@ -91,9 +93,10 @@ export default async function handler(req, res) {
           { location: l.location, recipients, updatedAt: now, updatedBy: session.user.email },
           { upsert: true }
         );
+        written++;
       }
 
-      return res.status(200).json({ success: true, count: incoming.length });
+      return res.status(200).json({ success: true, count: written });
     } catch (error) {
       console.error('recap-roster POST error:', error);
       return res.status(500).json({ error: 'Internal server error' });
