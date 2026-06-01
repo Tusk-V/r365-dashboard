@@ -66,10 +66,11 @@ test('buildManagerStoreFacts formats a beat-forecast day with a + prefix', () =>
   assert.equal(facts.missedForecastAndOverScheduled, false);
 });
 
-test('buildManagerPrompt: direct owner tone, name greeting, asks about over-labor', () => {
+test('buildManagerPrompt: professional tone, name greeting, asks about over-labor, closes with thanks', () => {
   const p = m.buildManagerPrompt('Jane', [{ store: 'Bixby' }]);
   assert.ok(p.includes('Jane,'));
-  assert.ok(p.toLowerCase().includes('cutting'));
+  assert.ok(p.toLowerCase().includes('labor'));
+  assert.ok(p.includes('Thanks,'));
   assert.ok(!p.includes('Good morning'));
 });
 
