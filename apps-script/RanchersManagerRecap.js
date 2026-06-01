@@ -29,6 +29,8 @@ var RECAP_CONFIG = {
   SEND_HOUR:       7,
   SEND_MINUTE:     15,
   LOG_SHEET:       'Manager Recap Log',
+  // Always CC'd on recap drafts. Override with the MANAGER_RECAP_CC Script Property.
+  CC_DEFAULT:      'josh@rancherscustard.com,eric@rancherscustard.com,kandacegiles@rancherscustard.com',
   SIGNATURE_IMG_URL: 'https://ci3.googleusercontent.com/mail-sig/AIorK4zYQoLW7nhXQU1EvNY5LJL02mU8weD5RJN3G9VpcHFfHabY6AFsa5h87yz5x7OVU4q4DJu2LFw',
   SIGNATURE_TEXT:  'Dalton Owens\nOwner/Operator\nRanchers Custard Company, LLC\nAndy\'s Frozen Custard Franchisee',
   FORECAST_MISS_PCT:   0.03,  // must be MORE than 3% under forecast to flag
@@ -113,7 +115,7 @@ function buildManagerPrompt(firstName, storeFactsList) {
     + '- For each store: state the sales-vs-forecast and the hours over scheduled in one sentence, then directly ask why they ran over when they should have been cutting labor.\n'
     + '- Keep it tight: two or three sentences per store, maximum.\n'
     + '- Use only the numbers in the data; never invent figures.\n'
-    + '- One short paragraph per store. With multiple stores, start each paragraph with the store name in **double asterisks**.\n'
+    + '- One short paragraph per store. With multiple stores, start each paragraph with the store name in plain text (no bold, no asterisks), e.g. "Bixby:".\n'
     + '- No grades, no labor rates, no internal flag names. No subject line, title, or signature.\n\n'
     + 'Data:\n' + JSON.stringify({ stores: storeFactsList }, null, 2);
 
@@ -232,7 +234,7 @@ function managerFallback(firstName, storeFactsList) {
     if (s.vsForecast)     bits.push(s.vsForecast + ' vs forecast');
     if (s.hrsVsScheduled) bits.push(s.hrsVsScheduled);
     var stats = bits.length ? ' (' + bits.join(', ') + ')' : '';
-    var line = '**' + s.store + '**' + stats
+    var line = s.store + stats
       + ' — sales came in under forecast and hours ran over schedule. Why weren\'t we cutting labor as the day came in soft?';
     parts.push(line, '');
   });
@@ -303,7 +305,7 @@ function createManagerRecapDrafts() {
 
     var clockoutCounts = getClockoutCounts(ss, yesterday);
     var ccStr = parseRecapCcList(
-      PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC')
+      PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC') || RECAP_CONFIG.CC_DEFAULT
     ).join(',');
 
     var drafted = 0;
@@ -373,7 +375,7 @@ function testManagerRecaps() {
     var groups = buildRecipientGroups(roster, locations);
     var clockoutCounts = getClockoutCounts(ss, yesterday);
     var ccStr = parseRecapCcList(
-      PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC')
+      PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC') || RECAP_CONFIG.CC_DEFAULT
     ).join(',');
 
     var previewed = 0;
@@ -387,12 +389,9 @@ function testManagerRecaps() {
       var facts = qualifying.map(buildManagerStoreFacts);
       var body  = writeManagerNarrative(g.firstName, facts);
       var html  = buildManagerRecapHtml(body, yesterday);
-      GmailApp.createDraft(
-        'dalton@rancherscustard.com',
-        '[TEST -> ' + g.email + '] Yesterday — labor over schedule',
-        '',
-        { htmlBody: html }
-      );
+      var topts = { htmlBody: html };
+      if (ccStr) topts.cc = ccStr;
+      GmailApp.createDraft(g.email, '[TEST] Yesterday — labor over schedule', '', topts);
       previewed++;
       logManagerRecap(ss, {
         date:   yesterday,
