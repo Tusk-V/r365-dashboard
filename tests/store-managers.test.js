@@ -29,4 +29,5 @@ test('extractManagers: keeps only specific-access users with locations', () => {
 test('extractManagers: non-array input returns empty array', () => {
   assert.deepEqual(extractManagers(undefined), []);
   assert.deepEqual(extractManagers(null), []);
+  assert.deepEqual(extractManagers([]), []);
 });
