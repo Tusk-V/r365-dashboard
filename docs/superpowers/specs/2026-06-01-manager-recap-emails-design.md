@@ -30,6 +30,7 @@ individual store managers; the leadership debrief audience is leadership.
 | Numeric detail | **Light** — figures woven into the prose, no table/stat strip |
 | Per-store recipient management | Existing **admin/users** screen (location access) |
 | Always-copy list | **Visible CC**, stored in Script Property `MANAGER_RECAP_CC` |
+| Send audit trail | **`Manager Recap Log`** spreadsheet tab, full email body captured |
 
 ## Architecture
 
@@ -103,7 +104,8 @@ Flow (`sendManagerRecaps()`):
 6. Send one email per recipient with `MailApp.sendEmail` using
    `replyTo: RECAP_CONFIG.REPLY_TO` and `cc: RECAP_CONFIG.MANAGER_RECAP_CC`
    (visible CC, applied to every outbound email).
-7. Log per-recipient send results.
+7. Append one row per recipient to the `Manager Recap Log` tab (see below), and
+   log per-recipient send results to the execution log.
 
 A `setupManagerRecapTrigger()` (run once) installs the time-based trigger, and a
 `testManagerRecaps()` previews to `dalton@rancherscustard.com` without emailing
@@ -131,6 +133,28 @@ manager email — roughly one per staffed store each morning (~15–20). This is
 the intended "copied on all outbound" behavior, noted here so the inbox volume
 is expected.
 
+## Send audit trail — `Manager Recap Log` tab
+
+After each send the script appends one row per recipient to a `Manager Recap
+Log` tab in the dashboard spreadsheet (auto-created with a bold header row on
+first run, mirroring the existing debrief logging helper). Columns:
+
+| Column | Contents |
+|--------|----------|
+| Timestamp | When the row was written |
+| Date | The prior day the recap covers |
+| Recipient Name | From the roster |
+| Recipient Email | The To: address |
+| Stores | The store sections included in that email |
+| CC | The `MANAGER_RECAP_CC` addresses copied |
+| Status | `Sent` or `Failed: <reason>` |
+| Email Body | The exact HTML/text the recipient received |
+
+This makes "who was it sent to, and what did it say" answerable by opening the
+tab — no execution-log spelunking. `testManagerRecaps()` writes preview rows
+marked `Preview` in the Status column so test runs are distinguishable from
+real sends.
+
 ## Email content & tone
 
 - **Light detail:** Claude weaves the figures (sales, vs forecast $ and %, vs
@@ -157,7 +181,8 @@ is expected.
 - A recipient ends up with zero stores that have data → skip that recipient.
 - Claude API error for a section → fall back to a brief plain-prose summary
   built from the numbers, so the manager still gets a usable note.
-- Each recipient send wrapped in try/catch so one failure doesn't halt the batch.
+- Each recipient send wrapped in try/catch so one failure doesn't halt the
+  batch; a failure still writes a log row with `Status = Failed: <reason>`.
 
 ## Testing
 
@@ -166,8 +191,11 @@ is expected.
   live.
 - Verify: combined email correctly merges a multi-store recipient; escalation
   wording triggers only on missed-forecast-AND-over-scheduled; new stores never
-  escalate; Reply-To is the leadership distro; a missing-data store is omitted
-  cleanly.
+  escalate; Reply-To is the leadership distro; the `MANAGER_RECAP_CC` addresses
+  appear as a visible CC; a missing-data store is omitted cleanly.
+- Verify the `Manager Recap Log` tab: header auto-created on first run, one row
+  per recipient with the full body captured, preview runs marked `Preview`, and
+  a forced send failure records a `Failed` row.
 - The `/api/store-managers` route: unit-check that a bad/missing token returns
   401 and a valid token returns only `type === 'specific'` users.
 
