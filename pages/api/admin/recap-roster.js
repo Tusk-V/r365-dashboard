@@ -70,11 +70,9 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Body must include a locations array' });
       }
 
-      const users = await db.collection('users').find({}).toArray();
-      const knownEmails = users.map((u) => u.email).filter(Boolean);
-      const invalid = validateRecipients(incoming, knownEmails);
+      const invalid = validateRecipients(incoming);
       if (invalid.length > 0) {
-        return res.status(400).json({ error: 'Unknown recipient(s)', invalid });
+        return res.status(400).json({ error: 'Invalid email(s)', invalid });
       }
 
       const now = new Date();
