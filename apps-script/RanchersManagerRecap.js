@@ -101,26 +101,20 @@ function buildManagerStoreFacts(loc) {
 
 // Build the Claude prompt for one recipient.
 function buildManagerPrompt(firstName, storeFactsList) {
-  var anyEscalation = storeFactsList.some(function(s) { return s.missedForecastAndOverScheduled; });
-  var greeting = 'Good morning' + (firstName ? ' ' + firstName : '') + ',';
+  var greeting = (firstName ? firstName : 'Hi') + ',';
 
   var prompt =
-    'Write a short, personal good-morning email about how this manager\'s store(s) did YESTERDAY. '
-    + 'Sound like a real person who glanced at the numbers — not a report.\n\n'
+    'Write a short, direct email from the owner to a store manager about YESTERDAY. '
+    + 'Every store listed came in under its sales forecast AND ran over its scheduled labor hours. '
+    + 'The point is to ask, plainly and professionally, why labor was over when sales were soft and they should have been cutting.\n\n'
     + 'RULES:\n'
     + '- Start with exactly: "' + greeting + '"\n'
-    + '- Keep it short: one or two sentences per store. No filler.\n'
-    + '- Work the key numbers into the sentence naturally; never list stats or use a table.\n'
-    + '- Use only numbers from the data; never invent figures.\n'
-    + '- Vary the wording; never sound templated.\n'
+    + '- Tone: straightforward and professional — owner to employee. Not chummy, not harsh. No "good morning", no small talk, no praise.\n'
+    + '- For each store: state the sales-vs-forecast and the hours over scheduled in one sentence, then directly ask why they ran over when they should have been cutting labor.\n'
+    + '- Keep it tight: two or three sentences per store, maximum.\n'
+    + '- Use only the numbers in the data; never invent figures.\n'
     + '- One short paragraph per store. With multiple stores, start each paragraph with the store name in **double asterisks**.\n'
-    + '- Close each store by asking for a quick reply on how it went.\n'
-    + '- No grades, no labor rates, no internal flag names.\n'
-    + (anyEscalation
-        ? '- For a store flagged "missedForecastAndOverScheduled": it missed forecast AND ran over scheduled hours — gently ask what happened, never critical.\n'
-        : '')
-    + '- For a store flagged "isNewStore": still ramping up; be encouraging, not critical.\n'
-    + '- No subject line, title, or signature.\n\n'
+    + '- No grades, no labor rates, no internal flag names. No subject line, title, or signature.\n\n'
     + 'Data:\n' + JSON.stringify({ stores: storeFactsList }, null, 2);
 
   return prompt;
@@ -230,21 +224,16 @@ function writeManagerNarrative(firstName, storeFactsList) {
 }
 
 function managerFallback(firstName, storeFactsList) {
-  var greeting = 'Good morning' + (firstName ? ' ' + firstName : '') + ',';
+  var greeting = (firstName ? firstName : 'Hi') + ',';
   var parts = [greeting, ''];
   storeFactsList.forEach(function(s) {
     var bits = [];
     if (s.sales)          bits.push(s.sales);
     if (s.vsForecast)     bits.push(s.vsForecast + ' vs forecast');
     if (s.hrsVsScheduled) bits.push(s.hrsVsScheduled);
-    var line = '**' + s.store + '** — ' + (bits.length ? bits.join(', ') + '.' : 'numbers coming in.');
-    if (s.missedForecastAndOverScheduled) {
-      line += ' Missed forecast and ran over scheduled hours — what happened? Quick recap when you can.';
-    } else if (s.isNewStore) {
-      line += ' Still finding its rhythm — how did it feel? Quick recap appreciated.';
-    } else {
-      line += ' How did it go? Quick recap when you can.';
-    }
+    var stats = bits.length ? ' (' + bits.join(', ') + ')' : '';
+    var line = '**' + s.store + '**' + stats
+      + ' — sales came in under forecast and hours ran over schedule. Why weren\'t we cutting labor as the day came in soft?';
     parts.push(line, '');
   });
   return parts.join('\n').trim();

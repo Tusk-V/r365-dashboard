@@ -66,21 +66,17 @@ test('buildManagerStoreFacts formats a beat-forecast day with a + prefix', () =>
   assert.equal(facts.missedForecastAndOverScheduled, false);
 });
 
-test('buildManagerPrompt: greeting uses name when present, escalation only when flagged', () => {
-  const flagged = m.buildManagerPrompt('Jane', [{ store: 'Bixby', missedForecastAndOverScheduled: true, isNewStore: false }]);
-  assert.ok(flagged.includes('Good morning Jane,'));
-  assert.ok(flagged.includes('quick reply'));
-  assert.ok(flagged.includes('gently ask what happened'));
-
-  const clean = m.buildManagerPrompt('Jane', [{ store: 'Bixby', missedForecastAndOverScheduled: false, isNewStore: false }]);
-  assert.ok(clean.includes('quick reply'));
-  assert.ok(!clean.includes('gently ask what happened'));
+test('buildManagerPrompt: direct owner tone, name greeting, asks about over-labor', () => {
+  const p = m.buildManagerPrompt('Jane', [{ store: 'Bixby' }]);
+  assert.ok(p.includes('Jane,'));
+  assert.ok(p.toLowerCase().includes('cutting'));
+  assert.ok(!p.includes('Good morning'));
 });
 
-test('buildManagerPrompt: greeting omits name when empty', () => {
-  const p = m.buildManagerPrompt('', [{ store: 'Bixby', missedForecastAndOverScheduled: false, isNewStore: false }]);
-  assert.ok(p.includes('Good morning,'));
-  assert.ok(!p.includes('Good morning ,'));
+test('buildManagerPrompt: neutral greeting when no name', () => {
+  const p = m.buildManagerPrompt('', [{ store: 'Bixby' }]);
+  assert.ok(p.includes('Hi,'));
+  assert.ok(!p.includes('Hi ,'));
 });
 
 test('buildLocationRecipientMap inverts roster, dedupes, sorts, and flags unassigned data locations', () => {
