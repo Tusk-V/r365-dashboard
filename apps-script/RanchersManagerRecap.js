@@ -35,7 +35,9 @@ var RECAP_CONFIG = {
   REPLY_TO_DEFAULT: 'dalton@rancherscustard.com,josh@rancherscustard.com,eric@rancherscustard.com,kandacegiles@rancherscustard.com',
   SEND_HOUR:       7,
   SEND_MINUTE:     15,
-  LOG_SHEET:       'Manager Recap Log'
+  LOG_SHEET:       'Manager Recap Log',
+  SIGNATURE_IMG_URL: 'https://ci3.googleusercontent.com/mail-sig/AIorK4zYQoLW7nhXQU1EvNY5LJL02mU8weD5RJN3G9VpcHFfHabY6AFsa5h87yz5x7OVU4q4DJu2LFw',
+  SIGNATURE_TEXT:  'Dalton Owens\nOwner/Operator\nRanchers Custard Company, LLC\nAndy\'s Frozen Custard Franchisee'
 };
 
 // --- pure helpers (unit-tested) --------------------------------------------
@@ -48,9 +50,9 @@ function parseRecapCcList(raw) {
 }
 
 function recapFirstName(name) {
-  if (!name) return 'there';
+  if (!name) return '';
   var token = String(name).trim().split(/\s+/)[0];
-  return token || 'there';
+  return token || '';
 }
 
 // managers: [{name, email, locations:[...]}]; locations: buildDailyLocationData output.
@@ -105,26 +107,26 @@ function buildManagerStoreFacts(loc) {
 // Build the Claude prompt for one recipient.
 function buildManagerPrompt(firstName, storeFactsList) {
   var anyEscalation = storeFactsList.some(function(s) { return s.missedForecastAndOverScheduled; });
+  var greeting = 'Good morning' + (firstName ? ' ' + firstName : '') + ',';
 
   var prompt =
-    'You are writing a brief, warm, personal good-morning email to ' + firstName + ', a store manager '
-    + 'at Ranchers Custard Company (Andy\'s Frozen Custard), about how their store(s) did YESTERDAY. '
-    + 'It must read like a real note from a person who actually looked at the numbers — never a template.\n\n'
-    + 'TONE & RULES:\n'
-    + '- Open by greeting ' + firstName + ' by first name.\n'
-    + '- Conversational and constructive. Never harsh, never blaming.\n'
-    + '- Weave the numbers naturally into the prose. Do NOT print a table or a stat line.\n'
-    + '- Every number you state must come from the data provided. Never invent or estimate figures.\n'
-    + '- Write each store\'s paragraph fresh. Never reuse phrasing or sentence structure across stores or days.\n'
-    + '- End each store\'s paragraph by inviting a quick reply recapping how yesterday went.\n'
-    + '- One paragraph per store. With multiple stores, start each paragraph with the store name in **double asterisks**.\n'
-    + '- Never mention grades, hourly labor rates, or any internal flag names.\n'
+    'Write a short, personal good-morning email about how this manager\'s store(s) did YESTERDAY. '
+    + 'Sound like a real person who glanced at the numbers — not a report.\n\n'
+    + 'RULES:\n'
+    + '- Start with exactly: "' + greeting + '"\n'
+    + '- Keep it short: one or two sentences per store. No filler.\n'
+    + '- Work the key numbers into the sentence naturally; never list stats or use a table.\n'
+    + '- Use only numbers from the data; never invent figures.\n'
+    + '- Vary the wording; never sound templated.\n'
+    + '- One short paragraph per store. With multiple stores, start each paragraph with the store name in **double asterisks**.\n'
+    + '- Close each store by asking for a quick reply on how it went.\n'
+    + '- No grades, no labor rates, no internal flag names.\n'
     + (anyEscalation
-        ? '- For any store flagged "missedForecastAndOverScheduled": yesterday came in under the sales forecast AND ran over the scheduled hours that were committed to. Gently and specifically ask what drove the softer sales and how the staffing/hours call played out — framed as "worth looking into" / "help me understand the day," never as criticism.\n'
+        ? '- For a store flagged "missedForecastAndOverScheduled": it missed forecast AND ran over scheduled hours — gently ask what happened, never critical.\n'
         : '')
-    + '- For any store flagged "isNewStore": it is still ramping up. Be encouraging and context-first; do not critique it.\n\n'
-    + 'Do not include a subject line, title, or signature.\n\n'
-    + 'Data:\n' + JSON.stringify({ manager: firstName, stores: storeFactsList }, null, 2);
+    + '- For a store flagged "isNewStore": still ramping up; be encouraging, not critical.\n'
+    + '- No subject line, title, or signature.\n\n'
+    + 'Data:\n' + JSON.stringify({ stores: storeFactsList }, null, 2);
 
   return prompt;
 }

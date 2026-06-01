@@ -13,11 +13,11 @@ test('parseRecapCcList trims, drops blanks, handles empty', () => {
   assert.deepEqual(Array.from(m.parseRecapCcList(null)), []);
 });
 
-test('recapFirstName takes the first token, falls back to "there"', () => {
+test('recapFirstName takes the first token, empty when no name', () => {
   assert.equal(m.recapFirstName('Jane Doe'), 'Jane');
   assert.equal(m.recapFirstName('  Bob  '), 'Bob');
-  assert.equal(m.recapFirstName(''), 'there');
-  assert.equal(m.recapFirstName(null), 'there');
+  assert.equal(m.recapFirstName(''), '');
+  assert.equal(m.recapFirstName(null), '');
 });
 
 test('buildRecipientGroups keeps only stores with data, sorts, sets firstName', () => {
@@ -66,15 +66,21 @@ test('buildManagerStoreFacts formats a beat-forecast day with a + prefix', () =>
   assert.equal(facts.missedForecastAndOverScheduled, false);
 });
 
-test('buildManagerPrompt includes name + recap invite always, escalation only when flagged', () => {
+test('buildManagerPrompt: greeting uses name when present, escalation only when flagged', () => {
   const flagged = m.buildManagerPrompt('Jane', [{ store: 'Bixby', missedForecastAndOverScheduled: true, isNewStore: false }]);
-  assert.ok(flagged.includes('Jane'));
-  assert.ok(flagged.includes('quick reply recapping'));
-  assert.ok(flagged.includes('help me understand the day'));
+  assert.ok(flagged.includes('Good morning Jane,'));
+  assert.ok(flagged.includes('quick reply'));
+  assert.ok(flagged.includes('gently ask what happened'));
 
   const clean = m.buildManagerPrompt('Jane', [{ store: 'Bixby', missedForecastAndOverScheduled: false, isNewStore: false }]);
-  assert.ok(clean.includes('quick reply recapping'));
-  assert.ok(!clean.includes('help me understand the day'));
+  assert.ok(clean.includes('quick reply'));
+  assert.ok(!clean.includes('gently ask what happened'));
+});
+
+test('buildManagerPrompt: greeting omits name when empty', () => {
+  const p = m.buildManagerPrompt('', [{ store: 'Bixby', missedForecastAndOverScheduled: false, isNewStore: false }]);
+  assert.ok(p.includes('Good morning,'));
+  assert.ok(!p.includes('Good morning ,'));
 });
 
 test('buildLocationRecipientMap inverts roster, dedupes, sorts, and flags unassigned data locations', () => {
