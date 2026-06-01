@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { isAuthorized, extractManagers, isStoreMailbox } = require('../lib/storeManagers');
+const { isAuthorized, extractManagers, isStoreMailbox, invertToLocationMap } = require('../lib/storeManagers');
 
 test('isAuthorized: correct bearer token passes', () => {
   assert.equal(isAuthorized('Bearer secret123', 'secret123'), true);
@@ -52,4 +52,23 @@ test('extractManagers excludes shared store-mailbox accounts', () => {
   assert.deepEqual(extractManagers(users), [
     { name: 'Ashley Saucedo', email: 'ashley@r.com', locations: ['Bixby'] },
   ]);
+});
+
+test('invertToLocationMap groups by location, dedupes + sorts emails, sorts locations', () => {
+  const managers = [
+    { name: 'Avery', email: 'avery@r.com', locations: ['Frisco #1', 'Allen'] },
+    { name: 'Logan', email: 'logan@r.com', locations: ['Allen'] },
+    { name: 'Dup', email: 'avery@r.com', locations: ['Allen'] }, // duplicate email on Allen
+  ];
+  assert.deepEqual(invertToLocationMap(managers), [
+    { location: 'Allen', emails: ['avery@r.com', 'logan@r.com'] },
+    { location: 'Frisco #1', emails: ['avery@r.com'] },
+  ]);
+});
+
+test('invertToLocationMap handles empty / malformed input', () => {
+  assert.deepEqual(invertToLocationMap(null), []);
+  assert.deepEqual(invertToLocationMap(undefined), []);
+  assert.deepEqual(invertToLocationMap([]), []);
+  assert.deepEqual(invertToLocationMap([{ name: 'X' }]), []); // no email/locations
 });
