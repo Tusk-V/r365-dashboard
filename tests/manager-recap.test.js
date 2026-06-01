@@ -55,6 +55,17 @@ test('buildManagerStoreFacts never escalates a new store', () => {
   assert.equal(facts.isNewStore, true);
 });
 
+test('buildManagerStoreFacts formats a beat-forecast day with a + prefix', () => {
+  const facts = m.buildManagerStoreFacts({
+    location: 'Yale', sales: 1000, pySales: 1100, forecastVariance: 100,
+    actHrs: 90, schHrs: 100, missedFcAndOverSch: false, isNewStore: false,
+  });
+  assert.equal(facts.vsForecast, '+11.1%');           // 100/(1000-100)=+11.1%
+  assert.equal(facts.vsPriorYear, '-9.1%');           // (1000-1100)/1100=-9.1%
+  assert.equal(facts.hrsVsScheduled, '-10.0 hrs vs scheduled');
+  assert.equal(facts.missedForecastAndOverScheduled, false);
+});
+
 test('buildManagerPrompt includes name + recap invite always, escalation only when flagged', () => {
   const flagged = m.buildManagerPrompt('Jane', [{ store: 'Bixby', missedForecastAndOverScheduled: true, isNewStore: false }]);
   assert.ok(flagged.includes('Jane'));

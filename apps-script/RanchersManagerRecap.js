@@ -71,7 +71,7 @@ function buildRecipientGroups(managers, locations) {
 // Compress one location row into the light facts the prose is grounded in.
 function buildManagerStoreFacts(loc) {
   var fcPct = null;
-  if (loc.forecastVariance !== null && loc.sales && loc.sales > 0) {
+  if (loc.forecastVariance != null && loc.sales && loc.sales > 0) {
     var fc = loc.sales - loc.forecastVariance;
     if (fc > 0) fcPct = ((loc.forecastVariance / fc) * 100).toFixed(1);
   }
