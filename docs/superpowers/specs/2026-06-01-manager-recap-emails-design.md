@@ -22,7 +22,7 @@ individual store managers; the leadership debrief audience is leadership.
 | Decision | Choice |
 |----------|--------|
 | Manager email source | MongoDB `users` collection (via the Next.js app) |
-| Manager identification | Users with `dashboardAccess.type === 'specific'` |
+| Manager identification | Users with `dashboardAccess.type === 'specific'`, excluding shared store-mailbox accounts (name matches `/frozen custard/i`) |
 | Multi-store recipients | **One combined email** per person, one section per store |
 | Generation | **Claude-personalized** per store (reuse `ANTHROPIC_API_KEY`) |
 | Relationship to leadership debrief | **Separate** trigger, runs alongside (~7:15 AM) |

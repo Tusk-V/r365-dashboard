@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { isAuthorized, extractManagers } = require('../lib/storeManagers');
+const { isAuthorized, extractManagers, isStoreMailbox } = require('../lib/storeManagers');
 
 test('isAuthorized: correct bearer token passes', () => {
   assert.equal(isAuthorized('Bearer secret123', 'secret123'), true);
@@ -32,4 +32,24 @@ test('extractManagers: non-array input returns empty array', () => {
   assert.deepEqual(extractManagers(undefined), []);
   assert.deepEqual(extractManagers(null), []);
   assert.deepEqual(extractManagers([]), []);
+});
+
+test('isStoreMailbox flags shared store-inbox accounts, not people', () => {
+  assert.equal(isStoreMailbox("Andy's Frozen Custard Allen"), true);
+  assert.equal(isStoreMailbox('Andy’s Frozen Custard Carrollton'), true); // curly apostrophe
+  assert.equal(isStoreMailbox('  andys frozen custard eldorado & custer  '), true);
+  assert.equal(isStoreMailbox('Jane Doe'), false);
+  assert.equal(isStoreMailbox(''), false);
+  assert.equal(isStoreMailbox(null), false);
+});
+
+test('extractManagers excludes shared store-mailbox accounts', () => {
+  const users = [
+    { name: 'Ashley Saucedo', email: 'ashley@r.com', dashboardAccess: { type: 'specific', locations: ['Bixby'] } },
+    { name: "Andy's Frozen Custard Allen", email: 'allen@r.com', dashboardAccess: { type: 'specific', locations: ['Allen'] } },
+    { name: "Andy's Frozen Custard Carrollton", email: 'carrollton@r.com', dashboardAccess: { type: 'specific', locations: ['Carrollton'] } },
+  ];
+  assert.deepEqual(extractManagers(users), [
+    { name: 'Ashley Saucedo', email: 'ashley@r.com', locations: ['Bixby'] },
+  ]);
 });
