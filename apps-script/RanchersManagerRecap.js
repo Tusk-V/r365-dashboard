@@ -294,48 +294,52 @@ function setupManagerRecapTrigger() {
   ScriptApp.newTrigger('sendManagerRecaps')
     .timeBased().atHour(RECAP_CONFIG.SEND_HOUR).nearMinute(RECAP_CONFIG.SEND_MINUTE).everyDays(1)
     .inTimezone('America/Chicago').create();
-  Logger.log('Manager recap trigger set: ~' + RECAP_CONFIG.SEND_HOUR + ':' + RECAP_CONFIG.SEND_MINUTE + ' Central daily.');
+  Logger.log('Manager recap trigger set: ~' + RECAP_CONFIG.SEND_HOUR + ':' + ('0' + RECAP_CONFIG.SEND_MINUTE).slice(-2) + ' Central daily.');
 }
 
 // Preview the entire batch to dalton only — no real manager is emailed.
 // Each preview email is subject-tagged with its intended recipient; log rows
 // are marked 'Preview'.
 function testManagerRecaps() {
-  var ss        = SpreadsheetApp.openById(DAILY_CONFIG.SPREADSHEET_ID);
-  var yesterday = getYesterdayStr();
+  try {
+    var ss        = SpreadsheetApp.openById(DAILY_CONFIG.SPREADSHEET_ID);
+    var yesterday = getYesterdayStr();
 
-  var locations = buildDailyLocationData(ss, yesterday);
-  if (locations.length === 0) { Logger.log('No data.'); return; }
+    var locations = buildDailyLocationData(ss, yesterday);
+    if (locations.length === 0) { Logger.log('No data.'); return; }
 
-  var roster = fetchManagerRoster();
-  if (!roster) { Logger.log('Roster fetch failed.'); return; }
+    var roster = fetchManagerRoster();
+    if (!roster) { Logger.log('Roster fetch failed.'); return; }
 
-  var groups = buildRecipientGroups(roster, locations);
-  Logger.log('Preview recipients: ' + groups.length);
+    var groups = buildRecipientGroups(roster, locations);
+    Logger.log('Preview recipients: ' + groups.length);
 
-  var ccStr = parseRecapCcList(
-    PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC')
-  ).join(',');
+    var ccStr = parseRecapCcList(
+      PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC')
+    ).join(',');
 
-  groups.forEach(function(g) {
-    var facts = g.stores.map(buildManagerStoreFacts);
-    var body  = writeManagerNarrative(g.firstName, facts);
-    var html  = buildManagerRecapHtml(body, yesterday);
-    MailApp.sendEmail({
-      to:       'dalton@rancherscustard.com',
-      subject:  '[TEST → ' + g.email + '] Quick recap — ' + fmtDisplayDate(yesterday),
-      htmlBody: html
+    groups.forEach(function(g) {
+      var facts = g.stores.map(buildManagerStoreFacts);
+      var body  = writeManagerNarrative(g.firstName, facts);
+      var html  = buildManagerRecapHtml(body, yesterday);
+      MailApp.sendEmail({
+        to:       'dalton@rancherscustard.com',
+        subject:  '[TEST → ' + g.email + '] Quick recap — ' + fmtDisplayDate(yesterday),
+        htmlBody: html
+      });
+      logManagerRecap(ss, {
+        date:   yesterday,
+        name:   g.name,
+        email:  g.email,
+        stores: g.stores.map(function(s) { return s.location; }).join(', '),
+        cc:     ccStr,
+        status: 'Preview',
+        body:   body
+      });
     });
-    logManagerRecap(ss, {
-      date:   yesterday,
-      name:   g.name,
-      email:  g.email,
-      stores: g.stores.map(function(s) { return s.location; }).join(', '),
-      cc:     ccStr,
-      status: 'Preview',
-      body:   body
-    });
-  });
 
-  Logger.log('Preview sent to dalton only.');
+    Logger.log('Preview sent to dalton only.');
+  } catch (e) {
+    Logger.log('Error in testManagerRecaps: ' + e.toString());
+  }
 }
