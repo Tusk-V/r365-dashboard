@@ -10,29 +10,22 @@
 // - Claude writes each note fresh; falls back to plain prose if the API is down.
 // - "Missed forecast AND over scheduled hours" escalates the ASK (constructively).
 // - Leadership (MANAGER_RECAP_CC Script Property) is visibly CC'd on every email.
-// - Manager replies route to MANAGER_RECAP_REPLY_TO (Script Property).
 // - Every send is logged to the 'Manager Recap Log' tab, full body included.
 //
 // SETUP:
 //   1. Script Properties -> MANAGER_SYNC_TOKEN = (same value as Vercel env)
 //   2. Script Properties -> MANAGER_RECAP_CC   = josh@...,eric@...,kandace@...
-//   3. (optional) Script Properties -> MANAGER_RECAP_REPLY_TO = comma-separated
-//      addresses replies go to. If unset, defaults to RECAP_CONFIG.REPLY_TO_DEFAULT.
-//   4. (ANTHROPIC_API_KEY already set for the debrief - reused here)
-//   5. Run setupManagerRecapTrigger() ONCE
-//   6. Run testManagerRecaps() to preview to dalton only
+//   3. (ANTHROPIC_API_KEY already set for the debrief - reused here)
+//   4. Run setupManagerRecapTrigger() ONCE
+//   5. Run testManagerRecaps() to preview to dalton only
 //
 // EDITING RECIPIENTS (no code change / no clasp push needed):
 //   - Who GETS a recap: manage in the app's admin/users screen (dashboard access).
 //   - Who is CC'd:       edit the MANAGER_RECAP_CC Script Property.
-//   - Where replies go:  edit the MANAGER_RECAP_REPLY_TO Script Property.
 // ============================================================================
 
 var RECAP_CONFIG = {
   MANAGER_API_URL: 'https://andysdashboard.com/api/store-managers',
-  // Default reply-to if the MANAGER_RECAP_REPLY_TO Script Property is unset.
-  // Edit recipients live via that property — no code change required.
-  REPLY_TO_DEFAULT: 'dalton@rancherscustard.com,josh@rancherscustard.com,eric@rancherscustard.com,kandacegiles@rancherscustard.com',
   SEND_HOUR:       7,
   SEND_MINUTE:     15,
   LOG_SHEET:       'Manager Recap Log',
