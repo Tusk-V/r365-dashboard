@@ -115,7 +115,7 @@ function buildManagerPrompt(firstName, storeFactsList) {
     + '- For each store: state the sales-vs-forecast and the hours over scheduled in one sentence, then ask what drove the labor running over when sales were coming in under.\n'
     + '- Keep it tight: two or three sentences per store, maximum.\n'
     + '- Use only the numbers in the data; never invent figures.\n'
-    + '- One short paragraph per store. With multiple stores, start each paragraph with the store name in plain text (no bold, no asterisks), e.g. "Bixby:".\n'
+    + '- Do not begin with a store-name label or the store name. If there is only one store, write about the day directly. If there are multiple stores, identify each store naturally within its sentence (e.g. "At Bixby, ..."), never as a leading label.\n'
     + '- No grades, no labor rates, no internal flag names. No subject line or title.\n'
     + '- End the entire email with a final line that says exactly: "Thanks," (nothing after it — no name, no signature).\n\n'
     + 'Data:\n' + JSON.stringify({ stores: storeFactsList }, null, 2);
@@ -235,15 +235,29 @@ function managerFallback(firstName, storeFactsList) {
     if (s.vsForecast)     bits.push(s.vsForecast + ' vs forecast');
     if (s.hrsVsScheduled) bits.push(s.hrsVsScheduled);
     var stats = bits.length ? ' (' + bits.join(', ') + ')' : '';
-    var line = s.store + stats
-      + ' — sales came in under forecast and hours ran over schedule. What drove the labor running over as the day came in soft?';
+    var lead = storeFactsList.length > 1 ? 'At ' + s.store + ', sales' : 'Sales';
+    var line = lead + ' came in under forecast and hours ran over schedule' + stats
+      + '. What drove the labor running over as the day came in soft?';
     parts.push(line, '');
   });
   parts.push('Thanks,');
   return parts.join('\n').trim();
 }
 
-function buildManagerRecapHtml(bodyText, dateStr) {
+// Fetch the owner's actual Gmail signature HTML via the Gmail advanced service
+// so it can be auto-appended to each draft (stays in sync with Gmail settings).
+// Returns '' on any error so a signature problem never blocks the drafts.
+function getOwnerSignatureHtml() {
+  try {
+    var sendAs = Gmail.Users.Settings.SendAs.get('me', RECAP_CONFIG.OWNER_EMAIL);
+    return (sendAs && sendAs.signature) ? sendAs.signature : '';
+  } catch (e) {
+    Logger.log('Signature fetch error: ' + e.toString());
+    return '';
+  }
+}
+
+function buildManagerRecapHtml(bodyText, signatureHtml) {
   var paras = bodyText.split('\n')
     .map(function(l) { return l.trim(); })
     .filter(function(l) { return l.length > 0; });
@@ -253,10 +267,11 @@ function buildManagerRecapHtml(bodyText, dateStr) {
       + p.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') + '</p>';
   }).join('');
 
-  // No signature is embedded — Dalton inserts his own via the Gmail signature
-  // button when reviewing the draft. The body ends with "Thanks,".
+  // The owner's real Gmail signature is auto-appended below the "Thanks," line.
+  var sig = signatureHtml ? '<div style="margin-top:16px;">' + signatureHtml + '</div>' : '';
+
   return '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Arial,sans-serif;color:#222;font-size:14px;">'
-    + body
+    + body + sig
     + '</div>';
 }
 
@@ -298,6 +313,7 @@ function createManagerRecapDrafts() {
     var ccStr = parseRecapCcList(
       PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC') || RECAP_CONFIG.CC_DEFAULT
     ).join(',');
+    var sigHtml = getOwnerSignatureHtml();
 
     var drafted = 0;
     groups.forEach(function(g) {
@@ -310,7 +326,7 @@ function createManagerRecapDrafts() {
 
       var facts  = qualifying.map(buildManagerStoreFacts);
       var body   = writeManagerNarrative(g.firstName, facts);
-      var html   = buildManagerRecapHtml(body, yesterday);
+      var html   = buildManagerRecapHtml(body, sigHtml);
       var status = 'Drafted';
       try {
         var opts = { htmlBody: html };
@@ -369,6 +385,7 @@ function testManagerRecaps() {
     var ccStr = parseRecapCcList(
       PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC') || RECAP_CONFIG.CC_DEFAULT
     ).join(',');
+    var sigHtml = getOwnerSignatureHtml();
 
     var previewed = 0;
     groups.forEach(function(g) {
@@ -381,7 +398,7 @@ function testManagerRecaps() {
 
       var facts = qualifying.map(buildManagerStoreFacts);
       var body  = writeManagerNarrative(g.firstName, facts);
-      var html  = buildManagerRecapHtml(body, yesterday);
+      var html  = buildManagerRecapHtml(body, sigHtml);
       var topts = { htmlBody: html };
       if (ccStr) topts.cc = ccStr;
       GmailApp.createDraft(g.email, '[TEST] Yesterday — labor over schedule', '', topts);
