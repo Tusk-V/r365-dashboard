@@ -30,7 +30,9 @@ var RECAP_CONFIG = {
   SEND_MINUTE:     15,
   LOG_SHEET:       'Manager Recap Log',
   SIGNATURE_IMG_URL: 'https://ci3.googleusercontent.com/mail-sig/AIorK4zYQoLW7nhXQU1EvNY5LJL02mU8weD5RJN3G9VpcHFfHabY6AFsa5h87yz5x7OVU4q4DJu2LFw',
-  SIGNATURE_TEXT:  'Dalton Owens\nOwner/Operator\nRanchers Custard Company, LLC\nAndy\'s Frozen Custard Franchisee'
+  SIGNATURE_TEXT:  'Dalton Owens\nOwner/Operator\nRanchers Custard Company, LLC\nAndy\'s Frozen Custard Franchisee',
+  FORECAST_MISS_PCT:   0.03,  // must be MORE than 3% under forecast to flag
+  OVER_SCHEDULED_PCT:  0.05   // AND 5%+ actual hours over scheduled
 };
 
 // --- pure helpers (unit-tested) --------------------------------------------
@@ -155,6 +157,23 @@ function buildLocationRecipientMap(managers, locationNames) {
     .map(function(e) { return e.location; });
 
   return { map: map, unassigned: unassigned };
+}
+
+// True only when a store warrants an exception email: under forecast by more
+// than forecastMissPct, actual hours at least overSchedPct above scheduled, no
+// auto-clockouts that day, and not a ramp-up store.
+function qualifiesForRecap(loc, autoClockouts, forecastMissPct, overSchedPct) {
+  if (!loc || loc.isNewStore) return false;
+  if (autoClockouts && autoClockouts > 0) return false;
+  if (loc.schHrs == null || loc.schHrs <= 0 || loc.actHrs == null) return false;
+  if (loc.forecastVariance == null || loc.sales == null) return false;
+  var forecast = loc.sales - loc.forecastVariance;
+  if (forecast <= 0) return false;
+  var missPct = (-loc.forecastVariance) / forecast;
+  if (missPct <= forecastMissPct) return false;
+  var overPct = (loc.actHrs - loc.schHrs) / loc.schHrs;
+  if (overPct < overSchedPct) return false;
+  return true;
 }
 
 // --- orchestration (runs in Apps Script only) ------------------------------

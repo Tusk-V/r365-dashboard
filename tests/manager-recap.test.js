@@ -107,3 +107,38 @@ test('buildLocationRecipientMap handles empty/missing inputs', () => {
   assert.deepEqual(Array.from(empty.map), []);
   assert.deepEqual(Array.from(empty.unassigned), []);
 });
+
+test('qualifiesForRecap: under forecast >3% AND over scheduled >=5%, no clockouts, not new', () => {
+  const loc = { sales: 950, forecastVariance: -50, schHrs: 100, actHrs: 106, isNewStore: false };
+  assert.equal(m.qualifiesForRecap(loc, 0, 0.03, 0.05), true);
+});
+
+test('qualifiesForRecap: trivial forecast miss (<=3%) does not qualify', () => {
+  const loc = { sales: 980, forecastVariance: -20, schHrs: 100, actHrs: 110, isNewStore: false };
+  assert.equal(m.qualifiesForRecap(loc, 0, 0.03, 0.05), false);
+});
+
+test('qualifiesForRecap: hours under threshold does not qualify', () => {
+  const loc = { sales: 900, forecastVariance: -100, schHrs: 100, actHrs: 104, isNewStore: false };
+  assert.equal(m.qualifiesForRecap(loc, 0, 0.03, 0.05), false);
+});
+
+test('qualifiesForRecap: auto-clockouts skip the store', () => {
+  const loc = { sales: 950, forecastVariance: -50, schHrs: 100, actHrs: 106, isNewStore: false };
+  assert.equal(m.qualifiesForRecap(loc, 2, 0.03, 0.05), false);
+});
+
+test('qualifiesForRecap: new store never qualifies', () => {
+  const loc = { sales: 950, forecastVariance: -50, schHrs: 100, actHrs: 106, isNewStore: true };
+  assert.equal(m.qualifiesForRecap(loc, 0, 0.03, 0.05), false);
+});
+
+test('qualifiesForRecap: beating forecast does not qualify', () => {
+  const loc = { sales: 1050, forecastVariance: 50, schHrs: 100, actHrs: 110, isNewStore: false };
+  assert.equal(m.qualifiesForRecap(loc, 0, 0.03, 0.05), false);
+});
+
+test('qualifiesForRecap: missing labor data does not qualify', () => {
+  const loc = { sales: 950, forecastVariance: -50, schHrs: null, actHrs: null, isNewStore: false };
+  assert.equal(m.qualifiesForRecap(loc, 0, 0.03, 0.05), false);
+});
