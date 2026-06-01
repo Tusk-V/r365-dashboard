@@ -26,7 +26,7 @@ individual store managers; the leadership debrief audience is leadership.
 | Multi-store recipients | **One combined email** per person, one section per store |
 | Generation | **Claude-personalized** per store (reuse `ANTHROPIC_API_KEY`) |
 | Relationship to leadership debrief | **Separate** trigger, runs alongside (~7:15 AM) |
-| Reply destination | **Reply-To = leadership distro** |
+| Reply destination | **Reply-To = Dalton, Josh, Eric, Kandace** — editable live via the `MANAGER_RECAP_REPLY_TO` Script Property |
 | Numeric detail | **Light** — figures woven into the prose, no table/stat strip |
 | Per-store recipient management | Existing **admin/users** screen (location access) |
 | Always-copy list | **Visible CC**, stored in Script Property `MANAGER_RECAP_CC` |
@@ -77,8 +77,10 @@ call the existing globals directly. **Reuses, does not duplicate:**
 
 Config (new `RECAP_CONFIG` block):
 - `MANAGER_API_URL` — the deployed `/api/store-managers` URL.
-- `REPLY_TO` — the leadership distro string (same list as
-  `DAILY_CONFIG.RECIPIENTS`).
+- `REPLY_TO_DEFAULT` — fallback reply-to list (Dalton, Josh, Eric, Kandace) used
+  when the `MANAGER_RECAP_REPLY_TO` Script Property is unset. The send resolves
+  reply-to from that property first, so the recipients are editable live with no
+  code change or `clasp push`.
 - `SEND_HOUR: 7`, plus a minute offset so the trigger fires ~7:15.
 - `MANAGER_SYNC_TOKEN` read from Script Properties (not hardcoded).
 - `MANAGER_RECAP_CC` read from Script Properties — comma-separated list of
@@ -126,6 +128,14 @@ Two independent, editable controls — neither needs a developer:
 2. **Always-copy list** (leadership copied on everything): the Script Property
    `MANAGER_RECAP_CC`, edited in the Apps Script Project Settings UI. Initially
    Josh, Eric, Kandace. Visible CC on every manager email.
+3. **Reply destination** (where recaps land): the Script Property
+   `MANAGER_RECAP_REPLY_TO`, edited in the same UI. Defaults to Dalton, Josh,
+   Eric, Kandace when unset.
+
+**Auditing the mapping:** there is no static location→email file — the map is
+derived live from admin/users. Run `previewRecapRoster()` (read-only, sends
+nothing) any time to log a **location → recipient emails** readout and a flag
+for any location that had data yesterday but has no manager assigned.
 
 **Volume note:** because each manager gets an individual email, a visible CC
 means each leadership address on `MANAGER_RECAP_CC` receives one copy per
@@ -212,6 +222,8 @@ real sends.
   (same value).
 - Add `MANAGER_RECAP_CC` Script Property (comma-separated), initially Josh, Eric,
   Kandace. Editable later in Project Settings with no code push.
+- (Optional) Add `MANAGER_RECAP_REPLY_TO` Script Property to override the
+  reply-to recipients; if omitted, defaults to Dalton, Josh, Eric, Kandace.
 - After editing Apps Script files: `clasp push` (committing to Git does NOT
   deploy — per CLAUDE.md).
 - Run `setupManagerRecapTrigger()` once in the live editor to install the 7:15
