@@ -22,6 +22,8 @@
 // EDITING RECIPIENTS (no code change / no clasp push needed):
 //   - Who GETS a recap: manage in the app's admin/users screen (dashboard access).
 //   - Who is CC'd:       edit the MANAGER_RECAP_CC Script Property.
+//   - Draft vs auto-send: MANAGER_RECAP_AUTOSEND Script Property — 'true' sends
+//     automatically; unset/anything else creates drafts for manual review.
 // ============================================================================
 
 var RECAP_CONFIG = {
@@ -314,8 +316,13 @@ function createManagerRecapDrafts() {
       PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC') || RECAP_CONFIG.CC_DEFAULT
     ).join(',');
     var sigHtml = getOwnerSignatureHtml();
+    // MANAGER_RECAP_AUTOSEND Script Property: 'true' = send automatically,
+    // anything else (incl. unset) = create drafts for manual review/send.
+    var autoSend = String(
+      PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_AUTOSEND') || ''
+    ).trim().toLowerCase() === 'true';
 
-    var drafted = 0;
+    var handled = 0;
     groups.forEach(function(g) {
       if (g.email && g.email.toLowerCase() === RECAP_CONFIG.OWNER_EMAIL) return;  // never email the owner
       var qualifying = g.stores.filter(function(loc) {
@@ -327,16 +334,20 @@ function createManagerRecapDrafts() {
       var facts  = qualifying.map(buildManagerStoreFacts);
       var body   = writeManagerNarrative(g.firstName, facts);
       var html   = buildManagerRecapHtml(body, sigHtml);
-      var status = 'Drafted';
+      var status = autoSend ? 'Sent' : 'Drafted';
       try {
         var opts = { htmlBody: html };
         if (ccStr) opts.cc = ccStr;
-        GmailApp.createDraft(g.email, 'Yesterday — labor over schedule', '', opts);
+        if (autoSend) {
+          GmailApp.sendEmail(g.email, 'Yesterday — labor over schedule', '', opts);
+        } else {
+          GmailApp.createDraft(g.email, 'Yesterday — labor over schedule', '', opts);
+        }
       } catch (e) {
         status = 'Failed: ' + e.toString();
-        Logger.log('Draft failed for ' + g.email + ': ' + e.toString());
+        Logger.log((autoSend ? 'Send' : 'Draft') + ' failed for ' + g.email + ': ' + e.toString());
       }
-      drafted++;
+      handled++;
       logManagerRecap(ss, {
         date:   yesterday,
         name:   g.name,
@@ -348,7 +359,7 @@ function createManagerRecapDrafts() {
       });
     });
 
-    Logger.log('Manager recap drafts created: ' + drafted + ' of ' + groups.length + ' recipient(s) had a flagged store.');
+    Logger.log('Manager recap ' + (autoSend ? 'sent' : 'drafted') + ': ' + handled + ' of ' + groups.length + ' recipient(s) had a flagged store.');
   } catch (e) {
     Logger.log('Error in createManagerRecapDrafts: ' + e.toString());
   }
