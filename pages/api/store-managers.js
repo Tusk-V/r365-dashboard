@@ -1,10 +1,12 @@
 // pages/api/store-managers.js
 // Server-to-server roster endpoint for the Apps Script manager recap job.
-// Auth is a shared bearer token (MANAGER_SYNC_TOKEN), NOT a NextAuth session,
-// because the caller is a script with no browser login.
+// Auth is a shared bearer token (MANAGER_SYNC_TOKEN), NOT a NextAuth session.
+// Source of truth is the curated `recapRoster` collection; if it's empty (not
+// yet set up), fall back to the old dashboard-access derivation so nothing
+// breaks during migration.
 
 import clientPromise from "../../lib/mongodb";
-import { isAuthorized, extractManagers } from "../../lib/storeManagers";
+import { isAuthorized, extractManagers, rosterToManagers } from "../../lib/storeManagers";
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -16,13 +18,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const client = await clientPromise;
-    const db = client.db("andysdashboard");
-    const users = await db
-      .collection('users')
-      .find({ 'dashboardAccess.type': 'specific' })
-      .toArray();
+    const db = (await clientPromise).db("andysdashboard");
 
+    const rosterDocs = await db.collection('recapRoster').find({}).toArray();
+    if (rosterDocs.length > 0) {
+      return res.status(200).json({ managers: rosterToManagers(rosterDocs) });
+    }
+
+    // Fallback: derive from dashboard access until the roster is curated.
+    const users = await db.collection('users').find({ 'dashboardAccess.type': 'specific' }).toArray();
     return res.status(200).json({ managers: extractManagers(users) });
   } catch (error) {
     console.error('store-managers error:', error);
