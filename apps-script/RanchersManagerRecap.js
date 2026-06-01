@@ -283,45 +283,36 @@ function logManagerRecap(ss, row) {
   }
 }
 
-function sendManagerRecaps() {
+function createManagerRecapDrafts() {
   try {
     var ss        = SpreadsheetApp.openById(DAILY_CONFIG.SPREADSHEET_ID);
     var yesterday = getYesterdayStr();
 
     var locations = buildDailyLocationData(ss, yesterday);
-    if (locations.length === 0) { Logger.log('No data for ' + yesterday + ' — skipping manager recaps.'); return; }
+    if (locations.length === 0) { Logger.log('No data for ' + yesterday + ' — skipping recap drafts.'); return; }
 
     var roster = fetchManagerRoster();
-    if (!roster) { Logger.log('Roster unavailable — aborting (sent nothing).'); return; }
+    if (!roster) { Logger.log('Roster unavailable — aborting (created nothing).'); return; }
 
     var groups = buildRecipientGroups(roster, locations);
-    if (groups.length === 0) { Logger.log('No recipients have data — nothing to send.'); return; }
+    if (groups.length === 0) { Logger.log('No recipients have data — nothing to draft.'); return; }
 
-    var props = PropertiesService.getScriptProperties();
-    var ccStr = parseRecapCcList(props.getProperty('MANAGER_RECAP_CC')).join(',');
-    // Editable live via the MANAGER_RECAP_REPLY_TO Script Property; falls back
-    // to the built-in default (Dalton, Josh, Eric, Kandace) if unset.
-    var replyToStr = parseRecapCcList(
-      props.getProperty('MANAGER_RECAP_REPLY_TO') || RECAP_CONFIG.REPLY_TO_DEFAULT
+    var ccStr = parseRecapCcList(
+      PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC')
     ).join(',');
 
     groups.forEach(function(g) {
       var facts  = g.stores.map(buildManagerStoreFacts);
       var body   = writeManagerNarrative(g.firstName, facts);
       var html   = buildManagerRecapHtml(body, yesterday);
-      var status = 'Sent';
+      var status = 'Drafted';
       try {
-        var opts = {
-          to:       g.email,
-          subject:  'Quick recap — ' + fmtDisplayDate(yesterday),
-          htmlBody: html,
-          replyTo:  replyToStr
-        };
+        var opts = { htmlBody: html };
         if (ccStr) opts.cc = ccStr;
-        MailApp.sendEmail(opts);
+        GmailApp.createDraft(g.email, 'Quick recap — ' + fmtDisplayDate(yesterday), '', opts);
       } catch (e) {
         status = 'Failed: ' + e.toString();
-        Logger.log('Send failed for ' + g.email + ': ' + e.toString());
+        Logger.log('Draft failed for ' + g.email + ': ' + e.toString());
       }
       logManagerRecap(ss, {
         date:   yesterday,
@@ -334,25 +325,26 @@ function sendManagerRecaps() {
       });
     });
 
-    Logger.log('Manager recaps complete: ' + groups.length + ' recipient(s).');
+    Logger.log('Manager recap drafts created: ' + groups.length + ' recipient(s).');
   } catch (e) {
-    Logger.log('Error in sendManagerRecaps: ' + e.toString());
+    Logger.log('Error in createManagerRecapDrafts: ' + e.toString());
   }
 }
 
 function setupManagerRecapTrigger() {
   var triggers = ScriptApp.getProjectTriggers();
   triggers.forEach(function(t) {
-    if (t.getHandlerFunction() === 'sendManagerRecaps') ScriptApp.deleteTrigger(t);
+    var fn = t.getHandlerFunction();
+    if (fn === 'createManagerRecapDrafts' || fn === 'sendManagerRecaps') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('sendManagerRecaps')
+  ScriptApp.newTrigger('createManagerRecapDrafts')
     .timeBased().atHour(RECAP_CONFIG.SEND_HOUR).nearMinute(RECAP_CONFIG.SEND_MINUTE).everyDays(1)
     .inTimezone('America/Chicago').create();
-  Logger.log('Manager recap trigger set: ~' + RECAP_CONFIG.SEND_HOUR + ':' + ('0' + RECAP_CONFIG.SEND_MINUTE).slice(-2) + ' Central daily.');
+  Logger.log('Manager recap trigger set: ~' + RECAP_CONFIG.SEND_HOUR + ':' + ('0' + RECAP_CONFIG.SEND_MINUTE).slice(-2) + ' Central daily (drafts).');
 }
 
-// Preview the entire batch to dalton only — no real manager is emailed.
-// Each preview email is subject-tagged with its intended recipient; log rows
+// Preview the entire batch as Gmail drafts addressed to dalton — no real manager
+// is emailed. Each draft subject is tagged with its intended recipient; log rows
 // are marked 'Preview'.
 function testManagerRecaps() {
   try {
@@ -366,7 +358,7 @@ function testManagerRecaps() {
     if (!roster) { Logger.log('Roster fetch failed.'); return; }
 
     var groups = buildRecipientGroups(roster, locations);
-    Logger.log('Preview recipients: ' + groups.length);
+    Logger.log('Preview drafts: ' + groups.length);
 
     var ccStr = parseRecapCcList(
       PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC')
@@ -376,11 +368,12 @@ function testManagerRecaps() {
       var facts = g.stores.map(buildManagerStoreFacts);
       var body  = writeManagerNarrative(g.firstName, facts);
       var html  = buildManagerRecapHtml(body, yesterday);
-      MailApp.sendEmail({
-        to:       'dalton@rancherscustard.com',
-        subject:  '[TEST → ' + g.email + '] Quick recap — ' + fmtDisplayDate(yesterday),
-        htmlBody: html
-      });
+      GmailApp.createDraft(
+        'dalton@rancherscustard.com',
+        '[TEST -> ' + g.email + '] Quick recap — ' + fmtDisplayDate(yesterday),
+        '',
+        { htmlBody: html }
+      );
       logManagerRecap(ss, {
         date:   yesterday,
         name:   g.name,
@@ -392,7 +385,7 @@ function testManagerRecaps() {
       });
     });
 
-    Logger.log('Preview sent to dalton only.');
+    Logger.log('Preview drafts created in dalton\'s account.');
   } catch (e) {
     Logger.log('Error in testManagerRecaps: ' + e.toString());
   }
