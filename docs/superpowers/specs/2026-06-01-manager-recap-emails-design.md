@@ -28,6 +28,8 @@ individual store managers; the leadership debrief audience is leadership.
 | Relationship to leadership debrief | **Separate** trigger, runs alongside (~7:15 AM) |
 | Reply destination | **Reply-To = leadership distro** |
 | Numeric detail | **Light** — figures woven into the prose, no table/stat strip |
+| Per-store recipient management | Existing **admin/users** screen (location access) |
+| Always-copy list | **Visible CC**, stored in Script Property `MANAGER_RECAP_CC` |
 
 ## Architecture
 
@@ -78,6 +80,10 @@ Config (new `RECAP_CONFIG` block):
   `DAILY_CONFIG.RECIPIENTS`).
 - `SEND_HOUR: 7`, plus a minute offset so the trigger fires ~7:15.
 - `MANAGER_SYNC_TOKEN` read from Script Properties (not hardcoded).
+- `MANAGER_RECAP_CC` read from Script Properties — comma-separated list of
+  addresses **visibly CC'd on every** manager email (initially Josh, Eric,
+  Kandace). Editable in the Apps Script Project Settings UI with no code change
+  or `clasp push`. Parsed/trimmed at runtime; empty or unset → no CC.
 
 Flow (`sendManagerRecaps()`):
 1. Build yesterday's per-store data via the existing helpers (sales,
@@ -95,12 +101,35 @@ Flow (`sendManagerRecaps()`):
    the staffing call. Stores in `NEW_STORES` are never escalated and get
    gentler, context-first framing.
 6. Send one email per recipient with `MailApp.sendEmail` using
-   `replyTo: RECAP_CONFIG.REPLY_TO`.
+   `replyTo: RECAP_CONFIG.REPLY_TO` and `cc: RECAP_CONFIG.MANAGER_RECAP_CC`
+   (visible CC, applied to every outbound email).
 7. Log per-recipient send results.
 
 A `setupManagerRecapTrigger()` (run once) installs the time-based trigger, and a
 `testManagerRecaps()` previews to `dalton@rancherscustard.com` without emailing
 real managers — mirroring the existing debrief's setup/test pattern.
+
+## Recipient management (no code edits required)
+
+Two independent, editable controls — neither needs a developer:
+
+1. **Per-store managers** (the people who move around): governed entirely by the
+   existing **admin/users** screen. A manager's emails are derived from their
+   `dashboardAccess.locations`, so:
+   - *Move a manager* (Bixby → Owasso): edit their location access; the recap
+     follows on the next run.
+   - *Add a second recipient to a store*: give that person specific dashboard
+     access to that store.
+   - *Stop emailing someone*: remove their specific location access.
+2. **Always-copy list** (leadership copied on everything): the Script Property
+   `MANAGER_RECAP_CC`, edited in the Apps Script Project Settings UI. Initially
+   Josh, Eric, Kandace. Visible CC on every manager email.
+
+**Volume note:** because each manager gets an individual email, a visible CC
+means each leadership address on `MANAGER_RECAP_CC` receives one copy per
+manager email — roughly one per staffed store each morning (~15–20). This is
+the intended "copied on all outbound" behavior, noted here so the inbox volume
+is expected.
 
 ## Email content & tone
 
@@ -153,6 +182,8 @@ real managers — mirroring the existing debrief's setup/test pattern.
 
 - Add `MANAGER_SYNC_TOKEN` to Vercel env and to Apps Script Script Properties
   (same value).
+- Add `MANAGER_RECAP_CC` Script Property (comma-separated), initially Josh, Eric,
+  Kandace. Editable later in Project Settings with no code push.
 - After editing Apps Script files: `clasp push` (committing to Git does NOT
   deploy — per CLAUDE.md).
 - Run `setupManagerRecapTrigger()` once in the live editor to install the 7:15
