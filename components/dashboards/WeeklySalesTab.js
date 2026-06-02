@@ -218,7 +218,7 @@ export default function WeeklySalesTab({
             >
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
                 <AlertTriangle className={totals.flaggedCount > 0 ? 'text-red-400' : 'text-green-400'} size={14} />
-                <p className="text-slate-400 text-xs font-medium">Fcst ↓ Sched ↑</p>
+                <p className="text-slate-400 text-xs font-medium">Fcst ↓ Sch ↑</p>
               </div>
               <p className={`text-sm md:text-lg font-bold ${totals.flaggedCount > 0 ? 'text-red-400' : 'text-green-400'}`}>{totals.flaggedCount} {totals.flaggedCount === 1 ? 'Location' : 'Locations'}</p>
             </button>
