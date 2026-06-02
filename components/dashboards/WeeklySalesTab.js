@@ -214,7 +214,7 @@ export default function WeeklySalesTab({
                 }
               }}
               title="Tap to show only stores under forecast and over scheduled hours"
-              className={`w-full bg-slate-800 border rounded-lg p-2 md:p-3 shadow-lg text-center transition-colors ${filters.flaggedOnly ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-700'} ${(filters.flaggedOnly || totals.flaggedCount > 0) ? 'cursor-pointer hover:border-red-600' : 'cursor-default'}`}
+              className={`w-full bg-slate-800 border rounded-lg p-2 md:p-3 shadow-lg text-center transition-colors focus:outline-none ${filters.flaggedOnly ? 'border-red-500 ring-1 ring-red-500 cursor-pointer' : (totals.flaggedCount > 0 ? 'border-slate-700 cursor-pointer hover:border-slate-500' : 'border-slate-700 cursor-default')}`}
             >
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
                 <AlertTriangle className={totals.flaggedCount > 0 ? 'text-red-400' : 'text-green-400'} size={14} />
