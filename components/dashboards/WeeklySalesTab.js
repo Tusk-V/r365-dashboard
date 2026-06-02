@@ -1,4 +1,4 @@
-import { Clock, DollarSign, Filter, Target, TrendingUp, Users } from 'lucide-react';
+import { AlertTriangle, Clock, DollarSign, Filter, Target, TrendingUp, Users } from 'lucide-react';
 
 export default function WeeklySalesTab({
   availableWeeks,
@@ -209,19 +209,19 @@ export default function WeeklySalesTab({
 
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
-                <TrendingUp className="text-purple-400" size={14} />
-                <p className="text-slate-400 text-xs font-medium">Prior Year</p>
+                <AlertTriangle className={totals.flaggedCount > 0 ? 'text-red-400' : 'text-green-400'} size={14} />
+                <p className="text-slate-400 text-xs font-medium">Fcst ↓ Sched ↑</p>
               </div>
-              <p className="text-sm md:text-lg font-bold text-white">${totals.totalPriorYear.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+              <p className={`text-sm md:text-lg font-bold ${totals.flaggedCount > 0 ? 'text-red-400' : 'text-green-400'}`}>{totals.flaggedCount}</p>
             </div>
 
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
                 <TrendingUp className="text-cyan-400" size={14} />
-                <p className="text-slate-400 text-xs font-medium">PY Variance</p>
+                <p className="text-slate-400 text-xs font-medium">Comp PY Var</p>
               </div>
-              <p className={`text-sm md:text-lg font-bold ${totals.pyVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {totals.pyVariance >= 0 ? '+' : ''}${totals.pyVariance.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+              <p className={`text-sm md:text-lg font-bold ${totals.comparablePyVariancePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {totals.comparablePyVariancePercent >= 0 ? '+' : ''}{totals.comparablePyVariancePercent.toFixed(1)}%
               </p>
             </div>
 
@@ -236,10 +236,10 @@ export default function WeeklySalesTab({
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
                 <Clock className="text-red-400" size={14} />
-                <p className="text-slate-400 text-xs font-medium">Actual vs Optimal</p>
+                <p className="text-slate-400 text-xs font-medium">Actual vs Scheduled</p>
               </div>
-              <p className={`text-sm md:text-lg font-bold ${totals.totalActVsOpt > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                {totals.totalActVsOpt > 0 ? '+' : ''}{totals.totalActVsOpt.toFixed(1)} hrs
+              <p className={`text-sm md:text-lg font-bold ${totals.totalActVsSch > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                {totals.totalActVsSch > 0 ? '+' : ''}{totals.totalActVsSch.toFixed(1)} hrs
               </p>
             </div>
           </div>

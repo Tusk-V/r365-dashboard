@@ -1140,6 +1140,9 @@ totalPriorYear: 0,
 pyVariance: 0,
 avgLaborPercent: 0,
 totalActVsOpt: 0,
+totalActVsSch: 0,
+flaggedCount: 0,
+comparablePyVariancePercent: 0,
 avgProductivity: 0
 };
 }
@@ -1151,6 +1154,15 @@ const pyVariance = totalSales - totalPriorYear;
 const totalLaborCost = filteredLocations.reduce((sum, loc) => sum + (loc.actualSales * loc.laborPercent / 100), 0);
 const avgLaborPercent = totalSales > 0 ? (totalLaborCost / totalSales) * 100 : 0;
 const totalActVsOpt = filteredLocations.reduce((sum, loc) => sum + loc.actVsOptHours, 0);
+const totalActVsSch = filteredLocations.reduce((sum, loc) => sum + loc.actVsSchHours, 0);
+// Double-whammy red flag: stores under forecast AND over scheduled hours
+const flaggedCount = filteredLocations.filter(loc => loc.salesVariance < 0 && loc.actVsSchHours > 0).length;
+// Comparable (same-store) prior-year variance: only stores that existed last year
+// (priorYearSales > 0), so new locations don't distort the YoY number.
+const comparableLocs = filteredLocations.filter(loc => loc.priorYearSales > 0);
+const comparablePriorYear = comparableLocs.reduce((sum, loc) => sum + loc.priorYearSales, 0);
+const comparableActual = comparableLocs.reduce((sum, loc) => sum + loc.actualSales, 0);
+const comparablePyVariancePercent = comparablePriorYear > 0 ? ((comparableActual - comparablePriorYear) / comparablePriorYear) * 100 : 0;
 const totalHours = filteredLocations.reduce((sum, loc) => sum + loc.actualHours, 0);
 const avgProductivity = totalHours > 0 ? totalSales / totalHours : 0;
 
@@ -1161,6 +1173,9 @@ return {
   pyVariance,
   avgLaborPercent,
   totalActVsOpt,
+  totalActVsSch,
+  flaggedCount,
+  comparablePyVariancePercent,
   avgProductivity
 };
 
