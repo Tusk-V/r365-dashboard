@@ -518,12 +518,15 @@ function processWeeklyData(data) {
 //   I Actual Hours | J Scheduled Hours | K Sch v For Labor Var
 // ============================================================================
 
-// Week-ending date label (most recent Sunday). Called from the Monday run,
-// where yesterday is the Sunday that closed the completed week — matching the
-// "Week Ending" convention used by the Ranchers Weekly Debrief.
+// Week-ending date label = the most recent COMPLETED Sunday (the last day of
+// the prior Mon–Sun business week). On the Monday processor run this is
+// yesterday; computed generally so the label is always a Sunday no matter which
+// day it runs. Matches the "Week Ending" convention used by the Weekly Debrief.
 function getHistoricalWeekEnding() {
   var d = new Date();
-  d.setDate(d.getDate() - 1);
+  var day = d.getDay();              // 0=Sun, 1=Mon, ... 6=Sat
+  var back = (day === 0) ? 7 : day;  // Mon→1 (yesterday) ... Sat→6, Sun→7
+  d.setDate(d.getDate() - back);
   return Utilities.formatDate(d, 'America/Chicago', 'M/d/yyyy');
 }
 
