@@ -207,11 +207,10 @@ export default function DailyLaborTab({
                     {/* Mobile Headers */}
                     <div className="border-b border-slate-700 px-1.5 py-2 text-[11px] flex items-center bg-slate-800 sticky top-0">
                       <div className="text-slate-400 font-semibold w-5 text-center">G</div>
-                      <div className="text-slate-400 font-semibold w-7">Day</div>
+                      <div className="text-slate-400 font-semibold w-12">Day</div>
                       <div className="text-slate-400 font-semibold text-right flex-1">Act</div>
                       <div className="text-slate-400 font-semibold text-right flex-1">Sch</div>
                       <div className="text-slate-400 font-semibold text-right flex-1">Opt</div>
-                      <div className="text-slate-600 text-center w-2">|</div>
                       <div className="text-slate-400 font-semibold text-right flex-1">Act%</div>
                       <div className="text-slate-400 font-semibold text-right flex-1">Opt%</div>
                     </div>
@@ -241,7 +240,7 @@ export default function DailyLaborTab({
                         <div key={idx} className="border-b border-slate-700 last:border-b-0">
                           <div className="px-1.5 py-1.5 text-[11px] flex items-center">
                           {/* Grade */}
-                          <div className="w-5 text-center flex-shrink-0 mr-1">
+                          <div className="w-5 text-center flex-shrink-0">
                             {grade ? (
                               <span className={`inline-block w-5 py-0.5 rounded text-[10px] font-bold border ${grade.bg} ${grade.color}`}>
                                 {grade.letter}
@@ -251,8 +250,21 @@ export default function DailyLaborTab({
                             )}
                           </div>
 
-                          {/* Day */}
-                          <div className="text-slate-300 font-semibold w-7">{dayOfWeek}</div>
+                          {/* Day + AC badge */}
+                          <div className="w-12 flex items-center gap-1 flex-shrink-0">
+                            <span className="text-slate-300 font-semibold">{dayOfWeek}</span>
+                            {dayClockouts.length > 0 && (
+                              <button
+                                onClick={() => {
+                                  setClockoutModalData({ location: location, data: dayClockouts });
+                                  setShowClockoutModal(true);
+                                }}
+                                className="bg-red-600 text-white text-[8px] leading-tight px-1 py-0.5 rounded font-bold cursor-pointer hover:bg-red-700 transition-colors flex-shrink-0"
+                              >
+                                AC
+                              </button>
+                            )}
+                          </div>
 
                           {/* Act Hours */}
                           <div className="text-white font-semibold text-right flex-1">{day.actualHours.toFixed(1)}</div>
@@ -263,29 +275,11 @@ export default function DailyLaborTab({
                           {/* Opt Hours */}
                           <div className="text-slate-400 text-right flex-1">{day.optimalHours.toFixed(1)}</div>
 
-                          {/* Separator */}
-                          <div className="text-slate-600 text-center w-2">|</div>
-
                           {/* Act % */}
                           <div className="text-white text-right flex-1">{day.actualLaborPercent.toFixed(1)}%</div>
 
                           {/* Opt % */}
                           <div className="text-slate-400 text-right flex-1">{day.optimalLaborPercent.toFixed(1)}%</div>
-
-                          {/* AC badge inline */}
-                          {dayClockouts.length > 0 ? (
-                            <button
-                              onClick={() => {
-                                setClockoutModalData({ location: location, data: dayClockouts });
-                                setShowClockoutModal(true);
-                              }}
-                              className="bg-red-600 text-white text-[8px] leading-tight px-1 py-0.5 rounded font-bold cursor-pointer hover:bg-red-700 transition-colors ml-1 flex-shrink-0"
-                            >
-                              AC
-                            </button>
-                          ) : (
-                            <div className="w-5 flex-shrink-0"></div>
-                          )}
                           </div>
                         </div>
                       );

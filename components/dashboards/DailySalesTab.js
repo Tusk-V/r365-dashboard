@@ -154,7 +154,6 @@ export default function DailySalesTab({
                       <div className="text-slate-400 font-semibold text-right flex-1">PY</div>
                       <div className="text-slate-400 font-semibold text-right w-12">PY%</div>
                       <div className="text-slate-400 font-semibold text-right w-14">Fcst</div>
-                      <div className="text-slate-600 text-center w-4">|</div>
                       <div className="text-slate-400 font-semibold text-right w-10">Gst</div>
                       <div className="text-slate-400 font-semibold text-right w-10">PY</div>
                     </div>
@@ -194,9 +193,6 @@ export default function DailySalesTab({
                           <div className={`font-semibold text-right w-14 ${day.forecastVariance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {day.forecastVariance >= 0 ? '+' : '-'}{Math.abs(Math.round(day.forecastVariance))}
                           </div>
-
-                          {/* Separator */}
-                          <div className="text-slate-600 text-center w-4">|</div>
 
                           {/* Guests */}
                           <div className="text-white text-right w-10">{day.guestCount}</div>
