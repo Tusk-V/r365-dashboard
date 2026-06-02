@@ -1443,6 +1443,17 @@ loadModelCoefficients();
               )}
             </button>
 
+            {/* Admin Button (admin only) */}
+            {isAdmin && (
+              <button
+                onClick={() => router.push('/admin')}
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                title="Admin"
+              >
+                <Settings size={16} className="text-white" />
+              </button>
+            )}
+
             <button
               onClick={() => signOut()}
               className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
@@ -1473,6 +1484,15 @@ loadModelCoefficients();
                 </span>
               )}
             </button>
+            {isAdmin && (
+              <button
+                onClick={() => router.push('/admin')}
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                title="Admin"
+              >
+                <Settings size={16} className="text-white" />
+              </button>
+            )}
             <button
               onClick={() => signOut()}
               className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
