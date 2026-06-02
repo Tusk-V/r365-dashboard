@@ -31,8 +31,17 @@ export default function WeeklySalesTab({
       {/* Control bar: week selector + filters share one row */}
       <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+            className="flex items-center gap-2"
+          >
+            <Filter size={14} className="text-slate-400" />
+            <h3 className="text-xs md:text-sm font-semibold text-white">Filters</h3>
+            <span className="text-slate-400 text-sm">{isFiltersOpen ? '▼' : '▶'}</span>
+          </button>
+
           {availableWeeks.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto">
               <label className="text-sm font-medium text-slate-400">Select Week:</label>
               <div className="relative">
                 <button
@@ -76,15 +85,6 @@ export default function WeeklySalesTab({
               </div>
             </div>
           )}
-
-          <button
-            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
-            className="flex items-center gap-2 ml-auto"
-          >
-            <Filter size={14} className="text-slate-400" />
-            <h3 className="text-xs md:text-sm font-semibold text-white">Filters</h3>
-            <span className="text-slate-400 text-sm">{isFiltersOpen ? '▼' : '▶'}</span>
-          </button>
         </div>
 
         {isFiltersOpen && (
