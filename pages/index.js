@@ -61,7 +61,8 @@ const [filters, setFilters] = useState({
 locations: [],
 actVsOptVariance: 'all',
 salesVariance: 'all',
-market: 'all'
+market: 'all',
+flaggedOnly: false
 });
 const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
 const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
@@ -1056,6 +1057,11 @@ if (filters.salesVariance === 'positive') {
   filtered = filtered.filter(loc => loc.salesVariance > 0);
 } else if (filters.salesVariance === 'negative') {
   filtered = filtered.filter(loc => loc.salesVariance < 0);
+}
+
+// Double-whammy quick filter (toggled via the "Fcst down / Sched up" KPI card)
+if (filters.flaggedOnly) {
+  filtered = filtered.filter(loc => loc.salesVariance < 0 && loc.actVsSchHours > 0);
 }
 
 setFilteredLocations(filtered);

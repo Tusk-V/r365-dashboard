@@ -207,13 +207,21 @@ export default function WeeklySalesTab({
               <p className="text-sm md:text-lg font-bold text-white">${totals.totalForecast.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+            <button
+              onClick={() => {
+                if (filters.flaggedOnly || totals.flaggedCount > 0) {
+                  setFilters({ ...filters, flaggedOnly: !filters.flaggedOnly });
+                }
+              }}
+              title="Tap to show only stores under forecast and over scheduled hours"
+              className={`w-full bg-slate-800 border rounded-lg p-2 md:p-3 shadow-lg text-center transition-colors ${filters.flaggedOnly ? 'border-red-500 ring-1 ring-red-500' : 'border-slate-700'} ${(filters.flaggedOnly || totals.flaggedCount > 0) ? 'cursor-pointer hover:border-red-600' : 'cursor-default'}`}
+            >
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
                 <AlertTriangle className={totals.flaggedCount > 0 ? 'text-red-400' : 'text-green-400'} size={14} />
                 <p className="text-slate-400 text-xs font-medium">Fcst ↓ Sched ↑</p>
               </div>
               <p className={`text-sm md:text-lg font-bold ${totals.flaggedCount > 0 ? 'text-red-400' : 'text-green-400'}`}>{totals.flaggedCount}</p>
-            </div>
+            </button>
 
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
