@@ -244,7 +244,7 @@ export default function WeeklySalesTab({
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
                 <Clock className="text-red-400" size={14} />
-                <p className="text-slate-400 text-xs font-medium">Actual vs Scheduled</p>
+                <p className="text-slate-400 text-xs font-medium">Act vs. Sch</p>
               </div>
               <p className={`text-sm md:text-lg font-bold ${totals.totalActVsSch > 0 ? 'text-red-400' : 'text-green-400'}`}>
                 {totals.totalActVsSch > 0 ? '+' : ''}{totals.totalActVsSch.toFixed(1)} hrs
