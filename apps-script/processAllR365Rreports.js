@@ -22,7 +22,8 @@ var CONFIG = {
   LOGBOOK_SHEET: 'Logbook Entries',
   PAID_OUTS_SHEET: 'Paid Outs',
   FORECAST_DATA_SHEET: 'Forecast Data',
-  
+  HISTORICAL_SHEET: 'Historical Data',
+
   // Email Subjects (updated to match actual R365 subjects)
   WEEKLY_SUBJECT: 'Weekly Sales and Labor Report',
   WEEKLY_PREVIOUS_SUBJECT: 'Weekly Sales and Labor Report - Previous Week',
@@ -304,7 +305,15 @@ function processWeeklySalesLabor() {
     
     processWeeklyData(data);
     Logger.log('Weekly Sales & Labor processed successfully');
-    
+
+    // On Monday the "Previous Week" report finalizes Sheet1 with exactly one
+    // complete week. That is the moment to append an immutable snapshot to the
+    // Historical Data archive (the dashboard's past-weeks dropdown reads it).
+    // Tue–Sun runs hold an in-progress week and are intentionally not archived.
+    if (dayOfWeek === 1) {
+      archiveWeekToHistorical(getHistoricalWeekEnding());
+    }
+
   } catch (e) {
     Logger.log('Error processing Weekly Sales & Labor: ' + e.toString());
   }
@@ -488,6 +497,124 @@ function processWeeklyData(data) {
     applyWeeklySheetFormats(sheet, rows.length);
     Logger.log('Added ' + rows.length + ' rows to Weekly Sales & Labor (Sheet1)');
   }
+}
+
+// ============================================================================
+// HISTORICAL DATA ARCHIVE
+// Appends a per-location snapshot of the just-completed week to the
+// "Historical Data" tab, which powers the dashboard's past-weeks dropdown.
+//
+// Source of truth is Sheet1 (Weekly Sales & Labor). On Monday's "Previous
+// Week" run Sheet1 holds exactly one finalized week, so the archive row set is
+// a faithful 11-column projection of Sheet1 — values AND number formats are
+// copied so the dashboard's FORMATTED_VALUE-based parsers render identically.
+//
+// Idempotent: any existing rows for the same Week Ending are removed before the
+// fresh snapshot is appended, so re-running a week never duplicates rows.
+//
+// Column contract (must match parseHistoricalData in lib/sheetParsers.js):
+//   A Week Ending | B Location | C Actual Sales | D Forecast Sales
+//   E Sales Variance | F PY Sales | G Labor % | H Optimal Hours
+//   I Actual Hours | J Scheduled Hours | K Sch v For Labor Var
+// ============================================================================
+
+// Week-ending date label (most recent Sunday). Called from the Monday run,
+// where yesterday is the Sunday that closed the completed week — matching the
+// "Week Ending" convention used by the Ranchers Weekly Debrief.
+function getHistoricalWeekEnding() {
+  var d = new Date();
+  d.setDate(d.getDate() - 1);
+  return Utilities.formatDate(d, 'America/Chicago', 'M/d/yyyy');
+}
+
+function archiveWeekToHistorical(weekEnding) {
+  try {
+    var ss = SpreadsheetApp.openById(CONFIG.WEEKLY_SPREADSHEET_ID);
+
+    // --- Read the current week from Sheet1 (values + formats) ---------------
+    var src = ss.getSheetByName(CONFIG.WEEKLY_SHEET);
+    if (!src) { Logger.log('Historical archive skipped: Sheet1 not found'); return; }
+    var lastRow = src.getLastRow();
+    var lastCol = src.getLastColumn();
+    if (lastRow < 2) { Logger.log('Historical archive skipped: Sheet1 has no data rows'); return; }
+
+    var numRows = lastRow - 1;
+    var vals = src.getRange(2, 1, numRows, lastCol).getValues();
+    var fmts = src.getRange(2, 1, numRows, lastCol).getNumberFormats();
+
+    // Sheet1 0-indexed source columns
+    var C_LOC = 0, C_FOR = 6, C_ACT = 7, C_SVAR = 8, C_PY = 9,
+        C_LPCT = 10, C_OPT = 12, C_AHRS = 13, C_SHRS = 15, C_SVF = 18;
+
+    var outRows = [];
+    var outFmts = [];
+    for (var i = 0; i < vals.length; i++) {
+      var r = vals[i];
+      var loc = r[C_LOC] ? r[C_LOC].toString().trim() : '';
+      if (!loc) continue;
+      outRows.push([
+        weekEnding, loc,
+        r[C_ACT], r[C_FOR], r[C_SVAR], r[C_PY],
+        r[C_LPCT], r[C_OPT], r[C_AHRS], r[C_SHRS], r[C_SVF]
+      ]);
+      // '@' keeps the Week Ending label as literal text so A2:A and A2:K always
+      // yield the identical string the dashboard filters/sorts on.
+      outFmts.push([
+        '@', fmts[i][C_LOC],
+        fmts[i][C_ACT], fmts[i][C_FOR], fmts[i][C_SVAR], fmts[i][C_PY],
+        fmts[i][C_LPCT], fmts[i][C_OPT], fmts[i][C_AHRS], fmts[i][C_SHRS], fmts[i][C_SVF]
+      ]);
+    }
+    if (outRows.length === 0) { Logger.log('Historical archive skipped: no location rows in Sheet1'); return; }
+
+    // --- Open (or create) the Historical Data tab ---------------------------
+    var hist = ss.getSheetByName(CONFIG.HISTORICAL_SHEET);
+    if (!hist) {
+      hist = ss.insertSheet(CONFIG.HISTORICAL_SHEET);
+      hist.getRange(1, 1, 1, 11).setValues([[
+        'Week Ending', 'Location', 'Actual Sales', 'Forecast Sales',
+        'Sales Variance', 'PY Sales', 'Labor %', 'Optimal Hours',
+        'Actual Hours', 'Scheduled Hours', 'Sch v For Labor Var'
+      ]]);
+      hist.setFrozenRows(1);
+    }
+
+    // --- Idempotency: drop any existing rows for this Week Ending ------------
+    var hLast = hist.getLastRow();
+    if (hLast >= 2) {
+      var colA = hist.getRange(2, 1, hLast - 1, 1).getValues();
+      // Bottom-up so deletions don't shift not-yet-processed row numbers.
+      for (var d2 = colA.length - 1; d2 >= 0; d2--) {
+        var v = colA[d2][0];
+        if (v !== '' && v !== null && v.toString() === weekEnding) {
+          hist.deleteRow(d2 + 2);
+        }
+      }
+    }
+
+    // --- Append the fresh snapshot (values + matching formats) --------------
+    var startRow = hist.getLastRow() + 1;
+    hist.getRange(startRow, 1, outRows.length, 11).setValues(outRows);
+    hist.getRange(startRow, 1, outRows.length, 11).setNumberFormats(outFmts);
+
+    Logger.log('Historical archive: wrote ' + outRows.length + ' rows for week ending ' + weekEnding);
+    Alerts.add('HISTORICAL_ARCHIVE', 'Archived ' + outRows.length + ' location rows for week ending ' + weekEnding);
+  } catch (e) {
+    // Never let archiving abort the rest of the processor run.
+    Logger.log('archiveWeekToHistorical failed: ' + e.toString());
+    Alerts.add('HISTORICAL_ARCHIVE_ERROR', 'Failed to archive week ending ' + weekEnding + ': ' + e.toString());
+  }
+}
+
+// One-time seed / verification helper. Run from the editor to snapshot whatever
+// Sheet1 currently holds under the most recent Sunday's date, so the dashboard
+// past-weeks dropdown can be confirmed without waiting for the Monday trigger.
+// NOTE: mid-week, Sheet1 holds the in-progress week — the seeded row is for
+// verification only and can be deleted. Safe to re-run (upserts by Week Ending).
+function testArchiveWeekToHistorical() {
+  var weekEnding = getHistoricalWeekEnding();
+  Logger.log('TEST: archiving current Sheet1 as week ending ' + weekEnding);
+  archiveWeekToHistorical(weekEnding);
 }
 
 // ============================================================================
