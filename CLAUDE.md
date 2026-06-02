@@ -24,7 +24,11 @@ Script, R365 OData API, Claude API, Vercel deployment.
 - Next.js frontend lives at the repo root (`pages/`, `styles/`, etc.).
 - Apps Script backend is cloned via clasp into `apps-script/`. These are the
   live backend scripts, represented locally as `.js` (clasp converts them back
-  to `.gs` on push). All six files are in ONE Apps Script project.
+  to `.gs` on push). All ten files are in ONE Apps Script project:
+  `processAllR365Rreports.js`, `Modelforecast.js`, `ModelDiagnostics.js`,
+  `ForecastWeather.js`, `R365OData.js`, `RanchersDailyDebrief.js`,
+  `RanchersWeeklyDebrief.js`, `RanchersManagerRecap.js`, `RestaurantSignals.js`,
+  `SportsEvents.js`.
 
 ## Apps Script sync workflow (IMPORTANT)
 
