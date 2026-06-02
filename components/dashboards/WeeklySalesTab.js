@@ -28,53 +28,155 @@ export default function WeeklySalesTab({
 }) {
   return (
     <>
-      {availableWeeks.length > 0 && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-slate-400">Select Week:</label>
-            <div className="relative">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsWeekDropdownOpen(!isWeekDropdownOpen);
-                }}
-                className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center gap-2"
-              >
-                <span>{selectedWeek === 'current' ? 'Current Week' : selectedWeek}</span>
-                <span className="text-slate-400">▼</span>
-              </button>
-              {isWeekDropdownOpen && (
-                <div
-                  className="absolute z-10 mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg min-w-[200px]"
-                  onClick={(e) => e.stopPropagation()}
+      {/* Control bar: week selector + filters share one row */}
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg">
+        <div className="flex flex-wrap items-center gap-3">
+          {availableWeeks.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-400">Select Week:</label>
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsWeekDropdownOpen(!isWeekDropdownOpen);
+                  }}
+                  className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center gap-2"
                 >
-                  <button
-                    onClick={() => {
-                      setSelectedWeek('current');
-                      setIsWeekDropdownOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm text-white hover:bg-slate-600"
+                  <span>{selectedWeek === 'current' ? 'Current Week' : `Week ending ${selectedWeek}`}</span>
+                  <span className="text-slate-400">▼</span>
+                </button>
+                {isWeekDropdownOpen && (
+                  <div
+                    className="absolute z-10 mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg min-w-[200px]"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    Current Week
-                  </button>
-                  {availableWeeks.map(week => (
                     <button
-                      key={week}
                       onClick={() => {
-                        setSelectedWeek(week);
+                        setSelectedWeek('current');
                         setIsWeekDropdownOpen(false);
                       }}
                       className="w-full text-left px-3 py-2 text-sm text-white hover:bg-slate-600"
                     >
-                      {week}
+                      Current Week
                     </button>
+                    {availableWeeks.map(week => (
+                      <button
+                        key={week}
+                        onClick={() => {
+                          setSelectedWeek(week);
+                          setIsWeekDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm text-white hover:bg-slate-600"
+                      >
+                        Week ending {week}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+            className="flex items-center gap-2 ml-auto"
+          >
+            <Filter size={14} className="text-slate-400" />
+            <h3 className="text-xs md:text-sm font-semibold text-white">Filters</h3>
+            <span className="text-slate-400 text-sm">{isFiltersOpen ? '▼' : '▶'}</span>
+          </button>
+        </div>
+
+        {isFiltersOpen && (
+          <div className="flex flex-col md:flex-row gap-2 md:gap-3 items-stretch md:items-end mt-2 md:mt-3">
+            <div className="relative flex-1">
+              <label className="block text-xs font-medium text-slate-400 mb-1">
+                Locations ({filters.locations.length > 0 ? filters.locations.length : 'All'})
+              </label>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsLocationDropdownOpen(!isLocationDropdownOpen);
+                }}
+                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex justify-between items-center"
+              >
+                <span>{filters.locations.length === 0 ? 'All Locations' : `${filters.locations.length} selected`}</span>
+                <span className="text-slate-400">▼</span>
+              </button>
+              {isLocationDropdownOpen && (
+                <div
+                  className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg max-h-64 overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={filters.locations.length === 0}
+                      onChange={() => {
+                        setFilters({...filters, locations: []});
+                      }}
+                      className="rounded"
+                    />
+                    <span className="text-white text-xs">All Locations</span>
+                  </label>
+                  {locations.map(loc => (
+                    <label key={loc.location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={filters.locations.includes(loc.location)}
+                        onChange={() => handleLocationToggle(loc.location)}
+                        className="rounded"
+                      />
+                      <span className="text-white text-xs">{loc.location}</span>
+                    </label>
                   ))}
                 </div>
               )}
             </div>
+
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
+              <select
+                value={filters.market}
+                onChange={(e) => setFilters({...filters, market: e.target.value})}
+                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="all">All Markets</option>
+                <option value="Tulsa">Tulsa</option>
+                <option value="Oklahoma City">Oklahoma City</option>
+                <option value="Dallas">Dallas</option>
+                <option value="Orlando">Orlando</option>
+              </select>
+            </div>
+
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-slate-400 mb-1">Act vs Opt Hours</label>
+              <select
+                value={filters.actVsOptVariance}
+                onChange={(e) => setFilters({...filters, actVsOptVariance: e.target.value})}
+                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="all">All Variances</option>
+                <option value="positive">Over Optimal</option>
+                <option value="negative">Under Optimal</option>
+              </select>
+            </div>
+
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-slate-400 mb-1">Sales Variance</label>
+              <select
+                value={filters.salesVariance}
+                onChange={(e) => setFilters({...filters, salesVariance: e.target.value})}
+                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="all">All Variances</option>
+                <option value="positive">Above Forecast</option>
+                <option value="negative">Below Forecast</option>
+              </select>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {error && (
         <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
@@ -140,107 +242,6 @@ export default function WeeklySalesTab({
                 {totals.totalActVsOpt > 0 ? '+' : ''}{totals.totalActVsOpt.toFixed(1)} hrs
               </p>
             </div>
-          </div>
-
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg">
-            <button
-              onClick={() => setIsFiltersOpen(!isFiltersOpen)}
-              className="flex items-center gap-2 w-full"
-            >
-              <Filter size={14} className="text-slate-400" />
-              <h3 className="text-xs md:text-sm font-semibold text-white">Filters</h3>
-              <span className="text-slate-400 text-sm ml-auto">{isFiltersOpen ? '▼' : '▶'}</span>
-            </button>
-
-            {isFiltersOpen && (
-              <div className="flex flex-col md:flex-row gap-2 md:gap-3 items-stretch md:items-end">
-                <div className="relative flex-1">
-                  <label className="block text-xs font-medium text-slate-400 mb-1">
-                    Locations ({filters.locations.length > 0 ? filters.locations.length : 'All'})
-                  </label>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsLocationDropdownOpen(!isLocationDropdownOpen);
-                    }}
-                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex justify-between items-center"
-                  >
-                    <span>{filters.locations.length === 0 ? 'All Locations' : `${filters.locations.length} selected`}</span>
-                    <span className="text-slate-400">▼</span>
-                  </button>
-                  {isLocationDropdownOpen && (
-                    <div
-                      className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg max-h-64 overflow-y-auto"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.locations.length === 0}
-                          onChange={() => {
-                            setFilters({...filters, locations: []});
-                          }}
-                          className="rounded"
-                        />
-                        <span className="text-white text-xs">All Locations</span>
-                      </label>
-                      {locations.map(loc => (
-                        <label key={loc.location} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
-                          <input
-                            type="checkbox"
-                            checked={filters.locations.includes(loc.location)}
-                            onChange={() => handleLocationToggle(loc.location)}
-                            className="rounded"
-                          />
-                          <span className="text-white text-xs">{loc.location}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Market</label>
-                  <select
-                    value={filters.market}
-                    onChange={(e) => setFilters({...filters, market: e.target.value})}
-                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    <option value="all">All Markets</option>
-                    <option value="Tulsa">Tulsa</option>
-                    <option value="Oklahoma City">Oklahoma City</option>
-                    <option value="Dallas">Dallas</option>
-                    <option value="Orlando">Orlando</option>
-                  </select>
-                </div>
-
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Act vs Opt Hours</label>
-                  <select
-                    value={filters.actVsOptVariance}
-                    onChange={(e) => setFilters({...filters, actVsOptVariance: e.target.value})}
-                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    <option value="all">All Variances</option>
-                    <option value="positive">Over Optimal</option>
-                    <option value="negative">Under Optimal</option>
-                  </select>
-                </div>
-
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Sales Variance</label>
-                  <select
-                    value={filters.salesVariance}
-                    onChange={(e) => setFilters({...filters, salesVariance: e.target.value})}
-                    className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    <option value="all">All Variances</option>
-                    <option value="positive">Above Forecast</option>
-                    <option value="negative">Below Forecast</option>
-                  </select>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
