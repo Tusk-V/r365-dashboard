@@ -220,7 +220,7 @@ export default function MessagesPage() {
             <>
               <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700 flex-shrink-0">
                 <button onClick={() => setMobileShowStream(false)} className="md:hidden p-1 text-slate-400 hover:text-white"><ArrowLeft size={16} /></button>
-                <span className="font-semibold"># {activeChannel.name}</span>
+                <span className="font-semibold">{activeChannel.name}</span>
                 <span className="text-xs text-slate-500">{activeChannel.type}</span>
               </div>
               <MessageStream
@@ -233,7 +233,7 @@ export default function MessagesPage() {
                 onDelete={handleDelete}
                 onRetry={handleRetry}
               />
-              <Composer channelName={`# ${activeChannel.name}`} canAnnounce={canModerate} onSend={handleSend} />
+              <Composer channelName={activeChannel.name} canAnnounce={canModerate} onSend={handleSend} />
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-slate-500">Select a channel</div>
