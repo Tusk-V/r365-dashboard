@@ -162,7 +162,11 @@ export default function MessagesPage() {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messageId, body }),
       });
-      if (res.ok) setMessages(prev => prev.map(m => m._id === messageId ? { ...m, body, editedAt: new Date().toISOString() } : m));
+      if (res.ok) {
+        const apply = (arr) => arr.map(m => m._id === messageId ? { ...m, body, editedAt: new Date().toISOString() } : m);
+        setMessages(apply);
+        setPinned(apply);
+      }
     } catch (_) {}
   };
 

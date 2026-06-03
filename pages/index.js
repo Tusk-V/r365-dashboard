@@ -160,7 +160,6 @@ const [modelCoefficients, setModelCoefficients] = useState(null);
 // Messages state
 const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 const [showPermissionsModal, setShowPermissionsModal] = useState(false);
-const [userRole, setUserRole] = useState(null);
 
 // Access control
 const [dashboardAccess, setDashboardAccess] = useState(null);
@@ -891,18 +890,6 @@ const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
 
 };
 
-const loadCurrentUserRole = async () => {
-try {
-const res = await fetch('/api/check-access');
-const data = await res.json();
-if (res.ok && data.role) {
-setUserRole(data.role);
-}
-} catch (err) {
-console.error('Error loading user role:', err);
-}
-};
-
 const getEmployeeTitle = (name) => {
 if (!name) return null;
 return employeeTitles[name.toLowerCase()] || null;
@@ -1266,7 +1253,6 @@ return () => {
 useEffect(() => {
 if (status === "authenticated") {
 loadDashboardAccess();
-loadCurrentUserRole();
 loadDataFromGoogleSheets();
 loadAvailableWeeks();
 loadAutoClockouts();
