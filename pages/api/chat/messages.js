@@ -101,6 +101,7 @@ export default async function handler(req, res) {
     try {
       const { messageId, body } = req.body;
       if (!messageId || !body || !body.trim()) return res.status(400).json({ error: 'messageId and body are required' });
+      if (!ObjectId.isValid(messageId)) return res.status(400).json({ error: 'Invalid messageId' });
       const msg = await db.collection('chat_messages').findOne({ _id: new ObjectId(messageId) });
       if (!msg) return res.status(404).json({ error: 'Message not found' });
       const canModerate = canPostAnnouncements(userRole);
@@ -122,6 +123,7 @@ export default async function handler(req, res) {
     try {
       const { messageId } = req.query;
       if (!messageId) return res.status(400).json({ error: 'messageId is required' });
+      if (!ObjectId.isValid(messageId)) return res.status(400).json({ error: 'Invalid messageId' });
       const msg = await db.collection('chat_messages').findOne({ _id: new ObjectId(messageId) });
       if (!msg) return res.status(404).json({ error: 'Message not found' });
       const canModerate = canPostAnnouncements(userRole);
