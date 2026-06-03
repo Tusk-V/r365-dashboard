@@ -80,6 +80,7 @@ test('canAccessChannel enforces derived membership', () => {
 // Task 3: canPostAnnouncements + unreadCount
 const { canPostAnnouncements, unreadCount } = require('../lib/channels');
 
+
 test('only Admin and FOM can post announcements', () => {
   assert.equal(canPostAnnouncements('Admin'), true);
   assert.equal(canPostAnnouncements('FOM'), true);
@@ -97,4 +98,40 @@ test('unreadCount counts messages after lastReadAt not authored by the user', ()
   assert.equal(unreadCount(msgs, '2026-06-03T10:30:00Z', 'me@r.com'), 1);
   assert.equal(unreadCount(msgs, null, 'me@r.com'), 2);
   assert.equal(unreadCount([], null, 'me@r.com'), 0);
+});
+
+// Task 4 (Phase 1): chatAccess channel derivation + canManageStore
+const { chatChannelsFor, canManageStore } = require('../lib/channels');
+
+test('approved employee sees company + their markets + their stores (multi-store)', () => {
+  const chatAccess = { level: 'employee', status: 'approved', stores: ['Bixby', 'Allen'] };
+  const keys = deriveChannelsForUser({ isAdmin: false, dashboardAccess: { type: 'none' }, chatAccess }).map(c => c.key);
+  assert.deepEqual(keys, ['company-wide', 'market:tulsa', 'market:dallas', 'loc:bixby', 'loc:allen']);
+});
+
+test('pending or none chatAccess yields no channels', () => {
+  assert.deepEqual(deriveChannelsForUser({ isAdmin: false, dashboardAccess: { type: 'none' }, chatAccess: { status: 'pending', stores: ['Bixby'] } }), []);
+  assert.deepEqual(deriveChannelsForUser({ isAdmin: false, dashboardAccess: { type: 'none' } }), []);
+});
+
+test('a user with BOTH dashboard and chat access gets the union, deduped and ordered', () => {
+  const keys = deriveChannelsForUser({
+    isAdmin: false,
+    dashboardAccess: { type: 'specific', locations: ['Bixby'] },
+    chatAccess: { level: 'employee', status: 'approved', stores: ['Allen'] },
+  }).map(c => c.key);
+  assert.deepEqual(keys, ['company-wide', 'market:tulsa', 'market:dallas', 'loc:bixby', 'loc:allen']);
+});
+
+test('chatChannelsFor returns [] unless approved', () => {
+  assert.deepEqual(chatChannelsFor({ status: 'pending', stores: ['Bixby'] }), []);
+  assert.equal(chatChannelsFor({ status: 'approved', stores: ['Bixby'] }).length, 3); // company + tulsa + bixby
+});
+
+test('canManageStore: admin/all manage any; specific manages only their locations', () => {
+  assert.equal(canManageStore({ isAdmin: true }, 'Allen'), true);
+  assert.equal(canManageStore({ isAdmin: false, dashboardAccess: { type: 'all' } }, 'Allen'), true);
+  assert.equal(canManageStore({ isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Allen'] } }, 'Allen'), true);
+  assert.equal(canManageStore({ isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Bixby'] } }, 'Allen'), false);
+  assert.equal(canManageStore({ isAdmin: false, dashboardAccess: { type: 'none' } }, 'Allen'), false);
 });
