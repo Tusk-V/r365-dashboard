@@ -22,11 +22,12 @@ export default async function handler(req, res) {
     const isAdmin = userEmail === ADMIN_EMAIL;
     const user = await db.collection('users').findOne({ email: userEmail });
     const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
+    const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
 
     const msg = await db.collection('chat_messages').findOne({ _id: new ObjectId(messageId) });
     if (!msg || msg.deleted) return res.status(404).json({ error: 'Message not found' });
 
-    if (!canAccessChannel({ isAdmin, dashboardAccess }, msg.channelKey)) {
+    if (!canAccessChannel({ isAdmin, dashboardAccess, chatAccess }, msg.channelKey)) {
       return res.status(403).json({ error: 'No access to this channel' });
     }
 

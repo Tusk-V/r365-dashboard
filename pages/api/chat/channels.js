@@ -18,8 +18,9 @@ export default async function handler(req, res) {
 
     const user = await db.collection('users').findOne({ email: userEmail });
     const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
+    const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
 
-    const channels = deriveChannelsForUser({ isAdmin, dashboardAccess });
+    const channels = deriveChannelsForUser({ isAdmin, dashboardAccess, chatAccess });
     if (channels.length === 0) {
       return res.status(200).json({ channels: [], totalUnread: 0 });
     }

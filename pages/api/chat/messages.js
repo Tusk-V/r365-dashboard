@@ -26,15 +26,16 @@ async function loadContext(req, res) {
   const user = await db.collection('users').findOne({ email: userEmail });
   const userRole = isAdmin ? 'Admin' : (user?.role || 'User');
   const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
-  return { db, session, userEmail, isAdmin, userRole, dashboardAccess,
+  const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
+  return { db, session, userEmail, isAdmin, userRole, dashboardAccess, chatAccess,
            authorName: session.user.name || userEmail };
 }
 
 export default async function handler(req, res) {
   const ctx = await loadContext(req, res);
   if (!ctx) return;
-  const { db, userEmail, userRole, isAdmin, dashboardAccess, authorName } = ctx;
-  const accessUser = { isAdmin, dashboardAccess };
+  const { db, userEmail, userRole, isAdmin, dashboardAccess, chatAccess, authorName } = ctx;
+  const accessUser = { isAdmin, dashboardAccess, chatAccess };
 
   if (req.method === 'GET') {
     try {
