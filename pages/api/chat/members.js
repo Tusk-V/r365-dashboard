@@ -39,6 +39,7 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const { email, action } = req.body;
     if (!email || !['approve', 'deny'].includes(action)) return res.status(400).json({ error: 'email and valid action required' });
+    if (email === actor.email) return res.status(400).json({ error: 'You cannot approve your own request' });
     const target = await db.collection('users').findOne({ email });
     if (!target || target.chatAccess?.status !== 'pending') return res.status(404).json({ error: 'No pending request for that user' });
 
@@ -51,21 +52,13 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, status: 'none' });
     }
 
-    const outOfScope = requested.filter(s => !manageable.includes(s));
-    if (outOfScope.length > 0) {
-      await db.collection('users').updateOne({ email }, { $set: {
-        'chatAccess.status': 'pending',
-        'chatAccess.stores': outOfScope,
-      } });
-      await db.collection('users').updateOne({ email }, { $addToSet: { 'chatAccess.approvedStores': { $each: manageable } } });
-      return res.status(200).json({ success: true, status: 'partial', approved: manageable, stillPending: outOfScope });
-    }
-
-    const approvedStores = [...new Set([...(target.chatAccess?.approvedStores || []), ...manageable])];
+    // Approve the stores this manager oversees and set the employee active.
+    // Any requested stores outside the approver's scope are dropped (no dead-end);
+    // the employee can re-request them, or an admin can grant the rest later.
     await db.collection('users').updateOne({ email }, { $set: {
-      chatAccess: { level: 'employee', status: 'approved', stores: approvedStores, approvedBy: actor.email, approvedAt: new Date() },
+      chatAccess: { level: 'employee', status: 'approved', stores: manageable, approvedBy: actor.email, approvedAt: new Date() },
     } });
-    return res.status(200).json({ success: true, status: 'approved', stores: approvedStores });
+    return res.status(200).json({ success: true, status: 'approved', stores: manageable });
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
