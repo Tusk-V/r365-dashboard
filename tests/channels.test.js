@@ -76,3 +76,25 @@ test('canAccessChannel enforces derived membership', () => {
   assert.equal(canAccessChannel(user, 'market:dallas'), false);
   assert.equal(canAccessChannel(user, 'loc:allen'), false);
 });
+
+// Task 3: canPostAnnouncements + unreadCount
+const { canPostAnnouncements, unreadCount } = require('../lib/channels');
+
+test('only Admin and FOM can post announcements', () => {
+  assert.equal(canPostAnnouncements('Admin'), true);
+  assert.equal(canPostAnnouncements('FOM'), true);
+  assert.equal(canPostAnnouncements('Manager'), false);
+  assert.equal(canPostAnnouncements('User'), false);
+  assert.equal(canPostAnnouncements(undefined), false);
+});
+
+test('unreadCount counts messages after lastReadAt not authored by the user', () => {
+  const msgs = [
+    { createdAt: '2026-06-03T10:00:00Z', authorEmail: 'a@r.com' },
+    { createdAt: '2026-06-03T11:00:00Z', authorEmail: 'me@r.com' },
+    { createdAt: '2026-06-03T12:00:00Z', authorEmail: 'b@r.com' },
+  ];
+  assert.equal(unreadCount(msgs, '2026-06-03T10:30:00Z', 'me@r.com'), 1);
+  assert.equal(unreadCount(msgs, null, 'me@r.com'), 2);
+  assert.equal(unreadCount([], null, 'me@r.com'), 0);
+});
