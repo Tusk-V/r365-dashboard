@@ -1181,10 +1181,15 @@ sessionStorage.removeItem('pendingTab');
 useEffect(() => {
 if (status === "authenticated" && !accessLoading && !isAdmin) {
 if (!dashboardAccess || dashboardAccess.type === 'none') {
+// Approved chat-only employees (no dashboard access) belong in /messages
+if (session?.user?.chatAccess?.status === 'approved') {
+router.replace('/messages');
+} else {
 router.push('/auth/access-pending');
 }
 }
-}, [status, accessLoading, isAdmin, dashboardAccess, router])
+}
+}, [status, accessLoading, isAdmin, dashboardAccess, session, router])
 
 // Load dashboard access permissions
 const loadDashboardAccess = async () => {
