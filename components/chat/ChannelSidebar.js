@@ -10,7 +10,7 @@ function ChannelRow({ channel, active, onSelect }) {
   return (
     <button
       onClick={() => onSelect(channel.key)}
-      className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-sm transition-colors ${active ? 'bg-blue-600/20 text-white' : 'text-slate-300 hover:bg-slate-700/50'}`}
+      className={`w-full flex items-center justify-between gap-2 min-h-[40px] px-3 py-2 rounded text-sm transition-colors ${active ? 'bg-blue-600/20 text-white' : 'text-slate-300 hover:bg-slate-700/50'}`}
     >
       <span className="truncate">{channel.name}</span>
       {channel.unread > 0 && (

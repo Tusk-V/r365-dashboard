@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useSession, signIn } from 'next-auth/react';
-import { ArrowLeft, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Home } from 'lucide-react';
 import ChannelSidebar from '../components/chat/ChannelSidebar';
 import MessageStream from '../components/chat/MessageStream';
 import Composer from '../components/chat/Composer';
@@ -49,6 +49,12 @@ export default function MessagesPage() {
       if (res.ok) {
         setChannels(data.channels || []);
         setActiveKey(prev => prev || (data.channels?.[0]?.key ?? null));
+        try {
+          if ('setAppBadge' in navigator) {
+            const n = data.totalUnread || 0;
+            if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge();
+          }
+        } catch (_) {}
       }
     } catch (_) {}
     setLoadingChannels(false);
@@ -193,11 +199,20 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="h-screen bg-slate-900 text-white flex flex-col">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700 flex-shrink-0">
-        <button onClick={() => router.push('/')} className="p-1.5 text-slate-400 hover:text-white" title="Back to dashboard"><ArrowLeft size={18} /></button>
-        <MessageSquare size={18} className="text-blue-400" />
-        <h1 className="font-bold">Messages</h1>
+    <div className="h-[100dvh] bg-slate-900 text-white flex flex-col">
+      <div className="sticky top-0 z-20 flex items-center justify-between gap-2 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <img src="/icon-192x192.png" alt="Andy's" className="h-7 w-7 rounded-full" />
+          <h1 className="font-bold text-lg">Messages</h1>
+        </div>
+        <button
+          onClick={() => router.push('/')}
+          className="flex items-center gap-1.5 min-h-[40px] px-3 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-700"
+          title="Back to dashboard"
+        >
+          <Home size={18} />
+          <span className="hidden sm:inline">Dashboard</span>
+        </button>
       </div>
 
       <div className="flex-1 flex min-h-0">
@@ -218,8 +233,8 @@ export default function MessagesPage() {
         <div className={`${mobileShowStream ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0`}>
           {activeChannel ? (
             <>
-              <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700 flex-shrink-0">
-                <button onClick={() => setMobileShowStream(false)} className="md:hidden p-1 text-slate-400 hover:text-white"><ArrowLeft size={16} /></button>
+              <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-shrink-0">
+                <button onClick={() => setMobileShowStream(false)} className="md:hidden p-2 -ml-1 text-slate-400 hover:text-white" aria-label="Back to channels"><ArrowLeft size={18} /></button>
                 <span className="font-semibold">{activeChannel.name}</span>
                 <span className="text-xs text-slate-500">{activeChannel.type}</span>
               </div>
