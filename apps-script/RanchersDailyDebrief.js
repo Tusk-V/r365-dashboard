@@ -28,7 +28,7 @@ var DAILY_CONFIG = {
   SALES_SHEET:         'Flash - Daily Sales',
   LABOR_SHEET:         'Flash - Daily Labor',
   CLOCKOUT_SHEET:      'Auto-Clockouts',
-  RECIPIENTS:          'dalton@rancherscustard.com,josh@rancherscustard.com,eric@rancherscustard.com,kandacegiles@rancherscustard.com,steve@rancherscustard.com,chriswells@rancherscustard.com,joshbernard@rancherscustard.com',
+  RECIPIENTS:          'josh@rancherscustard.com,eric@rancherscustard.com,kandacegiles@rancherscustard.com,steve@rancherscustard.com,chriswells@rancherscustard.com,joshbernard@rancherscustard.com',
   SEND_HOUR:           7,
   STREAK_THRESHOLD:    3,
   LABOR_COST_PER_HR:   17,
