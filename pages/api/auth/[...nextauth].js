@@ -100,9 +100,9 @@ export const authOptions = {
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      // Verify email domain for all providers
-      if (user.email && !user.email.endsWith('@rancherscustard.com')) {
-        console.log(`Blocked login attempt from: ${user.email}`);
+      // Google stays company-only; email magic-link is open (employees self-onboard).
+      if (account?.provider === 'google' && (!user.email || !user.email.endsWith('@rancherscustard.com'))) {
+        console.log(`Blocked Google login from: ${user.email}`);
         return '/auth/error?error=AccessDenied';
       }
       
@@ -127,6 +127,7 @@ export const authOptions = {
               type: 'none',
               locations: []
             },
+            chatAccess: { level: 'employee', status: 'none', stores: [] },
             createdAt: new Date(),
             lastLogin: new Date(),
             notificationSent: true
@@ -184,6 +185,7 @@ export const authOptions = {
           if (userData) {
             session.user.dashboardAccess = userData.dashboardAccess;
             session.user.plAccess = userData.plAccess;
+            session.user.chatAccess = userData.chatAccess || { level: 'employee', status: 'none', stores: [] };
             // Check if user has any access (admin always has access)
             const isAdmin = session.user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
             session.user.accessPending = !isAdmin && !hasAnyAccess(userData);
