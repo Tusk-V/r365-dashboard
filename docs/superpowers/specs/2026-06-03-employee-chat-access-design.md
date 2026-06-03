@@ -1,179 +1,175 @@
-# Employee Chat Access — Design
+# Chat Access, Roles & Admin — Design
 
 **Date:** 2026-06-03
 **Branch:** `messaging-v2` (layered on the channel-based chat)
-**Status:** Design approved, pending spec review
+**Status:** Design approved (model), pending spec review
 
 ## Goal
 
-Let **all employees** — not just general managers — use the chat/communication
-portal, **without ever exposing the operations dashboard**. GMs have
-`@rancherscustard.com` Google accounts; hourly/line employees do not. So this
-adds a second, lower-privilege way into `/messages` only.
+Let **all employees** use the chat portal — not just dashboard GMs — **without
+ever exposing the operations dashboard**, with a **role/scope hierarchy** so
+managers and owners can admit people and (for owners) manage everything from a
+central chat admin page. GMs have `@rancherscustard.com` Google accounts; line
+employees do not.
 
 ## Decisions (from brainstorming)
 
 - **Employee auth:** Email **magic link** (NextAuth `EmailProvider`, already
-  configured). No passwords, no new dependency/cost. Any email may authenticate
-  but receives **no access** until approved.
-- **Two separate access tracks** on the user record: existing `dashboardAccess`
-  (gates the dashboard, GMs/admin only) and new **`chatAccess`** (gates the chat
-  only). An employee never gets dashboard access.
-- **Onboarding:** Employee signs in → **picks the store they work at** → status
-  `pending` → that store's GM approves → status `approved`.
-- **Approver:** Any user with **dashboard access to that store** (the store's
-  GM/FOM) or admin. Self-service so the admin isn't the bottleneck.
-- **Employee channels:** Once approved — **Company-Wide + their market + their
-  store** location channel. Can post normal messages; announcements stay
-  Admin/FOM only.
+  configured). Any email may authenticate but gets **no access** until approved.
+  ("Anyone can request; nobody gets in without approval.")
+- **Two access tracks:** existing `dashboardAccess` (dashboard, GMs/admin only)
+  and new **`chatAccess`** (chat only). Chat access never grants the dashboard.
+- **Five chat levels** (multiple people can hold any level):
+
+  | Level | Channels (always incl. Company-Wide) | Can admit | Full admin page |
+  |---|---|---|---|
+  | `employee` | their store(s) + those stores' markets | no | no |
+  | `gm` | their store(s) + those markets | their store(s) | no |
+  | `market_manager` | their market(s) + every store in them | any store in their market(s) | no |
+  | `ops_manager` | all stores + all markets | anyone, anywhere | no |
+  | `admin` | everything | anyone | **yes** |
+
+- **Multi-store / multi-market:** `employee`/`gm` carry a **list of stores**;
+  `market_manager` carries a **list of markets**; `ops_manager`/`admin` are
+  global (no scope list).
+- **Admin/Owner is a level** held by several people (owners + optionally FOM),
+  assigned by an existing admin. `dalton@rancherscustard.com` is the permanent
+  bootstrap admin (immutable).
+- **Onboarding:** employees self-signup (pick store(s) → `pending` → a manager
+  in scope approves). Managers/owners are **assigned directly** by an admin
+  (status `approved` immediately, no pending).
+- **Admin page:** only `admin`-level users get the full control page
+  (`/messages/admin`): assign levels, set each person's stores/markets, view
+  per-store rosters, approve/deny/remove. Lower manager levels get only the
+  **scoped pending-approvals** view.
 
 ## Authentication changes (`pages/api/auth/[...nextauth].js`)
 
-Current `signIn` callback rejects any non-`@rancherscustard.com` email for ALL
-providers. New logic, keyed on `account.provider`:
+Keyed on `account.provider`:
+- **`google`** → still require `@rancherscustard.com` (unchanged).
+- **`email`** (magic link) → allow any email to authenticate.
+- **Auto-create:** Google company user → `dashboardAccess:{type:'none'}` as today.
+  Email user → also `chatAccess:{ level:'employee', status:'none', stores:[],
+  markets:[] }`.
+- Access is enforced downstream, not by email domain.
 
-- **`google`** → still require `@rancherscustard.com` (unchanged). Keeps random
-  Google accounts out entirely.
-- **`email`** (magic link) → allow **any** email through authentication. These
-  are employee candidates.
-- **User auto-create:**
-  - Google company user → as today (`dashboardAccess: { type:'none' }` default).
-  - Email user → create with `dashboardAccess: { type:'none' }` **and**
-    `chatAccess: { status:'none', store:null }`.
-- No one is blocked at sign-in by domain anymore except non-company Google
-  sign-ins. **Access is enforced downstream**, not by the email domain.
-
-`session` callback also exposes `session.user.chatAccess` so the client can
-route onboarding/pending/approved states. (Admin `dalton@` stays always-admin.)
+`session` callback exposes `session.user.chatAccess` for client routing.
+Bootstrap: `dalton@` is treated as `chatAccess.level='admin'` regardless of
+stored value.
 
 ## Data model (`users` collection)
 
-Add one field (no migration needed; absence = `none`):
+New field (absence = no chat access):
 
 ```
 chatAccess: {
+  level: 'employee' | 'gm' | 'market_manager' | 'ops_manager' | 'admin',
   status: 'none' | 'pending' | 'approved',
-  store: <locationName> | null,     // one of lib/channels LOCATIONS
+  stores:  [ <locationName>, ... ],   // employee/gm scope
+  markets: [ <marketName>,  ... ],     // market_manager scope
   requestedAt: Date | null,
-  approvedBy: <email> | null,
-  approvedAt: Date | null
+  approvedBy:  <email> | null,
+  approvedAt:  Date | null
 }
 ```
 
-`dashboardAccess` is untouched. A user normally has one track or the other;
-if somehow both, channel sets are unioned.
+`dashboardAccess` untouched. A user with both tracks gets the union of channels.
 
 ## Channel derivation (`lib/channels.js`)
 
-Extend `deriveChannelsForUser` and `canAccessChannel` to accept `chatAccess`:
+`deriveChannelsForUser({ isAdmin, dashboardAccess, chatAccess })` adds chat
+channels when `chatAccess.status === 'approved'` (or level is a manager/admin
+assigned directly), by level:
+- `employee` / `gm` → company + markets-of(`stores`) + each store's location channel.
+- `market_manager` → company + each market in `markets` + every location channel in those markets.
+- `ops_manager` / `admin` → all channels (same as dashboard admin).
+Union + dedupe with any `dashboardAccess`-derived channels; existing ordering
+(company → markets → locations) preserved.
 
-`deriveChannelsForUser({ isAdmin, dashboardAccess, chatAccess })`:
-- Existing behavior from `dashboardAccess` (admin → all; specific → company +
-  spanned markets + their locations) is unchanged.
-- **Plus**, if `chatAccess.status === 'approved'` and `chatAccess.store` is set:
-  add `company-wide` + the market channel for that store + that store's location
-  channel.
-- Union and dedupe by `key`, keep the existing ordering (company → markets →
-  locations).
-
-So an approved employee with no dashboard access sees exactly:
-`company-wide`, `market:<their market>`, `loc:<their store>`.
-
-All existing `lib/channels` unit tests stay; new tests cover the chatAccess
-paths.
+New helpers (unit-tested):
+- `chatChannelsFor(chatAccess)` — the per-level channel set above.
+- `canManageStore(actor, store)` — true if actor is `admin`/`ops_manager`, or
+  `market_manager` whose `markets` includes the store's market, or `gm` whose
+  `stores` includes the store. Drives approval scoping.
+- `canManageChatPermissions(actor)` — true only for `admin`.
 
 ## API changes
 
-All `/api/chat/*` routes must load `chatAccess` alongside `dashboardAccess` and
-pass both into `deriveChannelsForUser` / `canAccessChannel`. A user is a valid
-chat participant iff they have **≥1 derived channel** (from either track).
+All `/api/chat/*` routes load `chatAccess` with `dashboardAccess` and pass both
+into `deriveChannelsForUser`/`canAccessChannel`. A valid chat participant has ≥1
+derived channel.
 
-- **`channels.js`, `messages.js`, `read.js`, `react.js`** — augment the
-  `loadContext`/access derivation to include `chatAccess`. No other logic change;
-  per-channel `canAccessChannel` already enforces correctness.
+- **`channels.js`, `messages.js`, `read.js`, `react.js`** — augment context to
+  include `chatAccess`. Per-channel `canAccessChannel` already enforces specifics.
 
 New endpoints:
+- **`POST /api/chat/onboard`** `{ stores: [...] }` — signed-in employee-candidate
+  sets the store(s) they work at (validated ⊆ `LOCATIONS`). Sets
+  `chatAccess:{ level:'employee', status:'pending', stores, requestedAt }`.
+  Employees only (no dashboard access, not already approved). Re-submittable while
+  `none`/`pending`.
+- **`GET /api/chat/members`** — pending requests visible to the caller:
+  pending users where every (or any) requested store is manageable by the caller
+  via `canManageStore`. Returns `{ email, name, stores, requestedAt }`.
+- **`POST /api/chat/members`** `{ email, action:'approve'|'deny' }` — caller must
+  `canManageStore` for the user's requested store(s) (admin/ops always can).
+  `approve` → `status:'approved'` (grants the stores the approver is authorized
+  for; any out-of-scope stores stay pending for another manager/admin). `deny` →
+  back to `status:'none', stores:[]`.
+- **`GET/POST /api/chat/admin/users`** — **admin-level only**
+  (`canManageChatPermissions`). GET lists all chat users with level/scope/status.
+  POST `{ email, level, stores, markets, status }` upserts a person's chat
+  role/scope (direct assignment; managers/owners created here are `approved`
+  immediately). Cannot demote/remove the bootstrap admin.
 
-- **`POST /api/chat/onboard`** `{ store }` — the signed-in user sets the store
-  they work at. Validates `store ∈ LOCATIONS`. Sets
-  `chatAccess = { status:'pending', store, requestedAt:new Date() }`. Only allowed
-  when the caller currently has no dashboard access and is not already approved
-  (employees only). Idempotent re-submit allowed while `pending`/`none`.
+## UI / UX (mobile-first, branded header — consistent with the chat)
 
-- **`GET /api/chat/members`** — returns pending chat requests for the stores the
-  caller manages. Manageable stores: admin → all; otherwise the caller's
-  `dashboardAccess.locations`. Returns `[{ email, name, store, requestedAt }]`
-  filtered to `chatAccess.status === 'pending'` and `store ∈ manageable`.
-
-- **`POST /api/chat/members`** `{ email, action: 'approve'|'deny' }` — caller must
-  manage that user's `chatAccess.store` (or be admin). `approve` →
-  `status:'approved', approvedBy, approvedAt`. `deny` → `status:'none', store:null`
-  (employee can re-onboard). Rejects if caller doesn't manage the store.
-
-## UI / UX
-
-### Onboarding + pending (employees) — `components/chat/Onboarding.js`
-
-`/messages` gates rendering on the viewer's access:
-- Has any chat channels (dashboard or approved chat) → render the chat (existing).
-- Else if `chatAccess.status` is `none`/missing → render **store picker**:
-  "Which Andy's location do you work at?" (dropdown of `LOCATIONS`) → submit →
-  `POST /api/chat/onboard`.
-- Else if `chatAccess.status === 'pending'` → render **"Waiting for approval"**:
-  "Your request to join {store} is with your manager."
-
-Branded, mobile-first, same slate theme + Andy's header.
-
-### GM approval — `components/chat/PendingApprovals.js`
-
-For viewers who can manage at least one store (admin or GM with
-`dashboardAccess.locations`), `/messages` shows a **"Pending approvals (N)"**
-entry (a button in the header / top of the sidebar). Opens a list of pending
-employees for their stores with **Approve / Deny** buttons, calling
-`/api/chat/members`. Mobile-friendly. Badge count refreshes with the channel
-poll.
-
-### Route separation
-
-- `/messages` + `/api/chat/*` → open to approved chat users AND dashboard users.
-- `/` and all other dashboard pages/APIs → **unchanged**, gated by
-  `dashboardAccess`. An employee (dashboard `none`) who lands on `/`:
-  - if `chatAccess.status === 'approved'` → redirect to `/messages`;
-  - else → the onboarding/pending experience (redirect to `/messages`, which
-    shows the right state).
-
-### Sign-in page (`pages/auth/signin.js`)
-
-Surface BOTH paths clearly: "Sign in with Google" (managers) and an **email
-field** ("Employees — enter your email to get a sign-in link"). Magic-link email
-sends through the existing nodemailer config (`EMAIL_SERVER_*`).
+- **`components/chat/Onboarding.js`** — `/messages` renders this when the viewer
+  has no chat channels: store **multi-select** picker → `POST /api/chat/onboard`;
+  then a "waiting for approval" state for `pending`.
+- **`components/chat/PendingApprovals.js`** — for any manager level (`gm`+), a
+  "Pending approvals (N)" entry in `/messages` listing in-scope pending employees
+  with Approve/Deny (`/api/chat/members`).
+- **`pages/messages/admin.js`** — **admin-only** control page: table of all chat
+  users (name, email, level, stores/markets, status); edit level + scope; per-store
+  roster view ("who's in each store"); approve/deny/remove. Reachable from a gear
+  in the `/messages` header shown only to `admin` level.
+- **Route separation:** `/messages` + `/api/chat/*` open to approved chat users
+  and dashboard users. `/` and other dashboard pages/APIs stay `dashboardAccess`-
+  gated. An employee landing on `/` is redirected to `/messages`.
+- **`pages/auth/signin.js`** — surface the email magic-link box ("Employees —
+  enter your email") alongside the Google button.
 
 ## Security
 
-- Magic link authenticates anyone, but **grants nothing** until a managing GM
-  approves — dashboard APIs remain `dashboardAccess`-gated, so employees can
-  never read dashboard data.
-- Approval is **scoped**: a GM may only approve employees for stores in their
-  own `dashboardAccess.locations`; admin may approve any. Enforced server-side.
-- Employees cannot self-approve or change to a store they aren't approved for;
-  channel access is always re-derived server-side from the stored `chatAccess`.
-- Google sign-in stays company-domain-restricted.
+- Magic link authenticates anyone but grants nothing until approved/assigned;
+  dashboard APIs stay `dashboardAccess`-gated, so chat users can't read dashboard
+  data.
+- **Approval & management are scope-enforced server-side**: `canManageStore`
+  gates `/api/chat/members`; `canManageChatPermissions` (admin only) gates
+  `/api/chat/admin/*`.
+- Channel access is always re-derived server-side from stored `chatAccess`;
+  clients can't self-elevate.
+- Bootstrap admin `dalton@` is immutable (can't be demoted/removed).
+- Google sign-in stays company-domain restricted.
 
 ## Testing
 
-- **Unit (`lib/channels`):** approved employee → exactly company+market+store;
-  `none`/`pending` employee → `[]`; GM unchanged; dual-track union; `canAccessChannel`
-  denies an employee any other store/market.
-- **API:** employee can't read/post in a non-assigned channel (403); employee
-  can't reach a dashboard API; `members` approve/deny scoped to the caller's
-  stores; `onboard` validates store and employee-only.
-- **Manual (preview):** email magic-link sign-in → store picker → pending screen;
-  GM sees + approves; employee then sees company+market+store and can post;
-  employee hitting `/` is redirected; GM/admin dashboard unaffected.
+- **Unit (`lib/channels`):** `chatChannelsFor` per level (employee multi-store,
+  gm, market_manager multi-market, ops/admin all); `canManageStore` matrix;
+  `canManageChatPermissions` admin-only; dual-track union; non-approved → `[]`.
+- **API:** employee can't read/post outside assigned channels; can't reach a
+  dashboard API; `members` approve/deny scoped to caller; `admin/users` rejects
+  non-admin; `onboard` validates stores and is employee-only; bootstrap admin
+  protected.
+- **Manual (preview):** email sign-in → multi-store pick → pending → manager
+  approves → sees company+markets+stores and can post; admin page assigns a
+  Market Manager and an Operations Manager and verifies their scopes; employee
+  on `/` is redirected; dashboard unaffected for GMs/admin.
 
 ## Out of scope (future)
 
-- Employees assigned to multiple stores (v1 = one store).
-- Self-service "change my store" after approval (deny + re-onboard for now).
-- Email/push notifications for new pending requests (GMs check in-app).
+- Email/push notification to managers on a new pending request (they check in-app).
+- Bulk CSV import of employees/levels.
 - Phone/SMS auth.
+- Per-channel mute / notification preferences.
