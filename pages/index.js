@@ -903,18 +903,6 @@ console.error('Error loading user role:', err);
 }
 };
 
-const loadUnreadCount = async () => {
-try {
-const res = await fetch('/api/messages/read');
-const data = await res.json();
-if (res.ok) {
-setUnreadMessagesCount(data.unreadCount || 0);
-}
-} catch (err) {
-console.error('Error loading unread count:', err);
-}
-};
-
 const getEmployeeTitle = (name) => {
 if (!name) return null;
 return employeeTitles[name.toLowerCase()] || null;
@@ -1279,7 +1267,6 @@ useEffect(() => {
 if (status === "authenticated") {
 loadDashboardAccess();
 loadCurrentUserRole();
-loadUnreadCount();
 loadDataFromGoogleSheets();
 loadAvailableWeeks();
 loadAutoClockouts();
