@@ -1278,7 +1278,15 @@ loadModelCoefficients();
       try {
         const res = await fetch('/api/chat/channels');
         const data = await res.json();
-        if (active && res.ok) setUnreadMessagesCount(data.totalUnread || 0);
+        if (active && res.ok) {
+          setUnreadMessagesCount(data.totalUnread || 0);
+          try {
+            if ('setAppBadge' in navigator) {
+              const n = data.totalUnread || 0;
+              if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge();
+            }
+          } catch (_) {}
+        }
       } catch (_) {}
     };
     load();
