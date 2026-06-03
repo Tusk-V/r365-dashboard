@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useSession, signIn } from 'next-auth/react';
-import { ArrowLeft, Home } from 'lucide-react';
+import { ArrowLeft, Home, UserPlus } from 'lucide-react';
 import ChannelSidebar from '../components/chat/ChannelSidebar';
 import MessageStream from '../components/chat/MessageStream';
 import Composer from '../components/chat/Composer';
+import Onboarding from '../components/chat/Onboarding';
+import PendingApprovals from '../components/chat/PendingApprovals';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 const MSG_POLL_MS = 3000;
@@ -25,6 +27,13 @@ export default function MessagesPage() {
   const isAdmin = userEmail === ADMIN_EMAIL;
   const [userRole, setUserRole] = useState('User');
   const canModerate = userRole === 'Admin' || userRole === 'FOM';
+
+  const dashType = session?.user?.dashboardAccess?.type;
+  const hasDashboard = isAdmin || (dashType && dashType !== 'none');
+  const chatStatus = session?.user?.chatAccess?.status || 'none';
+  const canApprove = hasDashboard; // dashboard users approve their stores; admin approves all
+
+  const [showApprovals, setShowApprovals] = useState(false);
 
   const lastTsRef = useRef(null);
   const tempIdRef = useRef(0);
@@ -198,6 +207,10 @@ export default function MessagesPage() {
     return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Loading…</div>;
   }
 
+  if (!loadingChannels && channels.length === 0 && !hasDashboard) {
+    return <Onboarding status={chatStatus} onSubmitted={() => router.reload()} />;
+  }
+
   return (
     <div className="h-[100dvh] bg-slate-900 text-white flex flex-col">
       <div className="sticky top-0 z-20 flex items-center justify-between gap-2 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-shrink-0">
@@ -205,14 +218,26 @@ export default function MessagesPage() {
           <img src="/icon-192x192.png" alt="Andy's" className="h-7 w-7 rounded-full" />
           <h1 className="font-bold text-lg">Messages</h1>
         </div>
-        <button
-          onClick={() => router.push('/')}
-          className="flex items-center gap-1.5 min-h-[40px] px-3 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-700"
-          title="Back to dashboard"
-        >
-          <Home size={18} />
-          <span className="hidden sm:inline">Dashboard</span>
-        </button>
+        <div className="flex items-center gap-1">
+          {canApprove && (
+            <button
+              onClick={() => setShowApprovals(true)}
+              className="flex items-center gap-1.5 min-h-[40px] px-2 text-slate-300 hover:text-white"
+              title="Pending approvals"
+            >
+              <UserPlus size={18} />
+              <span className="hidden sm:inline text-sm">Approvals</span>
+            </button>
+          )}
+          <button
+            onClick={() => router.push('/')}
+            className="flex items-center gap-1.5 min-h-[40px] px-3 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-700"
+            title="Back to dashboard"
+          >
+            <Home size={18} />
+            <span className="hidden sm:inline">Dashboard</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 flex min-h-0">
@@ -255,6 +280,8 @@ export default function MessagesPage() {
           )}
         </div>
       </div>
+
+      {showApprovals && <PendingApprovals onClose={() => setShowApprovals(false)} />}
     </div>
   );
 }
