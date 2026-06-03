@@ -4,6 +4,10 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
+        {/* PWA manifest — makes the app installable */}
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
         {/* Tints the PWA status-bar region to match the dark slate background */}
         <meta name="theme-color" content="#0f172a" />
 
