@@ -27,6 +27,7 @@ export default function MessagesPage() {
   const canModerate = userRole === 'Admin' || userRole === 'FOM';
 
   const lastTsRef = useRef(null);
+  const tempIdRef = useRef(0);
 
   useEffect(() => {
     if (status === 'unauthenticated') signIn('google');
@@ -92,6 +93,7 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (!activeKey) return;
+    let cancelled = false;
     const id = setInterval(async () => {
       if (document.hidden) return;
       try {
@@ -99,7 +101,7 @@ export default function MessagesPage() {
         if (lastTsRef.current) qs.set('after', lastTsRef.current);
         const res = await fetch(`/api/chat/messages?${qs.toString()}`);
         const data = await res.json();
-        if (!res.ok) return;
+        if (cancelled || !res.ok) return;
         setPinned(data.pinned || []);
         if (data.messages && data.messages.length > 0) {
           setMessages(prev => {
@@ -112,11 +114,11 @@ export default function MessagesPage() {
         }
       } catch (_) {}
     }, MSG_POLL_MS);
-    return () => clearInterval(id);
+    return () => { cancelled = true; clearInterval(id); };
   }, [activeKey, markRead]);
 
   const handleSend = async ({ body, isAnnouncement, priority }) => {
-    const tempId = `temp-${body.length}-${messages.length}`;
+    const tempId = `temp-${tempIdRef.current++}`;
     const optimistic = {
       _id: tempId, channelKey: activeKey, body, authorEmail: userEmail,
       authorName: session?.user?.name || userEmail, authorRole: userRole,
@@ -175,6 +177,11 @@ export default function MessagesPage() {
     } catch (_) {}
   };
 
+  const handleRetry = (msg) => {
+    setMessages(prev => prev.filter(m => m._id !== msg._id));
+    handleSend({ body: msg.body, isAnnouncement: msg.isAnnouncement, priority: msg.priority });
+  };
+
   const activeChannel = channels.find(c => c.key === activeKey);
 
   if (status === 'loading') {
@@ -220,6 +227,7 @@ export default function MessagesPage() {
                 onReact={handleReact}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onRetry={handleRetry}
               />
               <Composer channelName={`# ${activeChannel.name}`} canAnnounce={canModerate} onSend={handleSend} />
             </>

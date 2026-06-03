@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { MessageSquare, Pin } from 'lucide-react';
 import MessageItem from './MessageItem';
 
-export default function MessageStream({ messages, pinned, userEmail, canModerate, onReact, onEdit, onDelete }) {
+export default function MessageStream({ messages, pinned, userEmail, canModerate, onReact, onEdit, onDelete, onRetry }) {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
   const nearBottomRef = useRef(true);
@@ -45,7 +45,7 @@ export default function MessageStream({ messages, pinned, userEmail, canModerate
         ) : (
           <div className="divide-y divide-slate-800/60 py-1">
             {messages.map(m => (
-              <MessageItem key={m._id} message={m} userEmail={userEmail} canModerate={canModerate} onReact={onReact} onEdit={onEdit} onDelete={onDelete} />
+              <MessageItem key={m._id} message={m} userEmail={userEmail} canModerate={canModerate} onReact={onReact} onEdit={onEdit} onDelete={onDelete} onRetry={onRetry} />
             ))}
           </div>
         )}

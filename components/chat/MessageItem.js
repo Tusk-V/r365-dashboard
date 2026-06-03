@@ -20,7 +20,7 @@ function formatTime(dateString) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function MessageItem({ message, userEmail, canModerate, onReact, onEdit, onDelete }) {
+export default function MessageItem({ message, userEmail, canModerate, onReact, onEdit, onDelete, onRetry }) {
   const [showEmoji, setShowEmoji] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.body);
@@ -63,9 +63,17 @@ export default function MessageItem({ message, userEmail, canModerate, onReact, 
           </div>
         </div>
       ) : (
-        <p className="text-sm text-slate-200 whitespace-pre-wrap mt-0.5 break-words">{message.body}</p>
+        <p className={`text-sm whitespace-pre-wrap mt-0.5 break-words ${message._pending ? 'text-slate-400 italic' : 'text-slate-200'}`}>{message.body}</p>
       )}
 
+      {message._failed && (
+        <div className="mt-0.5 text-xs text-red-400">
+          Not delivered.{' '}
+          <button onClick={() => onRetry && onRetry(message)} className="underline hover:text-red-300">Retry</button>
+        </div>
+      )}
+
+      {!message._pending && !message._failed && (
       <div className="flex items-center gap-2 mt-1 flex-wrap">
         {message.reactions && Object.entries(message.reactions).map(([emoji, users]) => (
           users.length > 0 && (
@@ -93,6 +101,7 @@ export default function MessageItem({ message, userEmail, canModerate, onReact, 
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
