@@ -100,6 +100,7 @@ export default async function handler(req, res) {
 
       // Clean up chat read pointers
       await db.collection('chat_reads').deleteMany({ userEmail: user.email });
+      await db.collection('push_subscriptions').deleteMany({ userEmail: user.email });
 
       return res.status(200).json({ success: true });
     } catch (error) {
