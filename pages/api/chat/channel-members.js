@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   const email = session.user.email;
   const isAdmin = email === ADMIN_EMAIL;
   const me = await db.collection('users').findOne({ email });
-  const fomOf = (u) => !!(u?.fom || u?.role === 'FOM' || u?.role === 'Admin');
+  const fomOf = (u) => !!(u?.fom || u?.role === 'FOM');
   const meAccess = {
     isAdmin,
     fom: isAdmin || fomOf(me),

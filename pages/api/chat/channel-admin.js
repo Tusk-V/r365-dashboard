@@ -14,7 +14,7 @@ const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 // Transition-safe FOM read (honors the legacy `role` field until migration).
 function isFom(u) {
-  return !!(u?.fom || u?.role === 'FOM' || u?.role === 'Admin');
+  return !!(u?.fom || u?.role === 'FOM');
 }
 
 function actorFrom(session, user) {

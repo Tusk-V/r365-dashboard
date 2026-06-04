@@ -17,7 +17,7 @@ export default async function handler(req, res) {
     const email = session.user.email;
     const isAdmin = email === ADMIN_EMAIL;
     const user = await db.collection('users').findOne({ email });
-    const fom = isAdmin || !!(user?.fom || user?.role === 'FOM' || user?.role === 'Admin');
+    const fom = isAdmin || !!(user?.fom || user?.role === 'FOM');
     const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
     const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
     if (!canAccessChannel({ isAdmin, fom, managedMarkets: user?.managedMarkets || [], dashboardAccess, chatAccess }, channel)) return res.status(403).json({ error: 'No access to this channel' });

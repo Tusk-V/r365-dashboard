@@ -17,7 +17,7 @@ export default async function handler(req, res) {
     const isAdmin = userEmail === ADMIN_EMAIL;
 
     const user = await db.collection('users').findOne({ email: userEmail });
-    const fom = isAdmin || !!(user?.fom || user?.role === 'FOM' || user?.role === 'Admin');
+    const fom = isAdmin || !!(user?.fom || user?.role === 'FOM');
     const managedMarkets = user?.managedMarkets || [];
     const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
     const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
