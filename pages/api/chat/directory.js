@@ -24,12 +24,13 @@ export default async function handler(req, res) {
   const actor = {
     email,
     isAdmin,
+    owner: isAdmin || !!me?.owner,
     fom: isAdmin || !!(me?.fom || me?.role === 'FOM'),
     managedMarkets: me?.managedMarkets || [],
     dashboardAccess: isAdmin ? { type: 'all' } : (me?.dashboardAccess || { type: 'none' }),
   };
 
-  const canManageAny = actor.isAdmin || actor.fom || actor.managedMarkets.length > 0 ||
+  const canManageAny = actor.isAdmin || actor.owner || actor.fom || actor.managedMarkets.length > 0 ||
     actor.dashboardAccess.type === 'all' ||
     (actor.dashboardAccess.type === 'specific' && (actor.dashboardAccess.locations || []).length > 0);
   if (!canManageAny) return res.status(403).json({ error: 'Not authorized to view members' });

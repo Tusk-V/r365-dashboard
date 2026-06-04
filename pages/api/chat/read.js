@@ -19,11 +19,12 @@ export default async function handler(req, res) {
     const userEmail = session.user.email;
     const isAdmin = userEmail === ADMIN_EMAIL;
     const user = await db.collection('users').findOne({ email: userEmail });
+    const owner = isAdmin || !!user?.owner;
     const fom = isAdmin || !!(user?.fom || user?.role === 'FOM');
     const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
     const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
 
-    if (!canAccessChannel({ isAdmin, fom, managedMarkets: user?.managedMarkets || [], dashboardAccess, chatAccess }, channel)) {
+    if (!canAccessChannel({ isAdmin, owner, fom, managedMarkets: user?.managedMarkets || [], dashboardAccess, chatAccess }, channel)) {
       return res.status(403).json({ error: 'No access to this channel' });
     }
 

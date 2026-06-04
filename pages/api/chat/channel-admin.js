@@ -23,6 +23,7 @@ function actorFrom(session, user) {
   return {
     email,
     isAdmin,
+    owner: isAdmin || !!user?.owner,
     fom: isAdmin || isFom(user),
     managedMarkets: user?.managedMarkets || [],
     dashboardAccess: isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' }),

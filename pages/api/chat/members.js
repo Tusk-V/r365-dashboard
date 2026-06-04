@@ -10,8 +10,9 @@ async function actorFrom(session, db) {
   const isAdmin = email === ADMIN_EMAIL;
   const user = await db.collection('users').findOne({ email });
   const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
+  const owner = isAdmin || !!user?.owner;
   const fom = isAdmin || !!(user?.fom || user?.role === 'FOM');
-  return { email, isAdmin, fom, managedMarkets: user?.managedMarkets || [], dashboardAccess };
+  return { email, isAdmin, owner, fom, managedMarkets: user?.managedMarkets || [], dashboardAccess };
 }
 
 export default async function handler(req, res) {
@@ -22,7 +23,8 @@ export default async function handler(req, res) {
   const db = client.db("andysdashboard");
   const actor = await actorFrom(session, db);
 
-  const canManageAny = actor.isAdmin || actor.dashboardAccess.type === 'all' ||
+  const canManageAny = actor.isAdmin || actor.owner || actor.fom ||
+    actor.dashboardAccess.type === 'all' ||
     (actor.dashboardAccess.type === 'specific' && (actor.dashboardAccess.locations || []).length > 0);
   if (!canManageAny) return res.status(403).json({ error: 'Not authorized to manage members' });
 

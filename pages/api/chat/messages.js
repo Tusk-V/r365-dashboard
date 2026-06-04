@@ -36,12 +36,12 @@ async function loadContext(req, res) {
   const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
   const channelInclusions = user?.channelInclusions || [];
   const channelExclusions = user?.channelExclusions || [];
-  const authorRole = (isAdmin || owner) ? 'Admin'
+  const authorRole = (isAdmin || owner) ? 'Owner'
     : fom ? 'FOM'
     : managedMarkets.length ? 'Market'
     : manager ? 'Manager'
     : null;
-  return { db, session, userEmail, isAdmin, fom, managedMarkets, dashboardAccess, chatAccess, channelInclusions, channelExclusions, authorRole,
+  return { db, session, userEmail, isAdmin, owner, fom, managedMarkets, dashboardAccess, chatAccess, channelInclusions, channelExclusions, authorRole,
            authorName: session.user.name || userEmail,
            authorImage: session.user.image || null };
 }
@@ -49,8 +49,8 @@ async function loadContext(req, res) {
 export default async function handler(req, res) {
   const ctx = await loadContext(req, res);
   if (!ctx) return;
-  const { db, userEmail, isAdmin, fom, managedMarkets, dashboardAccess, chatAccess, channelInclusions, channelExclusions, authorName, authorImage, authorRole } = ctx;
-  const accessUser = { isAdmin, fom, managedMarkets, dashboardAccess, chatAccess, channelInclusions, channelExclusions };
+  const { db, userEmail, isAdmin, owner, fom, managedMarkets, dashboardAccess, chatAccess, channelInclusions, channelExclusions, authorName, authorImage, authorRole } = ctx;
+  const accessUser = { isAdmin, owner, fom, managedMarkets, dashboardAccess, chatAccess, channelInclusions, channelExclusions };
 
   if (req.method === 'GET') {
     try {
