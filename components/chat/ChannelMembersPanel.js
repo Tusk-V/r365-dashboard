@@ -90,6 +90,7 @@ export default function ChannelMembersPanel({ channel, channelName, onClose }) {
                           {(m.isAdmin || m.owner) && <span className="px-1 py-px text-[9px] font-semibold bg-red-600 text-white rounded leading-none flex-shrink-0">Admin</span>}
                           {!m.isAdmin && !m.owner && m.fom && <span className="px-1 py-px text-[9px] font-semibold bg-blue-600 text-white rounded leading-none flex-shrink-0">FOM</span>}
                           {!m.isAdmin && !m.owner && !m.fom && (m.managedMarkets || []).length > 0 && <span className="px-1 py-px text-[9px] font-semibold bg-purple-600 text-white rounded leading-none flex-shrink-0">MM</span>}
+                          {!m.isAdmin && !m.owner && !m.fom && (m.managedMarkets || []).length === 0 && m.manager && <span className="px-1 py-px text-[9px] font-semibold bg-green-600 text-white rounded leading-none flex-shrink-0">Manager</span>}
                         </div>
                         <div className="text-[11px] text-slate-500 truncate">{m.email}</div>
                       </div>

@@ -30,13 +30,14 @@ async function loadContext(req, res) {
   // Transition-safe: honor the legacy `role` field until the FOM migration runs.
   const owner = !!user?.owner;
   const fom = isAdmin ? true : !!(user?.fom || user?.role === 'FOM');
+  const manager = !!user?.manager;
   const managedMarkets = user?.managedMarkets || [];
   const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
   const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
   const authorRole = (isAdmin || owner) ? 'Admin'
     : fom ? 'FOM'
     : managedMarkets.length ? 'Market'
-    : (dashboardAccess.type === 'specific' || dashboardAccess.type === 'all') ? 'Manager'
+    : manager ? 'Manager'
     : null;
   return { db, session, userEmail, isAdmin, fom, managedMarkets, dashboardAccess, chatAccess, authorRole,
            authorName: session.user.name || userEmail,

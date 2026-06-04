@@ -51,7 +51,7 @@ export default async function handler(req, res) {
     try {
       const users = await db.collection('users')
         .find({})
-        .project({ email: 1, name: 1, image: 1, role: 1, owner: 1, fom: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1 })
+        .project({ email: 1, name: 1, image: 1, role: 1, owner: 1, fom: 1, manager: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1 })
         .toArray();
 
       const members = [];
@@ -81,6 +81,7 @@ export default async function handler(req, res) {
             image: u.image || null,
             owner: !!u.owner,
             fom: uIsAdmin || isFom(u),
+            manager: !!u.manager,
             managedMarkets: u.managedMarkets || [],
             isAdmin: uIsAdmin,
             removable: (inByChat || inByDash) && !broad && u.email !== actor.email && u.email !== ADMIN_EMAIL,

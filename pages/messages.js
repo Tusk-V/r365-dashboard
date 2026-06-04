@@ -34,12 +34,11 @@ function UserAvatar({ name, image, size = 'h-8 w-8', extra = '' }) {
 const ROLE_BADGE_CLASS = { Admin: 'bg-red-600', FOM: 'bg-blue-600', Market: 'bg-purple-600', Manager: 'bg-green-600' };
 const ROLE_LABEL = { Admin: 'Admin', FOM: 'FOM', Market: 'MM', Manager: 'Manager' };
 
-function tierOf({ isAdmin, owner, fom, managedMarkets, dashboardAccess }) {
+function tierOf({ isAdmin, owner, fom, managedMarkets, manager }) {
   if (isAdmin || owner) return 'Admin';
   if (fom) return 'FOM';
   if ((managedMarkets || []).length) return 'Market';
-  const t = dashboardAccess && dashboardAccess.type;
-  if (t === 'specific' || t === 'all') return 'Manager';
+  if (manager) return 'Manager';
   return null;
 }
 
@@ -56,10 +55,10 @@ export default function MessagesPage() {
 
   const userEmail = session?.user?.email;
   const isAdmin = userEmail === ADMIN_EMAIL;
-  const [scope, setScope] = useState({ owner: false, fom: false, managedMarkets: [], dashboardAccess: null });
+  const [scope, setScope] = useState({ owner: false, fom: false, manager: false, managedMarkets: [], dashboardAccess: null });
 
   const dashboardAccess = session?.user?.dashboardAccess || scope.dashboardAccess || { type: 'none' };
-  const meActor = { isAdmin, owner: scope.owner, fom: isAdmin || scope.owner || scope.fom, managedMarkets: scope.managedMarkets, dashboardAccess };
+  const meActor = { isAdmin, owner: scope.owner, fom: isAdmin || scope.owner || scope.fom, manager: scope.manager, managedMarkets: scope.managedMarkets, dashboardAccess };
   const hasDashboard = isDashboardUser(meActor);
   const myRole = tierOf(meActor);
   const chatStatus = session?.user?.chatAccess?.status || 'none';
@@ -88,7 +87,7 @@ export default function MessagesPage() {
     if (!userEmail || isAdmin) return;
     fetch('/api/check-access')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setScope({ owner: !!d.owner, fom: !!d.fom, managedMarkets: d.managedMarkets || [], dashboardAccess: d.dashboardAccess || null }); })
+      .then(d => { if (d) setScope({ owner: !!d.owner, fom: !!d.fom, manager: !!d.manager, managedMarkets: d.managedMarkets || [], dashboardAccess: d.dashboardAccess || null }); })
       .catch(() => {});
   }, [userEmail, isAdmin]);
 

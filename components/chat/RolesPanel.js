@@ -83,7 +83,7 @@ export default function RolesPanel({ onClose }) {
                     {isAdminRow && <span className="px-1 py-px text-[9px] font-semibold bg-red-600 text-white rounded leading-none flex-shrink-0">{u.isSuperAdmin ? 'Super Admin' : 'Admin'}</span>}
                     {!isAdminRow && u.fom && <span className="px-1 py-px text-[9px] font-semibold bg-blue-600 text-white rounded leading-none flex-shrink-0">FOM</span>}
                     {!isAdminRow && !u.fom && u.managedMarkets.length > 0 && <span className="px-1 py-px text-[9px] font-semibold bg-purple-600 text-white rounded leading-none flex-shrink-0">MM</span>}
-                    {!isAdminRow && !u.fom && u.managedMarkets.length === 0 && u.hasDashboard && <span className="px-1 py-px text-[9px] font-semibold bg-green-600 text-white rounded leading-none flex-shrink-0">Manager</span>}
+                    {!isAdminRow && !u.fom && u.managedMarkets.length === 0 && u.manager && <span className="px-1 py-px text-[9px] font-semibold bg-green-600 text-white rounded leading-none flex-shrink-0">Manager</span>}
                   </div>
                   <div className="text-[11px] text-slate-500 truncate">{u.email}</div>
 
@@ -93,10 +93,11 @@ export default function RolesPanel({ onClose }) {
                         <button disabled={busy === u.email} onClick={() => post({ targetEmail: u.email, action: 'owner', value: !u.owner })} className={chipClass(u.owner)} title="Admin — full access; only the super admin can set this">Admin</button>
                       )}
                       <button disabled={busy === u.email || u.owner} onClick={() => post({ targetEmail: u.email, action: 'fom', value: !u.fom })} className={chipClass(u.fom, u.owner)} title="Field Ops Manager — all channels">FOM</button>
+                      <button disabled={busy === u.email || u.owner || u.fom || u.managedMarkets.length > 0} onClick={() => post({ targetEmail: u.email, action: 'manager', value: !u.manager })} className={chipClass(u.manager, u.owner || u.fom || u.managedMarkets.length > 0)} title="Manager badge">Manager</button>
                       {MARKETS.map(mk => {
                         const on = u.managedMarkets.includes(mk);
                         const next = on ? u.managedMarkets.filter(x => x !== mk) : [...u.managedMarkets, mk];
-                        const disabled = u.owner || u.fom;
+                        const disabled = u.owner || u.fom || u.manager;
                         return (
                           <button key={mk} disabled={busy === u.email || disabled} onClick={() => post({ targetEmail: u.email, action: 'markets', markets: next })} className={chipClass(on, disabled)} title={`Market manager — ${mk}`}>
                             {MARKET_LABEL[mk] || mk}

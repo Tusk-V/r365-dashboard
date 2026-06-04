@@ -54,6 +54,7 @@ export default async function handler(req, res) {
         owner: !!user.owner,
         // Transition-safe: honor the legacy role until the FOM migration runs.
         fom: !!(user.fom || user.role === 'FOM'),
+        manager: !!user.manager,
         managedMarkets: user.managedMarkets || [],
         isAdmin: false
       });
