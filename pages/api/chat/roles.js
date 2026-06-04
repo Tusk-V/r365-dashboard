@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const users = await db.collection('users').find({})
-        .project({ email: 1, name: 1, image: 1, owner: 1, fom: 1, managedMarkets: 1, dashboardAccess: 1 })
+        .project({ email: 1, name: 1, image: 1, owner: 1, fom: 1, manager: 1, managedMarkets: 1, dashboardAccess: 1 })
         .toArray();
       const list = users.filter(u => u.email).map(u => ({
         email: u.email,
@@ -34,6 +34,7 @@ export default async function handler(req, res) {
         isSuperAdmin: u.email === ADMIN_EMAIL,
         owner: !!u.owner,
         fom: !!u.fom,
+        manager: !!u.manager,
         managedMarkets: u.managedMarkets || [],
         hasDashboard: !!(u.dashboardAccess && u.dashboardAccess.type && u.dashboardAccess.type !== 'none'),
       })).sort((a, b) => a.name.localeCompare(b.name));
@@ -55,18 +56,26 @@ export default async function handler(req, res) {
       if (action === 'owner') {
         if (!isSuperAdmin) return res.status(403).json({ error: 'Only the super admin can set admins' });
         // Owner implies all-channel capability (fom); revoking removes both.
-        const set = value ? { owner: true, fom: true } : { owner: false, fom: false };
+        const set = value ? { owner: true, fom: true, manager: false, managedMarkets: [] } : { owner: false, fom: false };
         await db.collection('users').updateOne({ email: targetEmail }, { $set: set, $unset: { role: '' } });
         return res.status(200).json({ success: true });
       }
       if (action === 'fom') {
         if (target.owner) return res.status(400).json({ error: 'User is already an admin' });
-        await db.collection('users').updateOne({ email: targetEmail }, { $set: { fom: !!value }, $unset: { role: '' } });
+        // Tiers are exclusive — promoting to FOM clears Manager/Market.
+        const set = value ? { fom: true, manager: false, managedMarkets: [] } : { fom: false };
+        await db.collection('users').updateOne({ email: targetEmail }, { $set: set, $unset: { role: '' } });
+        return res.status(200).json({ success: true });
+      }
+      if (action === 'manager') {
+        const set = value ? { manager: true, fom: false, managedMarkets: [] } : { manager: false };
+        await db.collection('users').updateOne({ email: targetEmail }, { $set: set, $unset: { role: '' } });
         return res.status(200).json({ success: true });
       }
       if (action === 'markets') {
         const valid = Array.isArray(markets) ? markets.filter(m => MARKETS.includes(m)) : [];
-        await db.collection('users').updateOne({ email: targetEmail }, { $set: { managedMarkets: valid }, $unset: { role: '' } });
+        const set = valid.length ? { managedMarkets: valid, fom: false, manager: false } : { managedMarkets: valid };
+        await db.collection('users').updateOne({ email: targetEmail }, { $set: set, $unset: { role: '' } });
         return res.status(200).json({ success: true });
       }
       if (action === 'name') {
