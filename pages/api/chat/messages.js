@@ -2,7 +2,8 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import clientPromise from "../../../lib/mongodb";
 import { ObjectId } from "mongodb";
-import { canAccessChannel, canPostAnnouncements } from "../../../lib/channels";
+import { canAccessChannel, canPostAnnouncements, deriveChannelsForUser } from "../../../lib/channels";
+import { recipientsForChannel, sendToEmails } from "../../../lib/push";
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 const PAGE_SIZE = 50;
@@ -124,6 +125,23 @@ export default async function handler(req, res) {
         deleted: false,
       };
       const result = await db.collection('chat_messages').insertOne(doc);
+
+      // Fan out a push to everyone who can see this channel (minus author/muters).
+      try {
+        const allUsers = await db.collection('users')
+          .find({}, { projection: { email: 1, dashboardAccess: 1, chatAccess: 1, mutedChannels: 1 } })
+          .toArray();
+        const recipients = recipientsForChannel(allUsers, channel, { excludeEmail: userEmail, isAnnouncement: !!isAnnouncement });
+        const chName = (deriveChannelsForUser(accessUser).find(c => c.key === channel)?.name) || channel;
+        const snippet = doc.body.length > 120 ? doc.body.slice(0, 117) + '…' : doc.body;
+        await sendToEmails(db, recipients, {
+          title: `${isAnnouncement ? '📣 ' : ''}${authorName} · ${chName}`,
+          body: snippet,
+          url: `/messages?channel=${encodeURIComponent(channel)}`,
+          channelKey: channel,
+        });
+      } catch (e) { console.error('push fanout error', e); }
+
       return res.status(201).json({ message: { ...doc, _id: result.insertedId.toString() } });
     } catch (error) {
       console.error('Error sending message:', error);
