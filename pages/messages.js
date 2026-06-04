@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useSession, signIn } from 'next-auth/react';
-import { ArrowLeft, Home, UserPlus, Users, ShieldCheck, Bell, BellOff, Building2, Map as MapIcon, Store, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Home, UserPlus, Users, ShieldCheck, MoreVertical, Bell, BellOff, Building2, Map as MapIcon, Store, MessageSquare } from 'lucide-react';
 import ChannelSidebar from '../components/chat/ChannelSidebar';
 import MessageStream from '../components/chat/MessageStream';
 import Composer from '../components/chat/Composer';
@@ -18,7 +18,7 @@ const MSG_POLL_MS = 3000;
 const CHANNEL_POLL_MS = 10000;
 
 const CHANNEL_META = {
-  company: { Icon: Building2, subtitle: () => "Everyone at Andy's" },
+  company: { Icon: Building2, subtitle: (c) => c.key === 'managers' ? 'Managers only — no associates' : "Everyone at Andy's" },
   market: { Icon: MapIcon, subtitle: (c) => `${c.name} market` },
   location: { Icon: Store, subtitle: () => 'Store channel' },
 };
@@ -70,6 +70,7 @@ export default function MessagesPage() {
   const [showUsers, setShowUsers] = useState(false);
   const [showChannelMembers, setShowChannelMembers] = useState(false);
   const [showRoles, setShowRoles] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [unreadMarkerAt, setUnreadMarkerAt] = useState(null);
   const [channelInfo, setChannelInfo] = useState(null);
@@ -337,36 +338,6 @@ export default function MessagesPage() {
           <h1 className="font-bold text-lg">Messages</h1>
         </div>
         <div className="flex items-center gap-1">
-          {(isAdmin || scope.owner) && (
-            <button
-              onClick={() => setShowRoles(true)}
-              className="flex items-center gap-1.5 min-h-[40px] px-2 text-slate-300 hover:text-white"
-              title="Roles"
-            >
-              <ShieldCheck size={18} />
-              <span className="hidden sm:inline text-sm">Roles</span>
-            </button>
-          )}
-          {canApprove && (
-            <button
-              onClick={() => setShowUsers(true)}
-              className="flex items-center gap-1.5 min-h-[40px] px-2 text-slate-300 hover:text-white"
-              title="Members by channel"
-            >
-              <Users size={18} />
-              <span className="hidden sm:inline text-sm">Users</span>
-            </button>
-          )}
-          {canApprove && (
-            <button
-              onClick={() => setShowApprovals(true)}
-              className="flex items-center gap-1.5 min-h-[40px] px-2 text-slate-300 hover:text-white"
-              title="Pending approvals"
-            >
-              <UserPlus size={18} />
-              <span className="hidden sm:inline text-sm">Approvals</span>
-            </button>
-          )}
           <button
             onClick={() => router.push('/')}
             className="flex items-center gap-1.5 min-h-[40px] px-3 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-700"
@@ -375,6 +346,40 @@ export default function MessagesPage() {
             <Home size={18} />
             <span className="hidden sm:inline">Dashboard</span>
           </button>
+          {(canApprove || isAdmin || scope.owner) && (
+            <div className="relative">
+              <button
+                onClick={() => setShowMenu(v => !v)}
+                className="min-h-[40px] px-2 text-slate-300 hover:text-white"
+                title="Manage"
+                aria-label="Manage menu"
+              >
+                <MoreVertical size={20} />
+              </button>
+              {showMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-20 w-44 bg-slate-800 border border-slate-700 rounded-lg shadow-lg py-1">
+                    {(isAdmin || scope.owner) && (
+                      <button onClick={() => { setShowRoles(true); setShowMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700">
+                        <ShieldCheck size={16} /> Roles
+                      </button>
+                    )}
+                    {canApprove && (
+                      <button onClick={() => { setShowUsers(true); setShowMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700">
+                        <Users size={16} /> Members
+                      </button>
+                    )}
+                    {canApprove && (
+                      <button onClick={() => { setShowApprovals(true); setShowMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700">
+                        <UserPlus size={16} /> Approvals
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

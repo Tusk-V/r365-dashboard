@@ -46,10 +46,10 @@ test('admin sees company + all markets + all locations', () => {
   assert.equal(channels.filter(c => c.type === 'location').length, LOCATIONS.length);
 });
 
-test('a store-scoped dashboard user sees company + their markets + their stores', () => {
+test('a store-scoped dashboard user sees company + managers + their markets + their stores', () => {
   const user = { isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Frisco #3', 'Allen'] } };
   const keys = deriveChannelsForUser(user).map(c => c.key);
-  assert.deepEqual(keys, ['company-wide', 'market:dallas', 'loc:allen', 'loc:frisco-3']);
+  assert.deepEqual(keys, ['company-wide', 'managers', 'market:dallas', 'loc:allen', 'loc:frisco-3']);
 });
 
 test('a market manager sees company + their market + that market\'s stores only', () => {
@@ -61,9 +61,25 @@ test('a market manager sees company + their market + that market\'s stores only'
   assert.ok(!keys.includes('loc:bixby'));
 });
 
-test('FOM sees every channel', () => {
-  const all = allChannels().map(c => c.key);
-  assert.deepEqual(deriveChannelsForUser({ isAdmin: false, fom: true }).map(c => c.key), all);
+test('FOM sees every channel including Managers', () => {
+  const keys = deriveChannelsForUser({ isAdmin: false, fom: true }).map(c => c.key);
+  for (const k of allChannels().map(c => c.key)) assert.ok(keys.includes(k));
+  assert.ok(keys.includes('managers'));
+});
+
+const { MANAGERS_CHANNEL, canManageChannel: canManageChannelMgr } = require('../lib/channels');
+
+test('Managers channel: dashboard users see it, associates do not', () => {
+  assert.ok(deriveChannelsForUser({ isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Bixby'] } }).map(c => c.key).includes('managers'));
+  assert.ok(deriveChannelsForUser({ isAdmin: true }).map(c => c.key).includes('managers'));
+  assert.ok(!deriveChannelsForUser({ isAdmin: false, dashboardAccess: { type: 'none' }, chatAccess: { status: 'approved', stores: ['Bixby'] } }).map(c => c.key).includes('managers'));
+});
+
+test('Managers channel moderation is admin/FOM only', () => {
+  assert.equal(canManageChannelMgr({ isAdmin: true }, MANAGERS_CHANNEL), true);
+  assert.equal(canManageChannelMgr({ isAdmin: false, fom: true }, MANAGERS_CHANNEL), true);
+  assert.equal(canManageChannelMgr({ isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Bixby'] } }, MANAGERS_CHANNEL), false);
+  assert.equal(canManageChannelMgr({ isAdmin: false, managedMarkets: ['Dallas'] }, MANAGERS_CHANNEL), false);
 });
 
 test('type "all" in dashboardAccess behaves like admin', () => {
@@ -137,7 +153,7 @@ test('a dashboard+chat user sees the union of their stores', () => {
     dashboardAccess: { type: 'specific', locations: ['Bixby'] },
     chatAccess: { level: 'employee', status: 'approved', stores: ['Allen'] },
   }).map(c => c.key);
-  assert.deepEqual(keys, ['company-wide', 'market:tulsa', 'market:dallas', 'loc:bixby', 'loc:allen']);
+  assert.deepEqual(keys, ['company-wide', 'managers', 'market:tulsa', 'market:dallas', 'loc:bixby', 'loc:allen']);
 });
 
 test('chatChannelsFor returns [] unless approved', () => {
