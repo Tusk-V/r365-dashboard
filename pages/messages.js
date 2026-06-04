@@ -384,7 +384,7 @@ export default function MessagesPage() {
             />
           )}
           {userEmail && (
-            <div className="flex items-center gap-2 border-t border-slate-700 p-2 flex-shrink-0">
+            <div className="flex items-center gap-2 border-t border-slate-700 p-2 flex-shrink-0" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
               <UserAvatar name={session?.user?.name} image={session?.user?.image} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1 text-sm text-white truncate">

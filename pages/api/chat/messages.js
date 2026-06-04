@@ -32,7 +32,11 @@ async function loadContext(req, res) {
   const managedMarkets = user?.managedMarkets || [];
   const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
   const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
-  const authorRole = isAdmin ? 'Admin' : (fom ? 'FOM' : 'User');
+  const authorRole = isAdmin ? 'Admin'
+    : fom ? 'FOM'
+    : managedMarkets.length ? 'Market'
+    : (dashboardAccess.type === 'specific' || dashboardAccess.type === 'all') ? 'Manager'
+    : null;
   return { db, session, userEmail, isAdmin, fom, managedMarkets, dashboardAccess, chatAccess, authorRole,
            authorName: session.user.name || userEmail,
            authorImage: session.user.image || null };

@@ -8,11 +8,16 @@ const EMOJIS = [
   '🙌', '👌', '🤝', '🥳', '😴', '🤷', '📈', '⚠️',
 ];
 
+const ROLE_BADGE = {
+  Admin: { cls: 'bg-red-600', label: 'Admin' },
+  FOM: { cls: 'bg-blue-600', label: 'FOM' },
+  Market: { cls: 'bg-purple-600', label: 'Market mgr' },
+  Manager: { cls: 'bg-green-600', label: 'Manager' },
+};
 const RoleBadge = ({ role }) => {
-  if (role === 'Admin') return <span className="px-1 py-px text-[9px] font-semibold bg-red-600 text-white rounded ml-1 leading-none">Admin</span>;
-  if (role === 'FOM') return <span className="px-1 py-px text-[9px] font-semibold bg-blue-600 text-white rounded ml-1 leading-none">FOM</span>;
-  if (role === 'Manager') return <span className="px-1 py-px text-[9px] font-semibold bg-green-600 text-white rounded ml-1 leading-none">Manager</span>;
-  return null;
+  const b = ROLE_BADGE[role];
+  if (!b) return null;
+  return <span className={`px-1 py-px text-[9px] font-semibold ${b.cls} text-white rounded ml-1 leading-none`}>{b.label}</span>;
 };
 
 function formatTime(dateString) {
