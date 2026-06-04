@@ -32,18 +32,35 @@ export default async function handler(req, res) {
       .toArray();
     const readMap = new Map(reads.map(r => [r.channelKey, r.lastReadAt]));
 
+    // Count unread in the database instead of pulling every message into Node.
+    // Per channel, count non-deleted messages not authored by the user whose
+    // createdAt is strictly greater than that channel's lastReadAt pointer
+    // (missing/null pointer => epoch 0, matching unreadCount in lib/channels.js).
+    // createdAt and lastReadAt are both stored as BSON Dates, so a direct $gt
+    // matches the JS getTime() comparison exactly.
+    const EPOCH = new Date(0);
+    const thresholdBranches = keys.map(k => {
+      const last = readMap.get(k);
+      return { case: { $eq: ['$channelKey', k] }, then: last ? new Date(last) : EPOCH };
+    });
+
     const unreadAgg = await db.collection('chat_messages').aggregate([
-      { $match: { channelKey: { $in: keys }, deleted: { $ne: true }, authorEmail: { $ne: userEmail } } },
-      { $project: { channelKey: 1, createdAt: 1 } },
+      {
+        $match: {
+          channelKey: { $in: keys },
+          deleted: { $ne: true },
+          authorEmail: { $ne: userEmail },
+          $expr: {
+            $gt: ['$createdAt', { $switch: { branches: thresholdBranches, default: EPOCH } }],
+          },
+        },
+      },
+      { $group: { _id: '$channelKey', count: { $sum: 1 } } },
     ]).toArray();
 
     const unreadByChannel = {};
-    for (const m of unreadAgg) {
-      const last = readMap.get(m.channelKey);
-      const after = last ? new Date(last).getTime() : 0;
-      if (new Date(m.createdAt).getTime() > after) {
-        unreadByChannel[m.channelKey] = (unreadByChannel[m.channelKey] || 0) + 1;
-      }
+    for (const row of unreadAgg) {
+      unreadByChannel[row._id] = row.count;
     }
 
     let totalUnread = 0;
