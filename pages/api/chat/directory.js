@@ -24,17 +24,20 @@ export default async function handler(req, res) {
   const actor = {
     email,
     isAdmin,
+    fom: isAdmin || !!(me?.fom || me?.role === 'FOM' || me?.role === 'Admin'),
+    managedMarkets: me?.managedMarkets || [],
     dashboardAccess: isAdmin ? { type: 'all' } : (me?.dashboardAccess || { type: 'none' }),
   };
 
-  const canManageAny = actor.isAdmin || actor.dashboardAccess.type === 'all' ||
+  const canManageAny = actor.isAdmin || actor.fom || actor.managedMarkets.length > 0 ||
+    actor.dashboardAccess.type === 'all' ||
     (actor.dashboardAccess.type === 'specific' && (actor.dashboardAccess.locations || []).length > 0);
   if (!canManageAny) return res.status(403).json({ error: 'Not authorized to view members' });
 
   try {
     const users = await db.collection('users')
       .find({})
-      .project({ email: 1, name: 1, role: 1, dashboardAccess: 1, chatAccess: 1 })
+      .project({ email: 1, name: 1, role: 1, fom: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1 })
       .toArray();
 
     // Build channel -> members from each user's derived channel membership.
@@ -45,6 +48,8 @@ export default async function handler(req, res) {
       const uIsAdmin = u.email === ADMIN_EMAIL;
       const chans = deriveChannelsForUser({
         isAdmin: uIsAdmin,
+        fom: !!(u.fom || u.role === 'FOM' || u.role === 'Admin'),
+        managedMarkets: u.managedMarkets || [],
         dashboardAccess: u.dashboardAccess,
         chatAccess: u.chatAccess,
       });

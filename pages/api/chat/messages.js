@@ -2,8 +2,9 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import clientPromise from "../../../lib/mongodb";
 import { ObjectId } from "mongodb";
-import { canAccessChannel, canPostAnnouncements, deriveChannelsForUser } from "../../../lib/channels";
+import { canAccessChannel, canManageChannel, deriveChannelsForUser } from "../../../lib/channels";
 import { recipientsForChannel, sendToEmails } from "../../../lib/push";
+import { maskText } from "../../../lib/contentFilter";
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 const PAGE_SIZE = 50;
@@ -26,10 +27,13 @@ async function loadContext(req, res) {
   const userEmail = session.user.email;
   const isAdmin = userEmail === ADMIN_EMAIL;
   const user = await db.collection('users').findOne({ email: userEmail });
-  const userRole = isAdmin ? 'Admin' : (user?.role || 'User');
+  // Transition-safe: honor the legacy `role` field until the FOM migration runs.
+  const fom = isAdmin ? true : !!(user?.fom || user?.role === 'FOM' || user?.role === 'Admin');
+  const managedMarkets = user?.managedMarkets || [];
   const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
   const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
-  return { db, session, userEmail, isAdmin, userRole, dashboardAccess, chatAccess,
+  const authorRole = isAdmin ? 'Admin' : (fom ? 'FOM' : 'User');
+  return { db, session, userEmail, isAdmin, fom, managedMarkets, dashboardAccess, chatAccess, authorRole,
            authorName: session.user.name || userEmail,
            authorImage: session.user.image || null };
 }
@@ -37,8 +41,8 @@ async function loadContext(req, res) {
 export default async function handler(req, res) {
   const ctx = await loadContext(req, res);
   if (!ctx) return;
-  const { db, userEmail, userRole, isAdmin, dashboardAccess, chatAccess, authorName, authorImage } = ctx;
-  const accessUser = { isAdmin, dashboardAccess, chatAccess };
+  const { db, userEmail, isAdmin, fom, managedMarkets, dashboardAccess, chatAccess, authorName, authorImage, authorRole } = ctx;
+  const accessUser = { isAdmin, fom, managedMarkets, dashboardAccess, chatAccess };
 
   if (req.method === 'GET') {
     try {
@@ -121,17 +125,19 @@ export default async function handler(req, res) {
       const { channel, body, isAnnouncement = false, priority = 'normal' } = req.body;
       if (!channel || !body || !body.trim()) return res.status(400).json({ error: 'channel and body are required' });
       if (!canAccessChannel(accessUser, channel)) return res.status(403).json({ error: 'No access to this channel' });
-      if (isAnnouncement && !canPostAnnouncements(userRole)) {
-        return res.status(403).json({ error: 'Only Admin and FOM can post announcements' });
+      if (isAnnouncement && !canManageChannel(accessUser, channel)) {
+        return res.status(403).json({ error: 'You can only post announcements in channels you manage' });
       }
 
+      const { text: maskedBody, filtered } = maskText(body.trim());
       const doc = {
         channelKey: channel,
-        body: body.trim(),
+        body: maskedBody,
+        filtered,
         authorEmail: userEmail,
         authorName,
         authorImage,
-        authorRole: userRole,
+        authorRole,
         createdAt: new Date(),
         updatedAt: new Date(),
         editedAt: null,
@@ -173,13 +179,14 @@ export default async function handler(req, res) {
       if (!ObjectId.isValid(messageId)) return res.status(400).json({ error: 'Invalid messageId' });
       const msg = await db.collection('chat_messages').findOne({ _id: new ObjectId(messageId) });
       if (!msg) return res.status(404).json({ error: 'Message not found' });
-      const canModerate = canPostAnnouncements(userRole);
-      if (!canModerate && msg.authorEmail !== userEmail) {
+      const canMod = canManageChannel(accessUser, msg.channelKey);
+      if (!canMod && msg.authorEmail !== userEmail) {
         return res.status(403).json({ error: 'You can only edit your own messages' });
       }
+      const { text: maskedBody, filtered } = maskText(body.trim());
       await db.collection('chat_messages').updateOne(
         { _id: new ObjectId(messageId) },
-        { $set: { body: body.trim(), editedAt: new Date(), updatedAt: new Date() } }
+        { $set: { body: maskedBody, filtered, editedAt: new Date(), updatedAt: new Date() } }
       );
       return res.status(200).json({ success: true });
     } catch (error) {
@@ -195,8 +202,8 @@ export default async function handler(req, res) {
       if (!ObjectId.isValid(messageId)) return res.status(400).json({ error: 'Invalid messageId' });
       const msg = await db.collection('chat_messages').findOne({ _id: new ObjectId(messageId) });
       if (!msg) return res.status(404).json({ error: 'Message not found' });
-      const canModerate = canPostAnnouncements(userRole);
-      if (!canModerate && msg.authorEmail !== userEmail) {
+      const canMod = canManageChannel(accessUser, msg.channelKey);
+      if (!canMod && msg.authorEmail !== userEmail) {
         return res.status(403).json({ error: 'You can only delete your own messages' });
       }
       await db.collection('chat_messages').updateOne(

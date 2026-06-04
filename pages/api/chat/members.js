@@ -10,7 +10,8 @@ async function actorFrom(session, db) {
   const isAdmin = email === ADMIN_EMAIL;
   const user = await db.collection('users').findOne({ email });
   const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
-  return { email, isAdmin, dashboardAccess };
+  const fom = isAdmin || !!(user?.fom || user?.role === 'FOM' || user?.role === 'Admin');
+  return { email, isAdmin, fom, managedMarkets: user?.managedMarkets || [], dashboardAccess };
 }
 
 export default async function handler(req, res) {

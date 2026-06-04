@@ -3,9 +3,8 @@ import { useRouter } from "next/router"
 import Head from "next/head"
 import { useState, useEffect } from 'react';
 import React from 'react';
-import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen, MessageSquare, Settings, Receipt, Shield } from 'lucide-react';
+import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen, MessageSquare, Settings, Receipt } from 'lucide-react';
 import SwipeNavigation from '../components/SwipeNavigation';
-import MessagingPermissions from '../components/MessagingPermissions';
 import { getMarket, sortByMarket } from '../lib/markets';
 import { parseSheetData, parseHistoricalData } from '../lib/sheetParsers';
 import { extractDriveTime, extractMood, generateSummary } from '../lib/logbookHelpers';
@@ -159,7 +158,6 @@ const [modelCoefficients, setModelCoefficients] = useState(null);
 
 // Messages state
 const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
-const [showPermissionsModal, setShowPermissionsModal] = useState(false);
 
 // Access control
 const [dashboardAccess, setDashboardAccess] = useState(null);
@@ -1449,30 +1447,20 @@ loadModelCoefficients();
               <RefreshCw size={16} className="text-white" />
             </button>
 
-            {/* Messages Button */}
+            {/* Message Board Button */}
             <button
               onClick={() => router.push('/messages')}
-              className="relative p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
-              title="Messages"
+              className="relative flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white text-sm font-medium"
+              title="Message Board"
             >
-              <MessageSquare size={16} className="text-white" />
+              <MessageSquare size={16} />
+              <span>Message Board</span>
               {unreadMessagesCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-[10px] font-bold bg-red-600 text-white rounded-full">
                   {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
                 </span>
               )}
             </button>
-
-            {/* User Roles Button (admin only) */}
-            {isAdmin && (
-              <button
-                onClick={() => setShowPermissionsModal(true)}
-                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
-                title="User Roles"
-              >
-                <Shield size={16} className="text-white" />
-              </button>
-            )}
 
             {/* Admin Button (admin only) */}
             {isAdmin && (
@@ -1502,28 +1490,20 @@ loadModelCoefficients();
             className="h-12"
           />
           <div className="flex items-center gap-2">
-            {/* Messages Button */}
+            {/* Message Board Button */}
             <button
               onClick={() => router.push('/messages')}
-              className="relative p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
-              title="Messages"
+              className="relative flex items-center gap-1.5 px-2.5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white text-sm font-medium"
+              title="Message Board"
             >
-              <MessageSquare size={16} className="text-white" />
+              <MessageSquare size={16} />
+              <span>Messages</span>
               {unreadMessagesCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-[10px] font-bold bg-red-600 text-white rounded-full">
                   {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
                 </span>
               )}
             </button>
-            {isAdmin && (
-              <button
-                onClick={() => setShowPermissionsModal(true)}
-                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
-                title="User Roles"
-              >
-                <Shield size={16} className="text-white" />
-              </button>
-            )}
             {isAdmin && (
               <button
                 onClick={() => router.push('/admin')}
@@ -1775,9 +1755,6 @@ loadModelCoefficients();
       />
     )}
 
-    {showPermissionsModal && (
-      <MessagingPermissions onClose={() => setShowPermissionsModal(false)} />
-    )}
   </div>
 </>
 

@@ -37,7 +37,7 @@ test('channel key helpers build prefixed keys', () => {
 });
 
 // Task 2: deriveChannelsForUser + canAccessChannel
-const { deriveChannelsForUser, canAccessChannel } = require('../lib/channels');
+const { deriveChannelsForUser, canAccessChannel, allChannels } = require('../lib/channels');
 
 test('admin sees company + all markets + all locations', () => {
   const channels = deriveChannelsForUser({ isAdmin: true });
@@ -46,16 +46,16 @@ test('admin sees company + all markets + all locations', () => {
   assert.equal(channels.filter(c => c.type === 'location').length, LOCATIONS.length);
 });
 
-test('specific-access user sees company + spanned markets + their locations', () => {
+test('a store-scoped dashboard user now sees every channel', () => {
+  const all = allChannels().map(c => c.key);
   const user = { isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Frisco #3', 'Allen'] } };
-  const keys = deriveChannelsForUser(user).map(c => c.key);
-  assert.deepEqual(keys, ['company-wide', 'market:dallas', 'loc:allen', 'loc:frisco-3']);
+  assert.deepEqual(deriveChannelsForUser(user).map(c => c.key), all);
 });
 
-test('specific user spanning two markets gets both market channels', () => {
-  const user = { isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Bixby', 'Norman'] } };
-  const keys = deriveChannelsForUser(user).map(c => c.key);
-  assert.deepEqual(keys, ['company-wide', 'market:tulsa', 'market:oklahoma-city', 'loc:bixby', 'loc:norman']);
+test('a market manager sees every channel', () => {
+  const all = allChannels().map(c => c.key);
+  const user = { isAdmin: false, managedMarkets: ['Dallas'] };
+  assert.deepEqual(deriveChannelsForUser(user).map(c => c.key), all);
 });
 
 test('type "all" in dashboardAccess behaves like admin', () => {
@@ -68,13 +68,20 @@ test('no-access user sees no channels', () => {
   assert.deepEqual(deriveChannelsForUser({ isAdmin: false }), []);
 });
 
-test('canAccessChannel enforces derived membership', () => {
+test('canAccessChannel: a dashboard user can reach any channel', () => {
   const user = { isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Bixby'] } };
   assert.equal(canAccessChannel(user, 'company-wide'), true);
-  assert.equal(canAccessChannel(user, 'market:tulsa'), true);
-  assert.equal(canAccessChannel(user, 'loc:bixby'), true);
-  assert.equal(canAccessChannel(user, 'market:dallas'), false);
-  assert.equal(canAccessChannel(user, 'loc:allen'), false);
+  assert.equal(canAccessChannel(user, 'market:dallas'), true);
+  assert.equal(canAccessChannel(user, 'loc:allen'), true);
+});
+
+test('canAccessChannel: an associate stays store-scoped', () => {
+  const a = { isAdmin: false, dashboardAccess: { type: 'none' }, chatAccess: { status: 'approved', stores: ['Bixby'] } };
+  assert.equal(canAccessChannel(a, 'company-wide'), true);
+  assert.equal(canAccessChannel(a, 'market:tulsa'), true);
+  assert.equal(canAccessChannel(a, 'loc:bixby'), true);
+  assert.equal(canAccessChannel(a, 'market:dallas'), false);
+  assert.equal(canAccessChannel(a, 'loc:allen'), false);
 });
 
 // Task 3: canPostAnnouncements + unreadCount
@@ -114,13 +121,14 @@ test('pending or none chatAccess yields no channels', () => {
   assert.deepEqual(deriveChannelsForUser({ isAdmin: false, dashboardAccess: { type: 'none' } }), []);
 });
 
-test('a user with BOTH dashboard and chat access gets the union, deduped and ordered', () => {
+test('a dashboard user with chat access still sees every channel (dashboard wins)', () => {
+  const all = allChannels().map(c => c.key);
   const keys = deriveChannelsForUser({
     isAdmin: false,
     dashboardAccess: { type: 'specific', locations: ['Bixby'] },
     chatAccess: { level: 'employee', status: 'approved', stores: ['Allen'] },
   }).map(c => c.key);
-  assert.deepEqual(keys, ['company-wide', 'market:tulsa', 'market:dallas', 'loc:bixby', 'loc:allen']);
+  assert.deepEqual(keys, all);
 });
 
 test('chatChannelsFor returns [] unless approved', () => {

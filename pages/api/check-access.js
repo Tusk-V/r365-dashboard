@@ -25,6 +25,8 @@ export default async function handler(req, res) {
           plAccess: { type: 'all', locations: [] },
           bonusAccess: { type: 'all', locations: [] },
           role: 'Admin',
+          fom: true,
+          managedMarkets: [],
           isAdmin: true
         });
       }
@@ -38,6 +40,8 @@ export default async function handler(req, res) {
           plAccess: { type: 'none', locations: [] },
           bonusAccess: { type: 'none', locations: [] },
           role: 'User',
+          fom: false,
+          managedMarkets: [],
           isAdmin: false
         });
       }
@@ -47,6 +51,9 @@ export default async function handler(req, res) {
         plAccess: user.plAccess || { type: 'none', locations: [] },
         bonusAccess: user.bonusAccess || { type: 'none', locations: [] },
         role: user.role || 'User',
+        // Transition-safe: honor the legacy role until the FOM migration runs.
+        fom: !!(user.fom || user.role === 'FOM' || user.role === 'Admin'),
+        managedMarkets: user.managedMarkets || [],
         isAdmin: false
       });
     } catch (error) {
