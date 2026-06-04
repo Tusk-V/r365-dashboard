@@ -9,6 +9,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import clientPromise from "../../../lib/mongodb";
 import { canAccessChannel, canManageStore, canManageChannel, LOCATIONS, MARKETS, channelKeyForLocation } from "../../../lib/channels";
+import { logAudit } from "../../../lib/audit";
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -118,11 +119,13 @@ export default async function handler(req, res) {
         if (manageable.length === 0) return res.status(403).json({ error: 'You do not manage any of this employee\'s stores' });
         if (action === 'deny') {
           await db.collection('users').updateOne({ email }, { $set: { chatAccess: { level: 'employee', status: 'none', stores: [] } } });
+          await logAudit(db, { actorEmail: actor.email, action: 'deny-chat', targetEmail: email });
           return res.status(200).json({ success: true, status: 'none' });
         }
         await db.collection('users').updateOne({ email }, { $set: {
           chatAccess: { level: 'employee', status: 'approved', stores: manageable, approvedBy: actor.email, approvedAt: new Date() },
         } });
+        await logAudit(db, { actorEmail: actor.email, action: 'approve-chat', targetEmail: email, detail: { stores: manageable } });
         return res.status(200).json({ success: true, status: 'approved', stores: manageable });
       }
 
@@ -133,6 +136,7 @@ export default async function handler(req, res) {
         if (action === 'remove') { excl.add(channel); incl.delete(channel); }
         else { incl.add(channel); excl.delete(channel); }
         await db.collection('users').updateOne({ email }, { $set: { channelInclusions: [...incl], channelExclusions: [...excl] } });
+        await logAudit(db, { actorEmail: actor.email, action: action === 'remove' ? 'remove-from-channel' : 'add-to-channel', targetEmail: email, detail: { channel } });
         return res.status(200).json({ success: true });
       }
 
@@ -140,6 +144,7 @@ export default async function handler(req, res) {
       if (action === 'fom') {
         if (!actor.isAdmin) return res.status(403).json({ error: 'Only an admin can set FOM' });
         await db.collection('users').updateOne({ email }, { $set: { fom: !!value }, $unset: { role: '' } });
+        await logAudit(db, { actorEmail: actor.email, action: 'set-fom', targetEmail: email, detail: { value: !!value } });
         return res.status(200).json({ success: true, fom: !!value });
       }
 
@@ -147,6 +152,7 @@ export default async function handler(req, res) {
         if (!actor.isAdmin) return res.status(403).json({ error: 'Only an admin can set market managers' });
         const valid = Array.isArray(markets) ? markets.filter(m => MARKETS.includes(m)) : [];
         await db.collection('users').updateOne({ email }, { $set: { managedMarkets: valid }, $unset: { role: '' } });
+        await logAudit(db, { actorEmail: actor.email, action: 'set-markets', targetEmail: email, detail: { managedMarkets: valid } });
         return res.status(200).json({ success: true, managedMarkets: valid });
       }
 
