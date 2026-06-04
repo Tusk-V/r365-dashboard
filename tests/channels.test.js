@@ -302,4 +302,5 @@ test('tierOf returns Owner for superadmin and owner, then FOM/Market/Manager/Ass
 
 test('canPostAnnouncements accepts Owner', () => {
   assert.equal(canPostAnnouncements('Owner'), true);
+  assert.equal(canPostAnnouncements('Manager'), false); // regression: Manager must not announce
 });
