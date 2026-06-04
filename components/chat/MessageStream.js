@@ -14,8 +14,11 @@ export default function MessageStream({ messages, pinned, userEmail, canModerate
   };
 
   useEffect(() => {
-    if (nearBottomRef.current && bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    // Scroll the message container itself (never scrollIntoView, which on iOS can
+    // scroll ancestor containers and drag the sticky header/footer out of place).
+    if (nearBottomRef.current && containerRef.current) {
+      const el = containerRef.current;
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     }
   }, [messages]);
 
