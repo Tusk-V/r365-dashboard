@@ -4,6 +4,7 @@
 
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
+import { hasDashboardAccess } from "../../lib/dashboardAccess";
 
 // Hardcoded fallback matches the previous client-side value so behavior is
 // identical if the env var is unset (e.g. local dev without env pull).
@@ -21,6 +22,11 @@ export default async function handler(req, res) {
   }
   if (!session.user?.email?.endsWith('@rancherscustard.com')) {
     return res.status(403).json({ error: 'Forbidden' });
+  }
+  // Hard line: chat-only associates (no dashboard access) must not read dashboard
+  // data, even though the client would redirect them away from the page.
+  if (!(await hasDashboardAccess(session.user.email))) {
+    return res.status(403).json({ error: 'Dashboard access required' });
   }
 
   const apiKey = process.env.GOOGLE_SHEETS_API_KEY;
