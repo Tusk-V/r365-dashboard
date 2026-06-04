@@ -31,7 +31,17 @@ function UserAvatar({ name, image, size = 'h-8 w-8', extra = '' }) {
   return <div className={`${size} rounded-full bg-slate-600 flex items-center justify-center text-sm font-semibold text-slate-200 ${extra}`}>{initial}</div>;
 }
 
-const ROLE_BADGE_CLASS = { Admin: 'bg-red-600', FOM: 'bg-blue-600', Manager: 'bg-green-600' };
+const ROLE_BADGE_CLASS = { Admin: 'bg-red-600', FOM: 'bg-blue-600', Market: 'bg-purple-600', Manager: 'bg-green-600' };
+const ROLE_LABEL = { Admin: 'Admin', FOM: 'FOM', Market: 'Market mgr', Manager: 'Manager' };
+
+function tierOf({ isAdmin, fom, managedMarkets, dashboardAccess }) {
+  if (isAdmin) return 'Admin';
+  if (fom) return 'FOM';
+  if ((managedMarkets || []).length) return 'Market';
+  const t = dashboardAccess && dashboardAccess.type;
+  if (t === 'specific' || t === 'all') return 'Manager';
+  return null;
+}
 
 export default function MessagesPage() {
   const { data: session, status } = useSession();
@@ -51,6 +61,7 @@ export default function MessagesPage() {
   const dashboardAccess = session?.user?.dashboardAccess || scope.dashboardAccess || { type: 'none' };
   const meActor = { isAdmin, fom: isAdmin || scope.fom, managedMarkets: scope.managedMarkets, dashboardAccess };
   const hasDashboard = isDashboardUser(meActor);
+  const myRole = tierOf(meActor);
   const chatStatus = session?.user?.chatAccess?.status || 'none';
   const canApprove = hasDashboard; // dashboard users / FOM / market managers manage members
 
@@ -205,7 +216,7 @@ export default function MessagesPage() {
     const tempId = `temp-${tempIdRef.current++}`;
     const optimistic = {
       _id: tempId, channelKey: activeKey, body, authorEmail: userEmail,
-      authorName: session?.user?.name || userEmail, authorImage: session?.user?.image || null, authorRole: userRole,
+      authorName: session?.user?.name || userEmail, authorImage: session?.user?.image || null, authorRole: myRole,
       createdAt: new Date().toISOString(), editedAt: null, isAnnouncement, priority,
       pinned: isAnnouncement, reactions: {}, _pending: true,
     };
@@ -378,8 +389,8 @@ export default function MessagesPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1 text-sm text-white truncate">
                   <span className="truncate">{session?.user?.name || userEmail}</span>
-                  {ROLE_BADGE_CLASS[userRole] && (
-                    <span className={`px-1 py-px text-[9px] font-semibold ${ROLE_BADGE_CLASS[userRole]} text-white rounded leading-none flex-shrink-0`}>{userRole}</span>
+                  {myRole && ROLE_BADGE_CLASS[myRole] && (
+                    <span className={`px-1 py-px text-[9px] font-semibold ${ROLE_BADGE_CLASS[myRole]} text-white rounded leading-none flex-shrink-0`}>{ROLE_LABEL[myRole]}</span>
                   )}
                 </div>
                 <div className="text-[11px] text-slate-500 truncate">{userEmail}</div>

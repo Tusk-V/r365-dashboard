@@ -75,7 +75,7 @@ export default function Composer({ channelName, canAnnounce, onSend }) {
               onKeyDown={onKeyDown}
               placeholder={`Message ${channelName}…`}
               rows={1}
-              className="flex-1 bg-transparent py-2 text-white text-sm placeholder-slate-500 resize-none focus:outline-none max-h-32"
+              className="flex-1 bg-transparent py-2 text-white text-base md:text-sm placeholder-slate-500 resize-none focus:outline-none max-h-32"
             />
           </div>
 

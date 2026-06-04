@@ -115,7 +115,7 @@ export default function MessageItem({ message, userEmail, canModerate, showHeade
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={2}
-              className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-600"
+              className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-base md:text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-600"
               autoFocus
             />
             <div className="flex gap-2 justify-end mt-1">
