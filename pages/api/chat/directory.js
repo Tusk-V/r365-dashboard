@@ -38,7 +38,7 @@ export default async function handler(req, res) {
   try {
     const users = await db.collection('users')
       .find({})
-      .project({ email: 1, name: 1, role: 1, fom: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1 })
+      .project({ email: 1, name: 1, role: 1, owner: 1, fom: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1 })
       .toArray();
 
     // Build channel -> members from each user's derived channel membership.
@@ -49,6 +49,7 @@ export default async function handler(req, res) {
       const uIsAdmin = u.email === ADMIN_EMAIL;
       const chans = deriveChannelsForUser({
         isAdmin: uIsAdmin,
+        owner: uIsAdmin || !!u.owner,
         fom: !!(u.fom || u.role === 'FOM'),
         managedMarkets: u.managedMarkets || [],
         dashboardAccess: u.dashboardAccess,
