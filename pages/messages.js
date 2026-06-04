@@ -165,7 +165,7 @@ export default function MessagesPage() {
     const tempId = `temp-${tempIdRef.current++}`;
     const optimistic = {
       _id: tempId, channelKey: activeKey, body, authorEmail: userEmail,
-      authorName: session?.user?.name || userEmail, authorRole: userRole,
+      authorName: session?.user?.name || userEmail, authorImage: session?.user?.image || null, authorRole: userRole,
       createdAt: new Date().toISOString(), editedAt: null, isAnnouncement, priority,
       pinned: isAnnouncement, reactions: {}, _pending: true,
     };

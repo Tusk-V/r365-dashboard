@@ -2,6 +2,24 @@ import { useEffect, useRef } from 'react';
 import { MessageSquare, Pin } from 'lucide-react';
 import MessageItem from './MessageItem';
 
+const GROUP_GAP_MS = 5 * 60 * 1000; // start a new group after a 5-min gap
+
+function sameDay(a, b) {
+  const da = new Date(a), db = new Date(b);
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+
+function dayLabel(dateString) {
+  const d = new Date(dateString);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const that = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((today - that) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
 export default function MessageStream({ messages, pinned, userEmail, canModerate, onReact, onEdit, onDelete, onRetry }) {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
@@ -46,10 +64,37 @@ export default function MessageStream({ messages, pinned, userEmail, canModerate
             <p className="text-sm">No messages yet — say something.</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-800/60 py-1">
-            {messages.map(m => (
-              <MessageItem key={m._id} message={m} userEmail={userEmail} canModerate={canModerate} onReact={onReact} onEdit={onEdit} onDelete={onDelete} onRetry={onRetry} />
-            ))}
+          <div className="py-1">
+            {messages.map((m, i) => {
+              const prev = messages[i - 1];
+              const newDay = !prev || !sameDay(prev.createdAt, m.createdAt);
+              // First message of a visual group gets the full avatar + name + time header.
+              const showHeader = newDay || !prev
+                || prev.authorEmail !== m.authorEmail
+                || m.isAnnouncement || prev.isAnnouncement
+                || (new Date(m.createdAt) - new Date(prev.createdAt) > GROUP_GAP_MS);
+              return (
+                <div key={m._id}>
+                  {newDay && (
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <div className="flex-1 h-px bg-slate-700/60" />
+                      <span className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">{dayLabel(m.createdAt)}</span>
+                      <div className="flex-1 h-px bg-slate-700/60" />
+                    </div>
+                  )}
+                  <MessageItem
+                    message={m}
+                    userEmail={userEmail}
+                    canModerate={canModerate}
+                    showHeader={showHeader}
+                    onReact={onReact}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onRetry={onRetry}
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
         <div ref={bottomRef} />
