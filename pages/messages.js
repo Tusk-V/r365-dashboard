@@ -32,7 +32,7 @@ function UserAvatar({ name, image, size = 'h-8 w-8', extra = '' }) {
 }
 
 const ROLE_BADGE_CLASS = { Admin: 'bg-red-600', FOM: 'bg-blue-600', Market: 'bg-purple-600', Manager: 'bg-green-600' };
-const ROLE_LABEL = { Admin: 'Admin', FOM: 'FOM', Market: 'Market mgr', Manager: 'Manager' };
+const ROLE_LABEL = { Admin: 'Admin', FOM: 'FOM', Market: 'MM', Manager: 'Manager' };
 
 function tierOf({ isAdmin, fom, managedMarkets, dashboardAccess }) {
   if (isAdmin) return 'Admin';
