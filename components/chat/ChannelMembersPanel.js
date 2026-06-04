@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Check, Ban, UserMinus, Users } from 'lucide-react';
+import { X, Check, Ban, UserMinus, UserPlus, Users } from 'lucide-react';
 
 function Avatar({ name, image }) {
   if (image) {
@@ -14,6 +14,8 @@ export default function ChannelMembersPanel({ channel, channelName, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [addQuery, setAddQuery] = useState('');
 
   const load = async () => {
     try {
@@ -57,6 +59,38 @@ export default function ChannelMembersPanel({ channel, channelName, onClose }) {
             <p className="text-slate-400 text-sm p-4 text-center">Couldn’t load members.</p>
           ) : (
             <>
+              {!adding ? (
+                <button onClick={() => setAdding(true)} className="w-full flex items-center justify-center gap-1.5 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-md">
+                  <UserPlus size={15} /> Add people
+                </button>
+              ) : (
+                <div className="bg-slate-700/40 rounded-lg p-2">
+                  <div className="flex items-center justify-between mb-1.5 px-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Add to channel</span>
+                    <button onClick={() => { setAdding(false); setAddQuery(''); }} className="text-xs text-slate-400 hover:text-white">Done</button>
+                  </div>
+                  <input value={addQuery} onChange={(e) => setAddQuery(e.target.value)} placeholder="Search people"
+                    className="w-full px-2 py-1.5 mb-1 bg-slate-700 border border-slate-600 rounded text-base md:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600" />
+                  <div className="max-h-48 overflow-y-auto scrollbar-slim space-y-0.5">
+                    {(() => {
+                      const q = addQuery.trim().toLowerCase();
+                      const list = (data.addable || []).filter(u => !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)).slice(0, 50);
+                      if ((data.addable || []).length === 0) return <p className="text-xs text-slate-500 p-2 text-center">Everyone is already in this channel.</p>;
+                      if (list.length === 0) return <p className="text-xs text-slate-500 p-2 text-center">No matches.</p>;
+                      return list.map(u => (
+                        <div key={u.email} className="flex items-center gap-2 p-1 rounded hover:bg-slate-700/60">
+                          <Avatar name={u.name} image={u.image} />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm text-white truncate">{u.name}</div>
+                            <div className="text-[11px] text-slate-500 truncate">{u.email}</div>
+                          </div>
+                          <button disabled={busy === u.email} onClick={() => post({ email: u.email, action: 'add' })} className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded flex-shrink-0">Add</button>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
               {data.pending.length > 0 && (
                 <div>
                   <h3 className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5 px-1">Pending</h3>
