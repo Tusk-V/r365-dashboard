@@ -35,7 +35,7 @@ export default function MessagesPage() {
 
   const [showApprovals, setShowApprovals] = useState(false);
 
-  const lastTsRef = useRef(null);
+  const watermarkRef = useRef(null);
   const tempIdRef = useRef(0);
 
   useEffect(() => {
@@ -89,7 +89,7 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!activeKey) return;
     let cancelled = false;
-    lastTsRef.current = null;
+    watermarkRef.current = null;
     setMessages([]); setPinned([]);
     (async () => {
       try {
@@ -98,8 +98,7 @@ export default function MessagesPage() {
         if (cancelled || !res.ok) return;
         setMessages(data.messages || []);
         setPinned(data.pinned || []);
-        const last = data.messages?.[data.messages.length - 1];
-        if (last) lastTsRef.current = last.createdAt;
+        if (data.watermark) watermarkRef.current = data.watermark;
         markRead(activeKey);
       } catch (_) {}
     })();
@@ -113,19 +112,28 @@ export default function MessagesPage() {
       if (document.hidden) return;
       try {
         const qs = new URLSearchParams({ channel: activeKey });
-        if (lastTsRef.current) qs.set('after', lastTsRef.current);
+        if (watermarkRef.current) qs.set('since', watermarkRef.current);
         const res = await fetch(`/api/chat/messages?${qs.toString()}`);
         const data = await res.json();
         if (cancelled || !res.ok) return;
         setPinned(data.pinned || []);
         if (data.messages && data.messages.length > 0) {
+          // Reconcile by _id: upsert changed messages, drop soft-deleted ones,
+          // then re-sort by createdAt so live edits/reactions/deletes from other
+          // users land in the right place (not just brand-new appended messages).
+          let added = 0;
           setMessages(prev => {
-            const seen = new Set(prev.map(m => m._id));
-            const fresh = data.messages.filter(m => !seen.has(m._id));
-            return fresh.length ? [...prev, ...fresh] : prev;
+            const byId = new Map(prev.map(m => [m._id, m]));
+            for (const m of data.messages) {
+              if (m.deleted) { byId.delete(m._id); continue; }
+              if (!byId.has(m._id)) added++;
+              byId.set(m._id, m);
+            }
+            return Array.from(byId.values())
+              .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
           });
-          lastTsRef.current = data.messages[data.messages.length - 1].createdAt;
-          markRead(activeKey);
+          if (data.watermark) watermarkRef.current = data.watermark;
+          if (added > 0) markRead(activeKey);
         }
       } catch (_) {}
     }, MSG_POLL_MS);
@@ -149,7 +157,6 @@ export default function MessagesPage() {
       const data = await res.json();
       if (res.ok) {
         setMessages(prev => prev.map(m => m._id === tempId ? data.message : m));
-        lastTsRef.current = data.message.createdAt;
         if (isAnnouncement) setPinned(prev => [data.message, ...prev]);
       } else {
         setMessages(prev => prev.map(m => m._id === tempId ? { ...m, _failed: true, _pending: false } : m));
@@ -261,7 +268,6 @@ export default function MessagesPage() {
               <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-shrink-0">
                 <button onClick={() => setMobileShowStream(false)} className="md:hidden p-2 -ml-1 text-slate-400 hover:text-white" aria-label="Back to channels"><ArrowLeft size={18} /></button>
                 <span className="font-semibold">{activeChannel.name}</span>
-                <span className="text-xs text-slate-500">{activeChannel.type}</span>
               </div>
               <MessageStream
                 messages={messages}
