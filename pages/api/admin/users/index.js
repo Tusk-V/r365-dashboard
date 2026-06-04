@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../auth/[...nextauth]";
 import clientPromise from "../../../../lib/mongodb";
 
+const ADMIN_EMAIL = 'dalton@rancherscustard.com';
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -11,9 +13,13 @@ export default async function handler(req, res) {
 
   try {
     const session = await getServerSession(req, res, authOptions);
-    
-    if (!session || !session.user?.email?.endsWith('@rancherscustard.com')) {
+
+    if (!session) {
       return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (session.user.email !== ADMIN_EMAIL) {
+      return res.status(403).json({ error: 'Admin access required' });
     }
 
     const client = await clientPromise;
