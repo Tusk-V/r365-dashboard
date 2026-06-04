@@ -1,11 +1,6 @@
 import { useState } from 'react';
 import { Store, Check, Clock } from 'lucide-react';
-
-// Mirror of lib/channels LOCATIONS (client-side list for the picker).
-const LOCATIONS = [
-  'Allen','Bixby','Broken Arrow','Carrollton','Claremore','Edmond','Frisco #1','Frisco #2','Frisco #3',
-  'Hillcrest Village',"Hunter's Creek",'Lake Highlands','Lakeland','Norman','Owasso','Penn','Prosper','Sanford','The Colony','Warr Acres','Yale',
-].sort((a,b)=>a.localeCompare(b));
+import { LOCATIONS } from '../../lib/channels';
 
 export default function Onboarding({ status, onSubmitted }) {
   const [selected, setSelected] = useState([]);
