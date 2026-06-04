@@ -136,6 +136,59 @@ test('canManageStore: admin/all manage any; specific manages only their location
   assert.equal(canManageStore({ isAdmin: false, dashboardAccess: { type: 'none' } }, 'Allen'), false);
 });
 
+// Scope tiers: FOM + market manager
+const { managedStores, canManageChannel, isDashboardUser } = require('../lib/channels');
+
+test('canManageStore: FOM manages any store; market manager manages their markets', () => {
+  assert.equal(canManageStore({ isAdmin: false, fom: true }, 'Allen'), true);
+  assert.equal(canManageStore({ isAdmin: false, fom: true }, 'Bixby'), true);
+  const dallasMgr = { isAdmin: false, managedMarkets: ['Dallas'] };
+  assert.equal(canManageStore(dallasMgr, 'Allen'), true);   // Dallas store
+  assert.equal(canManageStore(dallasMgr, 'Frisco #3'), true);
+  assert.equal(canManageStore(dallasMgr, 'Bixby'), false);  // Tulsa store
+});
+
+test('managedStores: union of FOM/market/specific scopes', () => {
+  assert.equal(managedStores({ isAdmin: false, fom: true }).length, LOCATIONS.length);
+  assert.equal(managedStores({ isAdmin: false, dashboardAccess: { type: 'all' } }).length, LOCATIONS.length);
+  const dallas = managedStores({ isAdmin: false, managedMarkets: ['Dallas'] });
+  assert.ok(dallas.includes('Allen') && dallas.includes('Frisco #3'));
+  assert.ok(!dallas.includes('Bixby'));
+  const mixed = managedStores({ isAdmin: false, managedMarkets: ['Tulsa'], dashboardAccess: { type: 'specific', locations: ['Allen'] } });
+  assert.ok(mixed.includes('Bixby') && mixed.includes('Allen')); // Tulsa stores + Allen
+});
+
+test('canManageChannel: company=FOM/admin only; market/location by scope', () => {
+  const admin = { isAdmin: true };
+  for (const k of ['company-wide', 'market:dallas', 'loc:allen']) assert.equal(canManageChannel(admin, k), true);
+
+  const fom = { isAdmin: false, fom: true };
+  assert.equal(canManageChannel(fom, 'company-wide'), true);
+
+  const dallasMgr = { isAdmin: false, managedMarkets: ['Dallas'] };
+  assert.equal(canManageChannel(dallasMgr, 'market:dallas'), true);
+  assert.equal(canManageChannel(dallasMgr, 'loc:allen'), true);
+  assert.equal(canManageChannel(dallasMgr, 'company-wide'), false); // not the company channel
+  assert.equal(canManageChannel(dallasMgr, 'market:tulsa'), false);
+  assert.equal(canManageChannel(dallasMgr, 'loc:bixby'), false);
+
+  const storeMgr = { isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Bixby'] } };
+  assert.equal(canManageChannel(storeMgr, 'loc:bixby'), true);
+  assert.equal(canManageChannel(storeMgr, 'market:tulsa'), false); // store mgr ≠ market channel
+  assert.equal(canManageChannel(storeMgr, 'company-wide'), false);
+  assert.equal(canManageChannel(storeMgr, 'loc:allen'), false);
+});
+
+test('isDashboardUser: admin/FOM/market-manager/specific yes; associate no', () => {
+  assert.equal(isDashboardUser({ isAdmin: true }), true);
+  assert.equal(isDashboardUser({ isAdmin: false, fom: true }), true);
+  assert.equal(isDashboardUser({ isAdmin: false, managedMarkets: ['Dallas'] }), true);
+  assert.equal(isDashboardUser({ isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Bixby'] } }), true);
+  assert.equal(isDashboardUser({ isAdmin: false, dashboardAccess: { type: 'all' } }), true);
+  assert.equal(isDashboardUser({ isAdmin: false, dashboardAccess: { type: 'none' } }), false);
+  assert.equal(isDashboardUser({ isAdmin: false, managedMarkets: [] }), false);
+});
+
 // Members directory scoping
 const { canViewChannelMembers } = require('../lib/channels');
 
