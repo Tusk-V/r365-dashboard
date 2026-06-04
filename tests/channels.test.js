@@ -258,3 +258,48 @@ test('canViewChannelMembers: no-access users see nothing', () => {
   assert.equal(canViewChannelMembers(null, LOC_ALLEN), false);
   assert.equal(canViewChannelMembers({ isAdmin: false }, COMPANY), false);
 });
+
+// Owner tier: capability without fom
+const { canSeeAllChannels, canManageRoles, canGrantOwner, tierOf } = require('../lib/channels');
+
+test('owner sees and moderates everything without fom', () => {
+  const owner = { isAdmin: false, owner: true, fom: false };
+  const keys = deriveChannelsForUser(owner).map(c => c.key);
+  for (const k of allChannels().map(c => c.key)) assert.ok(keys.includes(k));
+  assert.ok(keys.includes('managers'));
+  assert.equal(canManageChannel(owner, 'company-wide'), true);
+  assert.equal(canManageChannel(owner, 'managers'), true);
+  assert.equal(isDashboardUser(owner), true);
+  assert.equal(canManageStore(owner, 'Allen'), true);
+});
+
+test('canSeeAllChannels: superadmin/owner/fom only', () => {
+  assert.equal(canSeeAllChannels({ isAdmin: true }), true);
+  assert.equal(canSeeAllChannels({ owner: true }), true);
+  assert.equal(canSeeAllChannels({ fom: true }), true);
+  assert.equal(canSeeAllChannels({ managedMarkets: ['Dallas'] }), false);
+  assert.equal(canSeeAllChannels({ dashboardAccess: { type: 'specific', locations: ['Bixby'] } }), false);
+});
+
+test('canManageRoles / canGrantOwner: superadmin or owner', () => {
+  assert.equal(canManageRoles({ isAdmin: true }), true);
+  assert.equal(canManageRoles({ owner: true }), true);
+  assert.equal(canManageRoles({ fom: true }), false);
+  assert.equal(canGrantOwner({ owner: true }), true);
+  assert.equal(canGrantOwner({ isAdmin: true }), true);
+  assert.equal(canGrantOwner({ fom: true }), false);
+});
+
+test('tierOf returns Owner for superadmin and owner, then FOM/Market/Manager/Associate', () => {
+  assert.equal(tierOf({ isAdmin: true }), 'Owner');
+  assert.equal(tierOf({ owner: true }), 'Owner');
+  assert.equal(tierOf({ fom: true }), 'FOM');
+  assert.equal(tierOf({ managedMarkets: ['Dallas'] }), 'Market');
+  assert.equal(tierOf({ manager: true }), 'Manager');
+  assert.equal(tierOf({ chatAccess: { status: 'approved', stores: ['Bixby'] } }), 'Associate');
+  assert.equal(tierOf({}), null);
+});
+
+test('canPostAnnouncements accepts Owner', () => {
+  assert.equal(canPostAnnouncements('Owner'), true);
+});
