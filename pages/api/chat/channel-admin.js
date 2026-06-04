@@ -66,7 +66,14 @@ export default async function handler(req, res) {
           dashboardAccess: u.dashboardAccess,
           chatAccess: u.chatAccess,
         };
-        const inChannelByStore = !!store && (u.chatAccess?.stores || []).includes(store);
+        // In the channel via a single store we can pull — chat access or a
+        // "specific" dashboard assignment. Broad-access people (admin/owner/FOM/
+        // market manager / dashboard "all") are there by role, not a store, so
+        // they're managed on the Roles / Dashboard Users pages instead.
+        const inByChat = !!store && (u.chatAccess?.stores || []).includes(store);
+        const daSpecificLocs = u.dashboardAccess?.type === 'specific' ? (u.dashboardAccess.locations || []) : [];
+        const inByDash = !!store && daSpecificLocs.includes(store);
+        const broad = uIsAdmin || !!u.owner || isFom(u) || (u.managedMarkets || []).length > 0 || u.dashboardAccess?.type === 'all';
         if (canAccessChannel(access, channel)) {
           members.push({
             email: u.email,
@@ -76,7 +83,7 @@ export default async function handler(req, res) {
             fom: uIsAdmin || isFom(u),
             managedMarkets: u.managedMarkets || [],
             isAdmin: uIsAdmin,
-            removable: inChannelByStore && u.email !== actor.email && u.email !== ADMIN_EMAIL,
+            removable: (inByChat || inByDash) && !broad && u.email !== actor.email && u.email !== ADMIN_EMAIL,
           });
         }
         if (store && u.chatAccess?.status === 'pending' && (u.chatAccess?.stores || []).includes(store)) {
@@ -117,14 +124,23 @@ export default async function handler(req, res) {
       }
 
       if (action === 'remove') {
-        if (!store) return res.status(400).json({ error: 'Members can only be removed from location channels' });
+        if (!store) return res.status(400).json({ error: 'Members can only be removed from store channels' });
         if (!canManageStore(actor, store)) return res.status(403).json({ error: 'You do not manage this store' });
-        const remaining = (target.chatAccess?.stores || []).filter(s => s !== store);
-        const chatAccess = remaining.length > 0
-          ? { ...target.chatAccess, level: 'employee', status: 'approved', stores: remaining }
-          : { level: 'employee', status: 'none', stores: [] };
-        await db.collection('users').updateOne({ email }, { $set: { chatAccess } });
-        return res.status(200).json({ success: true, stores: remaining });
+        const updates = {};
+        // Pull the store from chat access (associates)…
+        if ((target.chatAccess?.stores || []).includes(store)) {
+          const remaining = (target.chatAccess.stores || []).filter(s => s !== store);
+          updates.chatAccess = remaining.length > 0
+            ? { ...target.chatAccess, level: 'employee', status: 'approved', stores: remaining }
+            : { level: 'employee', status: 'none', stores: [] };
+        }
+        // …and from a "specific" dashboard assignment (store managers).
+        if (target.dashboardAccess?.type === 'specific' && (target.dashboardAccess.locations || []).includes(store)) {
+          const locs = (target.dashboardAccess.locations || []).filter(s => s !== store);
+          updates.dashboardAccess = { ...target.dashboardAccess, type: 'specific', locations: locs };
+        }
+        if (Object.keys(updates).length > 0) await db.collection('users').updateOne({ email }, { $set: updates });
+        return res.status(200).json({ success: true });
       }
 
       // Scope assignment — admin only.

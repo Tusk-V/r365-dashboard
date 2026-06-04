@@ -69,6 +69,12 @@ export default async function handler(req, res) {
         await db.collection('users').updateOne({ email: targetEmail }, { $set: { managedMarkets: valid }, $unset: { role: '' } });
         return res.status(200).json({ success: true });
       }
+      if (action === 'name') {
+        const name = (req.body.name || '').trim();
+        if (!name) return res.status(400).json({ error: 'Name is required' });
+        await db.collection('users').updateOne({ email: targetEmail }, { $set: { name } });
+        return res.status(200).json({ success: true });
+      }
       return res.status(400).json({ error: 'Unknown action' });
     } catch (error) {
       console.error('roles POST error:', error);

@@ -95,7 +95,7 @@ export default function ChannelMembersPanel({ channel, channelName, onClose }) {
                       </div>
 
                       {m.removable && (
-                        <button disabled={busy === m.email} onClick={() => post({ email: m.email, action: 'remove' })}
+                        <button disabled={busy === m.email} onClick={() => { if (window.confirm(`Remove ${m.name} from ${channelName}?`)) post({ email: m.email, action: 'remove' }); }}
                           className="p-1.5 text-slate-400 hover:text-red-400 disabled:opacity-50 flex-shrink-0" title="Remove from this channel">
                           <UserMinus size={16} />
                         </button>
