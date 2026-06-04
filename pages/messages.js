@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useSession, signIn } from 'next-auth/react';
-import { ArrowLeft, Home, UserPlus, Users, Bell, BellOff, Building2, Map as MapIcon, Store, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Home, UserPlus, Users, ShieldCheck, Bell, BellOff, Building2, Map as MapIcon, Store, MessageSquare } from 'lucide-react';
 import ChannelSidebar from '../components/chat/ChannelSidebar';
 import MessageStream from '../components/chat/MessageStream';
 import Composer from '../components/chat/Composer';
@@ -9,6 +9,7 @@ import Onboarding from '../components/chat/Onboarding';
 import PendingApprovals from '../components/chat/PendingApprovals';
 import UsersDirectory from '../components/chat/UsersDirectory';
 import ChannelMembersPanel from '../components/chat/ChannelMembersPanel';
+import RolesPanel from '../components/chat/RolesPanel';
 import EnablePush from '../components/chat/EnablePush';
 import { canManageChannel, isDashboardUser } from '../lib/channels';
 
@@ -34,8 +35,8 @@ function UserAvatar({ name, image, size = 'h-8 w-8', extra = '' }) {
 const ROLE_BADGE_CLASS = { Admin: 'bg-red-600', FOM: 'bg-blue-600', Market: 'bg-purple-600', Manager: 'bg-green-600' };
 const ROLE_LABEL = { Admin: 'Admin', FOM: 'FOM', Market: 'MM', Manager: 'Manager' };
 
-function tierOf({ isAdmin, fom, managedMarkets, dashboardAccess }) {
-  if (isAdmin) return 'Admin';
+function tierOf({ isAdmin, owner, fom, managedMarkets, dashboardAccess }) {
+  if (isAdmin || owner) return 'Admin';
   if (fom) return 'FOM';
   if ((managedMarkets || []).length) return 'Market';
   const t = dashboardAccess && dashboardAccess.type;
@@ -56,10 +57,10 @@ export default function MessagesPage() {
 
   const userEmail = session?.user?.email;
   const isAdmin = userEmail === ADMIN_EMAIL;
-  const [scope, setScope] = useState({ fom: false, managedMarkets: [], dashboardAccess: null });
+  const [scope, setScope] = useState({ owner: false, fom: false, managedMarkets: [], dashboardAccess: null });
 
   const dashboardAccess = session?.user?.dashboardAccess || scope.dashboardAccess || { type: 'none' };
-  const meActor = { isAdmin, fom: isAdmin || scope.fom, managedMarkets: scope.managedMarkets, dashboardAccess };
+  const meActor = { isAdmin, owner: scope.owner, fom: isAdmin || scope.owner || scope.fom, managedMarkets: scope.managedMarkets, dashboardAccess };
   const hasDashboard = isDashboardUser(meActor);
   const myRole = tierOf(meActor);
   const chatStatus = session?.user?.chatAccess?.status || 'none';
@@ -68,6 +69,7 @@ export default function MessagesPage() {
   const [showApprovals, setShowApprovals] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [showChannelMembers, setShowChannelMembers] = useState(false);
+  const [showRoles, setShowRoles] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [unreadMarkerAt, setUnreadMarkerAt] = useState(null);
   const [channelInfo, setChannelInfo] = useState(null);
@@ -87,7 +89,7 @@ export default function MessagesPage() {
     if (!userEmail || isAdmin) return;
     fetch('/api/check-access')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setScope({ fom: !!d.fom, managedMarkets: d.managedMarkets || [], dashboardAccess: d.dashboardAccess || null }); })
+      .then(d => { if (d) setScope({ owner: !!d.owner, fom: !!d.fom, managedMarkets: d.managedMarkets || [], dashboardAccess: d.dashboardAccess || null }); })
       .catch(() => {});
   }, [userEmail, isAdmin]);
 
@@ -335,6 +337,16 @@ export default function MessagesPage() {
           <h1 className="font-bold text-lg">Messages</h1>
         </div>
         <div className="flex items-center gap-1">
+          {(isAdmin || scope.owner) && (
+            <button
+              onClick={() => setShowRoles(true)}
+              className="flex items-center gap-1.5 min-h-[40px] px-2 text-slate-300 hover:text-white"
+              title="Roles"
+            >
+              <ShieldCheck size={18} />
+              <span className="hidden sm:inline text-sm">Roles</span>
+            </button>
+          )}
           {canApprove && (
             <button
               onClick={() => setShowUsers(true)}
@@ -471,6 +483,7 @@ export default function MessagesPage() {
 
       {showApprovals && <PendingApprovals onClose={() => setShowApprovals(false)} />}
       {showUsers && <UsersDirectory onClose={() => setShowUsers(false)} />}
+      {showRoles && <RolesPanel onClose={() => setShowRoles(false)} />}
       {showChannelMembers && activeChannel && (
         <ChannelMembersPanel channel={activeChannel.key} channelName={activeChannel.name} onClose={() => setShowChannelMembers(false)} />
       )}

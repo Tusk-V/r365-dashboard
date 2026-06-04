@@ -51,6 +51,7 @@ export default async function handler(req, res) {
         plAccess: user.plAccess || { type: 'none', locations: [] },
         bonusAccess: user.bonusAccess || { type: 'none', locations: [] },
         role: user.role || 'User',
+        owner: !!user.owner,
         // Transition-safe: honor the legacy role until the FOM migration runs.
         fom: !!(user.fom || user.role === 'FOM'),
         managedMarkets: user.managedMarkets || [],

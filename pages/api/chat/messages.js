@@ -28,11 +28,12 @@ async function loadContext(req, res) {
   const isAdmin = userEmail === ADMIN_EMAIL;
   const user = await db.collection('users').findOne({ email: userEmail });
   // Transition-safe: honor the legacy `role` field until the FOM migration runs.
+  const owner = !!user?.owner;
   const fom = isAdmin ? true : !!(user?.fom || user?.role === 'FOM');
   const managedMarkets = user?.managedMarkets || [];
   const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
   const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
-  const authorRole = isAdmin ? 'Admin'
+  const authorRole = (isAdmin || owner) ? 'Admin'
     : fom ? 'FOM'
     : managedMarkets.length ? 'Market'
     : (dashboardAccess.type === 'specific' || dashboardAccess.type === 'all') ? 'Manager'
