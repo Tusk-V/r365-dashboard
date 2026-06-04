@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useSession, signIn } from 'next-auth/react';
-import { ArrowLeft, Home, UserPlus } from 'lucide-react';
+import { ArrowLeft, Home, UserPlus, Bell, BellOff } from 'lucide-react';
 import ChannelSidebar from '../components/chat/ChannelSidebar';
 import MessageStream from '../components/chat/MessageStream';
 import Composer from '../components/chat/Composer';
 import Onboarding from '../components/chat/Onboarding';
 import PendingApprovals from '../components/chat/PendingApprovals';
+import EnablePush from '../components/chat/EnablePush';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 const MSG_POLL_MS = 3000;
@@ -76,6 +77,15 @@ export default function MessagesPage() {
     const id = setInterval(() => { if (!document.hidden) loadChannels(); }, CHANNEL_POLL_MS);
     return () => clearInterval(id);
   }, [userEmail, loadChannels]);
+
+  useEffect(() => {
+    const q = router.query.channel;
+    if (!q || channels.length === 0) return;
+    if (channels.some(c => c.key === q)) {
+      setActiveKey(q);
+      setMobileShowStream(true);
+    }
+  }, [router.query.channel, channels]);
 
   const markRead = useCallback((channel) => {
     fetch('/api/chat/read', {
@@ -208,6 +218,19 @@ export default function MessagesPage() {
     handleSend({ body: msg.body, isAnnouncement: msg.isAnnouncement, priority: msg.priority });
   };
 
+  const toggleMute = async (ch) => {
+    const muted = !ch.muted;
+    setChannels(prev => prev.map(c => c.key === ch.key ? { ...c, muted } : c));
+    try {
+      await fetch('/api/chat/mute', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: ch.key, muted }),
+      });
+    } catch (_) {
+      setChannels(prev => prev.map(c => c.key === ch.key ? { ...c, muted: !muted } : c)); // revert on failure
+    }
+  };
+
   const activeChannel = channels.find(c => c.key === activeKey);
 
   if (status === 'loading') {
@@ -247,6 +270,8 @@ export default function MessagesPage() {
         </div>
       </div>
 
+      <EnablePush />
+
       <div className="flex-1 flex min-h-0">
         <div className={`${mobileShowStream ? 'hidden' : 'flex'} md:flex w-full md:w-64 flex-col border-r border-slate-700 flex-shrink-0`}>
           {loadingChannels ? (
@@ -268,6 +293,13 @@ export default function MessagesPage() {
               <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-shrink-0">
                 <button onClick={() => setMobileShowStream(false)} className="md:hidden p-2 -ml-1 text-slate-400 hover:text-white" aria-label="Back to channels"><ArrowLeft size={18} /></button>
                 <span className="font-semibold">{activeChannel.name}</span>
+                <button
+                  onClick={() => toggleMute(activeChannel)}
+                  className="ml-auto p-2 text-slate-400 hover:text-white"
+                  title={activeChannel.muted ? 'Unmute' : 'Mute'}
+                >
+                  {activeChannel.muted ? <BellOff size={18} /> : <Bell size={18} />}
+                </button>
               </div>
               <MessageStream
                 messages={messages}
