@@ -11,6 +11,7 @@ let indexesEnsured = false;
 async function ensureIndexes(db) {
   if (indexesEnsured) return;
   await db.collection('chat_messages').createIndex({ channelKey: 1, createdAt: 1 });
+  await db.collection('chat_messages').createIndex({ channelKey: 1, updatedAt: 1 });
   await db.collection('chat_reads').createIndex({ userEmail: 1, channelKey: 1 }, { unique: true });
   indexesEnsured = true;
 }
@@ -39,10 +40,42 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const { channel, after } = req.query;
+      const { channel, after, since } = req.query;
       if (!channel) return res.status(400).json({ error: 'channel is required' });
       if (!canAccessChannel(accessUser, channel)) return res.status(403).json({ error: 'No access to this channel' });
 
+      const ser = m => ({ ...m, _id: m._id.toString() });
+      // High-water mark = newest change among a set of docs (updatedAt, falling
+      // back to createdAt for legacy docs that predate the updatedAt field).
+      const watermarkOf = (list) => {
+        let max = null;
+        for (const m of list) {
+          const t = m.updatedAt || m.createdAt;
+          if (t && (!max || t > max)) max = t;
+        }
+        return max;
+      };
+
+      const pinned = await db.collection('chat_messages')
+        .find({ channelKey: channel, pinned: true, deleted: { $ne: true } })
+        .sort({ createdAt: -1 }).toArray();
+
+      // Reconciliation poll: return every message changed since the client's
+      // watermark — INCLUDING soft-deleted ones — so edits, reactions, and
+      // deletions by other users propagate live. The client upserts by _id and
+      // drops anything now flagged deleted.
+      if (since) {
+        const changed = await db.collection('chat_messages')
+          .find({ channelKey: channel, updatedAt: { $gt: new Date(since) } })
+          .sort({ updatedAt: 1 }).limit(200).toArray();
+        return res.status(200).json({
+          messages: changed.map(ser),
+          pinned: pinned.map(ser),
+          watermark: watermarkOf(changed) || since,
+        });
+      }
+
+      // Initial load (and legacy createdAt-cursor poll) — non-deleted only.
       const baseQuery = { channelKey: channel, deleted: { $ne: true } };
       let messages;
       if (after) {
@@ -55,12 +88,11 @@ export default async function handler(req, res) {
         messages = latest.reverse();
       }
 
-      const pinned = await db.collection('chat_messages')
-        .find({ channelKey: channel, pinned: true, deleted: { $ne: true } })
-        .sort({ createdAt: -1 }).toArray();
-
-      const ser = m => ({ ...m, _id: m._id.toString() });
-      return res.status(200).json({ messages: messages.map(ser), pinned: pinned.map(ser) });
+      return res.status(200).json({
+        messages: messages.map(ser),
+        pinned: pinned.map(ser),
+        watermark: watermarkOf(messages),
+      });
     } catch (error) {
       console.error('Error loading messages:', error);
       return res.status(500).json({ error: 'Failed to load messages' });
@@ -83,6 +115,7 @@ export default async function handler(req, res) {
         authorName,
         authorRole: userRole,
         createdAt: new Date(),
+        updatedAt: new Date(),
         editedAt: null,
         isAnnouncement: !!isAnnouncement,
         priority: isAnnouncement ? priority : 'normal',
@@ -111,7 +144,7 @@ export default async function handler(req, res) {
       }
       await db.collection('chat_messages').updateOne(
         { _id: new ObjectId(messageId) },
-        { $set: { body: body.trim(), editedAt: new Date() } }
+        { $set: { body: body.trim(), editedAt: new Date(), updatedAt: new Date() } }
       );
       return res.status(200).json({ success: true });
     } catch (error) {
@@ -133,7 +166,7 @@ export default async function handler(req, res) {
       }
       await db.collection('chat_messages').updateOne(
         { _id: new ObjectId(messageId) },
-        { $set: { deleted: true, pinned: false, body: '', reactions: {} } }
+        { $set: { deleted: true, pinned: false, body: '', reactions: {}, updatedAt: new Date() } }
       );
       return res.status(200).json({ success: true });
     } catch (error) {
