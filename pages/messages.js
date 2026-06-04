@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useSession, signIn } from 'next-auth/react';
-import { ArrowLeft, Home, UserPlus, Users, ShieldCheck, MoreVertical, Bell, BellOff, Building2, Map as MapIcon, Store, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Home, UserPlus, ShieldCheck, MoreVertical, Bell, BellOff, Building2, Map as MapIcon, Store, MessageSquare } from 'lucide-react';
 import ChannelSidebar from '../components/chat/ChannelSidebar';
 import MessageStream from '../components/chat/MessageStream';
 import Composer from '../components/chat/Composer';
 import Onboarding from '../components/chat/Onboarding';
 import PendingApprovals from '../components/chat/PendingApprovals';
-import UsersDirectory from '../components/chat/UsersDirectory';
 import ChannelMembersPanel from '../components/chat/ChannelMembersPanel';
 import RolesPanel from '../components/chat/RolesPanel';
 import EnablePush from '../components/chat/EnablePush';
@@ -67,7 +66,6 @@ export default function MessagesPage() {
   const canApprove = hasDashboard; // dashboard users / FOM / market managers manage members
 
   const [showApprovals, setShowApprovals] = useState(false);
-  const [showUsers, setShowUsers] = useState(false);
   const [showChannelMembers, setShowChannelMembers] = useState(false);
   const [showRoles, setShowRoles] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -366,11 +364,6 @@ export default function MessagesPage() {
                       </button>
                     )}
                     {canApprove && (
-                      <button onClick={() => { setShowUsers(true); setShowMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700">
-                        <Users size={16} /> Members
-                      </button>
-                    )}
-                    {canApprove && (
                       <button onClick={() => { setShowApprovals(true); setShowMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700">
                         <UserPlus size={16} /> Approvals
                       </button>
@@ -487,7 +480,6 @@ export default function MessagesPage() {
       </div>
 
       {showApprovals && <PendingApprovals onClose={() => setShowApprovals(false)} />}
-      {showUsers && <UsersDirectory onClose={() => setShowUsers(false)} />}
       {showRoles && <RolesPanel onClose={() => setShowRoles(false)} />}
       {showChannelMembers && activeChannel && (
         <ChannelMembersPanel channel={activeChannel.key} channelName={activeChannel.name} onClose={() => setShowChannelMembers(false)} />

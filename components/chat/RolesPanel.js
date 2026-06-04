@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, ShieldCheck, Search } from 'lucide-react';
+import { X, ShieldCheck, Search, Pencil } from 'lucide-react';
 
 const MARKETS = ['Tulsa', 'Oklahoma City', 'Dallas', 'Orlando'];
 const MARKET_LABEL = { 'Oklahoma City': 'OKC' };
@@ -79,9 +79,11 @@ export default function RolesPanel({ onClose }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1 text-sm text-white">
                     <span className="truncate">{u.name}</span>
+                    <button onClick={() => { const name = window.prompt('Edit name', u.name); if (name && name.trim() && name.trim() !== u.name) post({ targetEmail: u.email, action: 'name', name: name.trim() }); }} className="p-0.5 text-slate-500 hover:text-white flex-shrink-0" title="Edit name"><Pencil size={12} /></button>
                     {isAdminRow && <span className="px-1 py-px text-[9px] font-semibold bg-red-600 text-white rounded leading-none flex-shrink-0">{u.isSuperAdmin ? 'Super Admin' : 'Admin'}</span>}
                     {!isAdminRow && u.fom && <span className="px-1 py-px text-[9px] font-semibold bg-blue-600 text-white rounded leading-none flex-shrink-0">FOM</span>}
                     {!isAdminRow && !u.fom && u.managedMarkets.length > 0 && <span className="px-1 py-px text-[9px] font-semibold bg-purple-600 text-white rounded leading-none flex-shrink-0">MM</span>}
+                    {!isAdminRow && !u.fom && u.managedMarkets.length === 0 && u.hasDashboard && <span className="px-1 py-px text-[9px] font-semibold bg-green-600 text-white rounded leading-none flex-shrink-0">Manager</span>}
                   </div>
                   <div className="text-[11px] text-slate-500 truncate">{u.email}</div>
 
