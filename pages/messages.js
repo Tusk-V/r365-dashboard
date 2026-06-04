@@ -31,11 +31,11 @@ function UserAvatar({ name, image, size = 'h-8 w-8', extra = '' }) {
   return <div className={`${size} rounded-full bg-slate-600 flex items-center justify-center text-sm font-semibold text-slate-200 ${extra}`}>{initial}</div>;
 }
 
-const ROLE_BADGE_CLASS = { Admin: 'bg-red-600', FOM: 'bg-blue-600', Market: 'bg-purple-600', Manager: 'bg-green-600' };
-const ROLE_LABEL = { Admin: 'Admin', FOM: 'FOM', Market: 'MM', Manager: 'Manager' };
+const ROLE_BADGE_CLASS = { Owner: 'bg-red-600', Admin: 'bg-red-600', FOM: 'bg-blue-600', Market: 'bg-purple-600', Manager: 'bg-green-600' };
+const ROLE_LABEL = { Owner: 'Owner', Admin: 'Owner', FOM: 'FOM', Market: 'MM', Manager: 'Manager' };
 
 function tierOf({ isAdmin, owner, fom, managedMarkets, manager }) {
-  if (isAdmin || owner) return 'Admin';
+  if (isAdmin || owner) return 'Owner';
   if (fom) return 'FOM';
   if ((managedMarkets || []).length) return 'Market';
   if (manager) return 'Manager';

@@ -9,7 +9,8 @@ const EMOJIS = [
 ];
 
 const ROLE_BADGE = {
-  Admin: { cls: 'bg-red-600', label: 'Admin' },
+  Owner: { cls: 'bg-red-600', label: 'Owner' },
+  Admin: { cls: 'bg-red-600', label: 'Owner' }, // legacy authorRole on old messages
   FOM: { cls: 'bg-blue-600', label: 'FOM' },
   Market: { cls: 'bg-purple-600', label: 'MM' },
   Manager: { cls: 'bg-green-600', label: 'Manager' },
