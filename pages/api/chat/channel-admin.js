@@ -51,29 +51,25 @@ export default async function handler(req, res) {
     try {
       const users = await db.collection('users')
         .find({})
-        .project({ email: 1, name: 1, image: 1, role: 1, owner: 1, fom: 1, manager: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1 })
+        .project({ email: 1, name: 1, image: 1, role: 1, owner: 1, fom: 1, manager: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1, channelInclusions: 1, channelExclusions: 1 })
         .toArray();
 
       const members = [];
       const pending = [];
+      const addable = [];
       for (const u of users) {
         if (!u.email) continue;
         const uIsAdmin = u.email === ADMIN_EMAIL;
         const access = {
           isAdmin: uIsAdmin,
+          owner: !!u.owner,
           fom: isFom(u),
           managedMarkets: u.managedMarkets || [],
           dashboardAccess: u.dashboardAccess,
           chatAccess: u.chatAccess,
+          channelInclusions: u.channelInclusions || [],
+          channelExclusions: u.channelExclusions || [],
         };
-        // In the channel via a single store we can pull — chat access or a
-        // "specific" dashboard assignment. Broad-access people (admin/owner/FOM/
-        // market manager / dashboard "all") are there by role, not a store, so
-        // they're managed on the Roles / Dashboard Users pages instead.
-        const inByChat = !!store && (u.chatAccess?.stores || []).includes(store);
-        const daSpecificLocs = u.dashboardAccess?.type === 'specific' ? (u.dashboardAccess.locations || []) : [];
-        const inByDash = !!store && daSpecificLocs.includes(store);
-        const broad = uIsAdmin || !!u.owner || isFom(u) || (u.managedMarkets || []).length > 0 || u.dashboardAccess?.type === 'all';
         if (canAccessChannel(access, channel)) {
           members.push({
             email: u.email,
@@ -84,15 +80,20 @@ export default async function handler(req, res) {
             manager: !!u.manager,
             managedMarkets: u.managedMarkets || [],
             isAdmin: uIsAdmin,
-            removable: (inByChat || inByDash) && !broad && u.email !== actor.email && u.email !== ADMIN_EMAIL,
+            // Anyone can be removed from a channel (via an override) except you
+            // and the super admin.
+            removable: u.email !== actor.email && u.email !== ADMIN_EMAIL,
           });
+        } else if (u.email !== actor.email) {
+          addable.push({ email: u.email, name: u.name || u.email, image: u.image || null });
         }
         if (store && u.chatAccess?.status === 'pending' && (u.chatAccess?.stores || []).includes(store)) {
           pending.push({ email: u.email, name: u.name || u.email, stores: u.chatAccess?.stores || [] });
         }
       }
       members.sort((a, b) => a.name.localeCompare(b.name));
-      return res.status(200).json({ canManage: true, isAdmin: actor.isAdmin, store, members, pending });
+      addable.sort((a, b) => a.name.localeCompare(b.name));
+      return res.status(200).json({ canManage: true, isAdmin: actor.isAdmin, store, members, pending, addable });
     } catch (error) {
       console.error('channel-admin GET error:', error);
       return res.status(500).json({ error: 'Failed to load members' });
@@ -124,23 +125,13 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, status: 'approved', stores: manageable });
       }
 
-      if (action === 'remove') {
-        if (!store) return res.status(400).json({ error: 'Members can only be removed from store channels' });
-        if (!canManageStore(actor, store)) return res.status(403).json({ error: 'You do not manage this store' });
-        const updates = {};
-        // Pull the store from chat access (associates)…
-        if ((target.chatAccess?.stores || []).includes(store)) {
-          const remaining = (target.chatAccess.stores || []).filter(s => s !== store);
-          updates.chatAccess = remaining.length > 0
-            ? { ...target.chatAccess, level: 'employee', status: 'approved', stores: remaining }
-            : { level: 'employee', status: 'none', stores: [] };
-        }
-        // …and from a "specific" dashboard assignment (store managers).
-        if (target.dashboardAccess?.type === 'specific' && (target.dashboardAccess.locations || []).includes(store)) {
-          const locs = (target.dashboardAccess.locations || []).filter(s => s !== store);
-          updates.dashboardAccess = { ...target.dashboardAccess, type: 'specific', locations: locs };
-        }
-        if (Object.keys(updates).length > 0) await db.collection('users').updateOne({ email }, { $set: updates });
+      if (action === 'remove' || action === 'add') {
+        if (!canManageChannel(actor, channel)) return res.status(403).json({ error: 'You do not manage this channel' });
+        const incl = new Set(target.channelInclusions || []);
+        const excl = new Set(target.channelExclusions || []);
+        if (action === 'remove') { excl.add(channel); incl.delete(channel); }
+        else { incl.add(channel); excl.delete(channel); }
+        await db.collection('users').updateOne({ email }, { $set: { channelInclusions: [...incl], channelExclusions: [...excl] } });
         return res.status(200).json({ success: true });
       }
 

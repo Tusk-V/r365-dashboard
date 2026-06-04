@@ -25,24 +25,27 @@ export default async function handler(req, res) {
   const fomOf = (u) => !!(u?.fom || u?.role === 'FOM');
   const meAccess = {
     isAdmin,
+    owner: !!me?.owner,
     fom: isAdmin || fomOf(me),
     managedMarkets: me?.managedMarkets || [],
     dashboardAccess: isAdmin ? { type: 'all' } : (me?.dashboardAccess || { type: 'none' }),
     chatAccess: me?.chatAccess || { status: 'none', stores: [] },
+    channelInclusions: me?.channelInclusions || [],
+    channelExclusions: me?.channelExclusions || [],
   };
   if (!canAccessChannel(meAccess, channel)) return res.status(403).json({ error: 'No access to this channel' });
 
   try {
     const users = await db.collection('users')
       .find({})
-      .project({ email: 1, name: 1, image: 1, role: 1, fom: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1 })
+      .project({ email: 1, name: 1, image: 1, role: 1, owner: 1, fom: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1, channelInclusions: 1, channelExclusions: 1 })
       .toArray();
 
     const members = [];
     for (const u of users) {
       if (!u.email) continue;
       const uIsAdmin = u.email === ADMIN_EMAIL;
-      const access = { isAdmin: uIsAdmin, fom: fomOf(u), managedMarkets: u.managedMarkets || [], dashboardAccess: u.dashboardAccess, chatAccess: u.chatAccess };
+      const access = { isAdmin: uIsAdmin, owner: !!u.owner, fom: fomOf(u), managedMarkets: u.managedMarkets || [], dashboardAccess: u.dashboardAccess, chatAccess: u.chatAccess, channelInclusions: u.channelInclusions || [], channelExclusions: u.channelExclusions || [] };
       if (canAccessChannel(access, channel)) {
         members.push({ name: u.name || u.email, image: u.image || null });
       }

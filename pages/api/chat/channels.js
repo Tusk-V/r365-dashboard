@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
     const mutedChannels = user?.mutedChannels || [];
 
-    const channels = deriveChannelsForUser({ isAdmin, fom, managedMarkets, dashboardAccess, chatAccess });
+    const channels = deriveChannelsForUser({ isAdmin, fom, managedMarkets, dashboardAccess, chatAccess, channelInclusions: user?.channelInclusions || [], channelExclusions: user?.channelExclusions || [] });
     if (channels.length === 0) {
       return res.status(200).json({ channels: [], totalUnread: 0 });
     }

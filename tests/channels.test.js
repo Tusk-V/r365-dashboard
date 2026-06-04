@@ -75,6 +75,14 @@ test('Managers channel: dashboard users see it, associates do not', () => {
   assert.ok(!deriveChannelsForUser({ isAdmin: false, dashboardAccess: { type: 'none' }, chatAccess: { status: 'approved', stores: ['Bixby'] } }).map(c => c.key).includes('managers'));
 });
 
+test('channel overrides: exclusion removes a channel, inclusion adds one', () => {
+  const base = { isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Bixby'] } };
+  const excluded = deriveChannelsForUser({ ...base, channelExclusions: ['loc:bixby'] }).map(c => c.key);
+  assert.ok(!excluded.includes('loc:bixby'));
+  const included = deriveChannelsForUser({ ...base, channelInclusions: ['loc:allen'] }).map(c => c.key);
+  assert.ok(included.includes('loc:allen'));
+});
+
 test('Managers channel moderation is admin/FOM only', () => {
   assert.equal(canManageChannelMgr({ isAdmin: true }, MANAGERS_CHANNEL), true);
   assert.equal(canManageChannelMgr({ isAdmin: false, fom: true }, MANAGERS_CHANNEL), true);
