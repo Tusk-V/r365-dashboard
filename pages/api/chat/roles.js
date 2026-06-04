@@ -2,8 +2,9 @@
 // Board role assignment. Visible to the super admin (dalton) and Owners/Admins.
 //   GET  -> { isSuperAdmin, users:[{email,name,image,isSuperAdmin,owner,fom,managedMarkets,hasDashboard}] }
 //   POST { targetEmail, action:'owner'|'fom'|'markets', value?, markets? }
-// Only the super admin may grant/revoke Owner (admin). Granting Owner also grants
-// all-channel capability (fom). FOM/market assignment is open to owners + super admin.
+// Super admin OR any Owner may grant/revoke Owner. Owner is a standalone top tier;
+// granting Owner clears fom/manager/markets (does NOT auto-set fom).
+// FOM/market assignment is open to owners + super admin.
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import clientPromise from "../../../lib/mongodb";
