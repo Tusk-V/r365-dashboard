@@ -24,7 +24,7 @@ export default async function handler(req, res) {
   const actor = {
     email,
     isAdmin,
-    fom: isAdmin || !!(me?.fom || me?.role === 'FOM' || me?.role === 'Admin'),
+    fom: isAdmin || !!(me?.fom || me?.role === 'FOM'),
     managedMarkets: me?.managedMarkets || [],
     dashboardAccess: isAdmin ? { type: 'all' } : (me?.dashboardAccess || { type: 'none' }),
   };
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
       const uIsAdmin = u.email === ADMIN_EMAIL;
       const chans = deriveChannelsForUser({
         isAdmin: uIsAdmin,
-        fom: !!(u.fom || u.role === 'FOM' || u.role === 'Admin'),
+        fom: !!(u.fom || u.role === 'FOM'),
         managedMarkets: u.managedMarkets || [],
         dashboardAccess: u.dashboardAccess,
         chatAccess: u.chatAccess,

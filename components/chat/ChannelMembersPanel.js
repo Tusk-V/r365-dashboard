@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Check, Ban, UserMinus, Users } from 'lucide-react';
 
-const MARKETS = ['Tulsa', 'Oklahoma City', 'Dallas', 'Orlando'];
-const MARKET_LABEL = { 'Oklahoma City': 'OKC' };
-
 function Avatar({ name, image }) {
   if (image) {
     // eslint-disable-next-line @next/next/no-img-element
@@ -11,10 +8,6 @@ function Avatar({ name, image }) {
   }
   const initial = (name || '?').trim().charAt(0).toUpperCase();
   return <div className="h-8 w-8 rounded-full bg-slate-600 flex items-center justify-center text-sm font-semibold text-slate-200 flex-shrink-0">{initial}</div>;
-}
-
-function chipClass(on) {
-  return `px-1.5 py-0.5 text-[10px] rounded border ${on ? 'bg-blue-600/30 border-blue-500 text-white' : 'bg-slate-700 border-slate-600 text-slate-400 hover:border-slate-500'}`;
 }
 
 export default function ChannelMembersPanel({ channel, channelName, onClose }) {
@@ -99,21 +92,6 @@ export default function ChannelMembersPanel({ channel, channelName, onClose }) {
                           {!m.isAdmin && !m.fom && (m.managedMarkets || []).length > 0 && <span className="px-1 py-px text-[9px] font-semibold bg-purple-600 text-white rounded leading-none flex-shrink-0">MM</span>}
                         </div>
                         <div className="text-[11px] text-slate-500 truncate">{m.email}</div>
-
-                        {isAdmin && !m.isAdmin && (
-                          <div className="flex flex-wrap items-center gap-1 mt-1">
-                            <button disabled={busy === m.email} onClick={() => post({ email: m.email, action: 'fom', value: !m.fom })} className={chipClass(m.fom)} title="Field Ops Manager — all channels">FOM</button>
-                            {MARKETS.map(mk => {
-                              const on = (m.managedMarkets || []).includes(mk);
-                              const next = on ? (m.managedMarkets || []).filter(x => x !== mk) : [...(m.managedMarkets || []), mk];
-                              return (
-                                <button key={mk} disabled={busy === m.email || m.fom} onClick={() => post({ email: m.email, action: 'markets', markets: next })} className={chipClass(on) + (m.fom ? ' opacity-40' : '')} title={`Market manager — ${mk}`}>
-                                  {MARKET_LABEL[mk] || mk}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
                       </div>
 
                       {m.removable && (

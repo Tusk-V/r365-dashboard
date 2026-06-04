@@ -52,7 +52,7 @@ export default async function handler(req, res) {
         bonusAccess: user.bonusAccess || { type: 'none', locations: [] },
         role: user.role || 'User',
         // Transition-safe: honor the legacy role until the FOM migration runs.
-        fom: !!(user.fom || user.role === 'FOM' || user.role === 'Admin'),
+        fom: !!(user.fom || user.role === 'FOM'),
         managedMarkets: user.managedMarkets || [],
         isAdmin: false
       });
