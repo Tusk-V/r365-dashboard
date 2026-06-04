@@ -43,7 +43,6 @@ export default function RolesPanel({ onClose }) {
     setBusy(null);
   };
 
-  const isSuperAdmin = data?.isSuperAdmin;
   const query = q.trim().toLowerCase();
   const users = (data?.users || []).filter(u => !query || u.name.toLowerCase().includes(query) || u.email.toLowerCase().includes(query));
 
