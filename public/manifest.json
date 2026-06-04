@@ -1,8 +1,8 @@
 {
-  "name": "Andy's Messages",
-  "short_name": "Messages",
-  "description": "Team messaging for Andy's Frozen Custard",
-  "start_url": "/messages",
+  "name": "Andy's Dashboard",
+  "short_name": "Andy's",
+  "description": "Operations dashboard for Andy's Frozen Custard",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
