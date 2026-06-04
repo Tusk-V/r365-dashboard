@@ -20,7 +20,23 @@ function dayLabel(dateString) {
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
-export default function MessageStream({ messages, pinned, userEmail, canModerate, onReact, onEdit, onDelete, onRetry }) {
+function MessageSkeleton() {
+  return (
+    <div className="max-w-4xl mx-auto w-full px-3 py-2 space-y-4 animate-pulse">
+      {[60, 40, 75, 30, 55].map((w, i) => (
+        <div key={i} className="flex gap-2">
+          <div className="h-9 w-9 rounded-full bg-slate-700/60 flex-shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-2.5 w-24 bg-slate-700/60 rounded" />
+            <div className="h-3 bg-slate-700/40 rounded" style={{ width: `${w}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function MessageStream({ messages, pinned, userEmail, canModerate, loading, unreadMarkerAt, onReact, onEdit, onDelete, onRetry }) {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
   const nearBottomRef = useRef(true);
@@ -40,10 +56,17 @@ export default function MessageStream({ messages, pinned, userEmail, canModerate
     }
   }, [messages]);
 
+  // First message newer than the last-read mark and not authored by me — the
+  // "New messages" line is anchored here (captured when the channel opened).
+  const markerTime = unreadMarkerAt ? new Date(unreadMarkerAt).getTime() : null;
+  const unreadIdx = markerTime != null
+    ? messages.findIndex(m => new Date(m.createdAt).getTime() > markerTime && m.authorEmail !== userEmail)
+    : -1;
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {pinned && pinned.length > 0 && (
-        <div className="border-b border-slate-700 bg-slate-900/40 max-h-40 overflow-y-auto">
+        <div className="border-b border-slate-700 bg-slate-900/40 max-h-40 overflow-y-auto scrollbar-slim">
           {pinned.map(p => (
             <div key={p._id} className={`px-3 py-2 border-l-4 ${p.priority === 'urgent' ? 'border-l-red-500' : 'border-l-yellow-500'}`}>
               <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
@@ -58,17 +81,18 @@ export default function MessageStream({ messages, pinned, userEmail, canModerate
       )}
 
       <div ref={containerRef} onScroll={onScroll} className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-slim">
-        {messages.length === 0 ? (
+        {loading ? (
+          <MessageSkeleton />
+        ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
             <MessageSquare size={40} className="mb-2 opacity-50" />
             <p className="text-sm">No messages yet — say something.</p>
           </div>
         ) : (
-          <div className="py-1">
+          <div className="max-w-4xl mx-auto w-full py-1">
             {messages.map((m, i) => {
               const prev = messages[i - 1];
               const newDay = !prev || !sameDay(prev.createdAt, m.createdAt);
-              // First message of a visual group gets the full avatar + name + time header.
               const showHeader = newDay || !prev
                 || prev.authorEmail !== m.authorEmail
                 || m.isAnnouncement || prev.isAnnouncement
@@ -80,6 +104,13 @@ export default function MessageStream({ messages, pinned, userEmail, canModerate
                       <div className="flex-1 h-px bg-slate-700/60" />
                       <span className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">{dayLabel(m.createdAt)}</span>
                       <div className="flex-1 h-px bg-slate-700/60" />
+                    </div>
+                  )}
+                  {i === unreadIdx && (
+                    <div className="flex items-center gap-2 px-3 py-1">
+                      <div className="flex-1 h-px bg-red-500/50" />
+                      <span className="text-[10px] uppercase tracking-wide text-red-400 font-semibold">New</span>
+                      <div className="flex-1 h-px bg-red-500/50" />
                     </div>
                   )}
                   <MessageItem

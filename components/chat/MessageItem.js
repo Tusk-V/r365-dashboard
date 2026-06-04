@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { Pencil, Trash2, Smile, Megaphone } from 'lucide-react';
+import { Pencil, Trash2, SmilePlus, Megaphone } from 'lucide-react';
 
-const QUICK_EMOJIS = ['👍', '❤️', '😂', '🎉', '👀', '🔥'];
+const EMOJIS = [
+  '👍', '👎', '❤️', '🔥', '🎉', '👀', '😂', '😅',
+  '😊', '😍', '🤔', '😮', '😢', '😡', '🙏', '👏',
+  '💪', '✅', '❌', '⭐', '💯', '🚀', '☕', '🍦',
+  '🙌', '👌', '🤝', '🥳', '😴', '🤷', '📈', '⚠️',
+];
 
 const RoleBadge = ({ role }) => {
   if (role === 'Admin') return <span className="px-1 py-px text-[9px] font-semibold bg-red-600 text-white rounded ml-1 leading-none">Admin</span>;
@@ -41,10 +46,11 @@ export default function MessageItem({ message, userEmail, canModerate, showHeade
   const [showEmoji, setShowEmoji] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.body);
-  const [actionsOpen, setActionsOpen] = useState(false); // mobile: tap message to reveal
+  const [actionsOpen, setActionsOpen] = useState(false); // mobile: tap to reveal
   const mine = message.authorEmail === userEmail;
   const canEdit = mine;
   const canRemove = mine || canModerate;
+  const live = !message._pending && !message._failed;
 
   const priorityAccent = message.priority === 'urgent'
     ? 'border-l-red-500' : message.priority === 'important'
@@ -55,12 +61,34 @@ export default function MessageItem({ message, userEmail, canModerate, showHeade
     if (draft.trim() && draft !== message.body) onEdit(message._id, draft.trim());
     setEditing(false);
   };
+  const react = (emoji) => { onReact(message._id, emoji); setShowEmoji(false); };
 
   return (
     <div
       className={`group relative flex gap-2 px-3 ${showHeader ? 'pt-2' : 'pt-px'} pb-0.5 hover:bg-slate-800/40 ${message.isAnnouncement ? `border-l-4 ${priorityAccent} bg-slate-800/30` : ''}`}
       onClick={() => { if (!editing) setActionsOpen(o => !o); }}
     >
+      {/* Floating action toolbar (Slack-style, top-right) */}
+      {live && !editing && (
+        <div
+          className={`absolute right-2 top-1 z-10 transition-opacity ${actionsOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'}`}
+          onClick={stop}
+        >
+          <div className="flex items-center gap-0.5 bg-slate-700 border border-slate-600 rounded-lg shadow-lg px-0.5 py-0.5">
+            <button onClick={() => setShowEmoji(v => !v)} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-600 rounded" title="Add reaction"><SmilePlus size={16} /></button>
+            {canEdit && <button onClick={() => setEditing(true)} className="p-1.5 text-slate-300 hover:text-blue-400 hover:bg-slate-600 rounded" title="Edit"><Pencil size={16} /></button>}
+            {canRemove && <button onClick={() => onDelete(message._id)} className="p-1.5 text-slate-300 hover:text-red-400 hover:bg-slate-600 rounded" title="Delete"><Trash2 size={16} /></button>}
+          </div>
+          {showEmoji && (
+            <div className="absolute top-full right-0 mt-1 w-56 max-h-44 overflow-y-auto scrollbar-slim bg-slate-700 border border-slate-600 rounded-lg p-2 shadow-xl grid grid-cols-8 gap-0.5">
+              {EMOJIS.map(emoji => (
+                <button key={emoji} onClick={() => react(emoji)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-600 rounded text-base">{emoji}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Avatar column (or hover timestamp for grouped messages) */}
       <div className="w-9 flex-shrink-0 select-none">
         {showHeader
@@ -109,33 +137,23 @@ export default function MessageItem({ message, userEmail, canModerate, showHeade
           </div>
         )}
 
-        {!message._pending && !message._failed && (
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            {message.reactions && Object.entries(message.reactions).map(([emoji, users]) => (
+        {live && message.reactions && Object.values(message.reactions).some(u => u.length > 0) && (
+          <div className="flex items-center gap-1 mt-1 flex-wrap">
+            {Object.entries(message.reactions).map(([emoji, users]) => (
               users.length > 0 && (
                 <button
                   key={emoji}
                   onClick={(e) => { stop(e); onReact(message._id, emoji); }}
-                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${users.includes(userEmail) ? 'bg-blue-600/30 border border-blue-500' : 'bg-slate-700 border border-slate-600 hover:border-slate-500'}`}
+                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs ${users.includes(userEmail) ? 'bg-blue-600/30 border border-blue-500' : 'bg-slate-700 border border-slate-600 hover:border-slate-500'}`}
                   title={users.join(', ')}
                 >
                   <span>{emoji}</span><span className="text-slate-300">{users.length}</span>
                 </button>
               )
             ))}
-
-            <div className={`relative flex items-center gap-1 transition-opacity ${actionsOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'}`}>
-              <button onClick={(e) => { stop(e); setShowEmoji(v => !v); }} className="p-1 text-slate-400 hover:text-slate-200" title="React"><Smile size={16} /></button>
-              {canEdit && !editing && <button onClick={(e) => { stop(e); setEditing(true); }} className="p-1 text-slate-400 hover:text-blue-400" title="Edit"><Pencil size={16} /></button>}
-              {canRemove && <button onClick={(e) => { stop(e); onDelete(message._id); }} className="p-1 text-slate-400 hover:text-red-400" title="Delete"><Trash2 size={16} /></button>}
-              {showEmoji && (
-                <div className="absolute bottom-full left-0 mb-1 bg-slate-700 border border-slate-600 rounded-lg p-1 flex gap-1 shadow-lg z-10" onClick={stop}>
-                  {QUICK_EMOJIS.map(emoji => (
-                    <button key={emoji} onClick={(e) => { stop(e); onReact(message._id, emoji); setShowEmoji(false); }} className="w-8 h-8 flex items-center justify-center hover:bg-slate-600 rounded text-base">{emoji}</button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <button onClick={(e) => { stop(e); setActionsOpen(true); setShowEmoji(true); }} className="px-1.5 py-0.5 rounded-full text-xs bg-slate-700 border border-slate-600 text-slate-400 hover:text-white hover:border-slate-500" title="Add reaction">
+              <SmilePlus size={13} />
+            </button>
           </div>
         )}
       </div>

@@ -20,13 +20,13 @@ const CHANNEL_META = {
   location: { Icon: Store, subtitle: () => 'Store channel' },
 };
 
-function UserAvatar({ name, image, size = 'h-8 w-8' }) {
+function UserAvatar({ name, image, size = 'h-8 w-8', extra = '' }) {
   if (image) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={image} alt={name || ''} className={`${size} rounded-full object-cover`} referrerPolicy="no-referrer" />;
+    return <img src={image} alt={name || ''} className={`${size} rounded-full object-cover ${extra}`} referrerPolicy="no-referrer" />;
   }
   const initial = (name || '?').trim().charAt(0).toUpperCase();
-  return <div className={`${size} rounded-full bg-slate-600 flex items-center justify-center text-sm font-semibold text-slate-200`}>{initial}</div>;
+  return <div className={`${size} rounded-full bg-slate-600 flex items-center justify-center text-sm font-semibold text-slate-200 ${extra}`}>{initial}</div>;
 }
 
 const ROLE_BADGE_CLASS = { Admin: 'bg-red-600', FOM: 'bg-blue-600', Manager: 'bg-green-600' };
@@ -54,9 +54,14 @@ export default function MessagesPage() {
 
   const [showApprovals, setShowApprovals] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [unreadMarkerAt, setUnreadMarkerAt] = useState(null);
+  const [channelInfo, setChannelInfo] = useState(null);
 
   const watermarkRef = useRef(null);
   const tempIdRef = useRef(0);
+  const channelsRef = useRef([]);
+  channelsRef.current = channels;
 
   useEffect(() => {
     if (status === 'unauthenticated') signIn('google');
@@ -128,7 +133,11 @@ export default function MessagesPage() {
     if (!activeKey) return;
     let cancelled = false;
     watermarkRef.current = null;
-    setMessages([]); setPinned([]);
+    // Anchor the "New messages" line at the last-read time captured on open
+    // (before markRead moves it). Stays put while you read this channel.
+    const ch = channelsRef.current.find(c => c.key === activeKey);
+    setUnreadMarkerAt(ch?.lastReadAt || null);
+    setMessages([]); setPinned([]); setChannelInfo(null); setLoadingMessages(true);
     (async () => {
       try {
         const res = await fetch(`/api/chat/messages?channel=${encodeURIComponent(activeKey)}`);
@@ -138,6 +147,14 @@ export default function MessagesPage() {
         setPinned(data.pinned || []);
         if (data.watermark) watermarkRef.current = data.watermark;
         markRead(activeKey);
+      } catch (_) {} finally { if (!cancelled) setLoadingMessages(false); }
+    })();
+    // Member summary for the header (one-shot, not polled).
+    (async () => {
+      try {
+        const res = await fetch(`/api/chat/channel-members?channel=${encodeURIComponent(activeKey)}`);
+        const data = await res.json();
+        if (!cancelled && res.ok) setChannelInfo(data);
       } catch (_) {}
     })();
     return () => { cancelled = true; };
@@ -316,7 +333,9 @@ export default function MessagesPage() {
       <div className="flex-1 flex min-h-0">
         <div className={`${mobileShowStream ? 'hidden' : 'flex'} md:flex w-full md:w-64 flex-col border-r border-slate-700 flex-shrink-0`}>
           {loadingChannels ? (
-            <div className="flex-1 p-4 text-slate-500 text-sm">Loading channels…</div>
+            <div className="flex-1 p-3 space-y-2 animate-pulse">
+              {[...Array(7)].map((_, i) => <div key={i} className="h-9 bg-slate-700/50 rounded-md" />)}
+            </div>
           ) : channels.length === 0 ? (
             <div className="flex-1 p-4 text-slate-500 text-sm">No channels available for your access level.</div>
           ) : (
@@ -362,19 +381,37 @@ export default function MessagesPage() {
                     </>
                   );
                 })()}
-                <button
-                  onClick={() => toggleMute(activeChannel)}
-                  className="ml-auto p-2 text-slate-400 hover:text-white flex-shrink-0"
-                  title={activeChannel.muted ? 'Unmute' : 'Mute'}
-                >
-                  {activeChannel.muted ? <BellOff size={18} /> : <Bell size={18} />}
-                </button>
+                <div className="ml-auto flex items-center gap-1 flex-shrink-0">
+                  {channelInfo && channelInfo.count > 0 && (
+                    <button
+                      onClick={() => { if (canApprove) setShowUsers(true); }}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded ${canApprove ? 'hover:bg-slate-700' : 'cursor-default'}`}
+                      title={canApprove ? 'View members' : `${channelInfo.count} members`}
+                    >
+                      <div className="flex -space-x-2">
+                        {channelInfo.sample.slice(0, 3).map((m, i) => (
+                          <UserAvatar key={i} name={m.name} image={m.image} size="h-6 w-6" extra="ring-2 ring-slate-800" />
+                        ))}
+                      </div>
+                      <span className="hidden sm:inline text-xs text-slate-400">{channelInfo.count}</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => toggleMute(activeChannel)}
+                    className="p-2 text-slate-400 hover:text-white"
+                    title={activeChannel.muted ? 'Unmute' : 'Mute'}
+                  >
+                    {activeChannel.muted ? <BellOff size={18} /> : <Bell size={18} />}
+                  </button>
+                </div>
               </div>
               <MessageStream
                 messages={messages}
                 pinned={pinned}
                 userEmail={userEmail}
                 canModerate={canModerate}
+                loading={loadingMessages}
+                unreadMarkerAt={unreadMarkerAt}
                 onReact={handleReact}
                 onEdit={handleEdit}
                 onDelete={handleDelete}

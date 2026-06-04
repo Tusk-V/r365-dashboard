@@ -68,7 +68,8 @@ export default async function handler(req, res) {
     const withUnread = channels.map(c => {
       const unread = unreadByChannel[c.key] || 0;
       totalUnread += unread;
-      return { ...c, unread, muted: mutedChannels.includes(c.key) };
+      const last = readMap.get(c.key);
+      return { ...c, unread, muted: mutedChannels.includes(c.key), lastReadAt: last ? new Date(last).toISOString() : null };
     });
 
     return res.status(200).json({ channels: withUnread, totalUnread });
