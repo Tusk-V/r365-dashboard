@@ -94,7 +94,16 @@ export default function MessagesPage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ channel }),
     }).then(() => {
-      setChannels(prev => prev.map(c => c.key === channel ? { ...c, unread: 0 } : c));
+      setChannels(prev => {
+        const next = prev.map(c => c.key === channel ? { ...c, unread: 0 } : c);
+        try {
+          if ('setAppBadge' in navigator) {
+            const n = next.reduce((sum, c) => sum + (c.unread || 0), 0);
+            if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge();
+          }
+        } catch (_) {}
+        return next;
+      });
     }).catch(() => {});
   }, []);
 
