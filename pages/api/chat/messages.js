@@ -30,13 +30,14 @@ async function loadContext(req, res) {
   const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
   const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
   return { db, session, userEmail, isAdmin, userRole, dashboardAccess, chatAccess,
-           authorName: session.user.name || userEmail };
+           authorName: session.user.name || userEmail,
+           authorImage: session.user.image || null };
 }
 
 export default async function handler(req, res) {
   const ctx = await loadContext(req, res);
   if (!ctx) return;
-  const { db, userEmail, userRole, isAdmin, dashboardAccess, chatAccess, authorName } = ctx;
+  const { db, userEmail, userRole, isAdmin, dashboardAccess, chatAccess, authorName, authorImage } = ctx;
   const accessUser = { isAdmin, dashboardAccess, chatAccess };
 
   if (req.method === 'GET') {
@@ -114,6 +115,7 @@ export default async function handler(req, res) {
         body: body.trim(),
         authorEmail: userEmail,
         authorName,
+        authorImage,
         authorRole: userRole,
         createdAt: new Date(),
         updatedAt: new Date(),

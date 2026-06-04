@@ -33,3 +33,24 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Slim dark scrollbars for chat surfaces (default browser bars look heavy on
+   the dark slate theme). Apply with the `scrollbar-slim` class. */
+.scrollbar-slim {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent; /* slate-700 thumb */
+}
+.scrollbar-slim::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-slim::-webkit-scrollbar-thumb {
+  background: #334155; /* slate-700 */
+  border-radius: 9999px;
+}
+.scrollbar-slim::-webkit-scrollbar-thumb:hover {
+  background: #475569; /* slate-600 */
+}

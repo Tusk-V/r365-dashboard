@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useSession, signIn } from 'next-auth/react';
-import { ArrowLeft, Home, UserPlus, Users, Bell, BellOff } from 'lucide-react';
+import { ArrowLeft, Home, UserPlus, Users, Bell, BellOff, Building2, Map as MapIcon, Store, MessageSquare } from 'lucide-react';
 import ChannelSidebar from '../components/chat/ChannelSidebar';
 import MessageStream from '../components/chat/MessageStream';
 import Composer from '../components/chat/Composer';
@@ -13,6 +13,23 @@ import EnablePush from '../components/chat/EnablePush';
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 const MSG_POLL_MS = 3000;
 const CHANNEL_POLL_MS = 10000;
+
+const CHANNEL_META = {
+  company: { Icon: Building2, subtitle: () => "Everyone at Andy's" },
+  market: { Icon: MapIcon, subtitle: (c) => `${c.name} market` },
+  location: { Icon: Store, subtitle: () => 'Store channel' },
+};
+
+function UserAvatar({ name, image, size = 'h-8 w-8', extra = '' }) {
+  if (image) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={image} alt={name || ''} className={`${size} rounded-full object-cover ${extra}`} referrerPolicy="no-referrer" />;
+  }
+  const initial = (name || '?').trim().charAt(0).toUpperCase();
+  return <div className={`${size} rounded-full bg-slate-600 flex items-center justify-center text-sm font-semibold text-slate-200 ${extra}`}>{initial}</div>;
+}
+
+const ROLE_BADGE_CLASS = { Admin: 'bg-red-600', FOM: 'bg-blue-600', Manager: 'bg-green-600' };
 
 export default function MessagesPage() {
   const { data: session, status } = useSession();
@@ -37,9 +54,14 @@ export default function MessagesPage() {
 
   const [showApprovals, setShowApprovals] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [unreadMarkerAt, setUnreadMarkerAt] = useState(null);
+  const [channelInfo, setChannelInfo] = useState(null);
 
   const watermarkRef = useRef(null);
   const tempIdRef = useRef(0);
+  const channelsRef = useRef([]);
+  channelsRef.current = channels;
 
   useEffect(() => {
     if (status === 'unauthenticated') signIn('google');
@@ -111,7 +133,11 @@ export default function MessagesPage() {
     if (!activeKey) return;
     let cancelled = false;
     watermarkRef.current = null;
-    setMessages([]); setPinned([]);
+    // Anchor the "New messages" line at the last-read time captured on open
+    // (before markRead moves it). Stays put while you read this channel.
+    const ch = channelsRef.current.find(c => c.key === activeKey);
+    setUnreadMarkerAt(ch?.lastReadAt || null);
+    setMessages([]); setPinned([]); setChannelInfo(null); setLoadingMessages(true);
     (async () => {
       try {
         const res = await fetch(`/api/chat/messages?channel=${encodeURIComponent(activeKey)}`);
@@ -121,6 +147,14 @@ export default function MessagesPage() {
         setPinned(data.pinned || []);
         if (data.watermark) watermarkRef.current = data.watermark;
         markRead(activeKey);
+      } catch (_) {} finally { if (!cancelled) setLoadingMessages(false); }
+    })();
+    // Member summary for the header (one-shot, not polled).
+    (async () => {
+      try {
+        const res = await fetch(`/api/chat/channel-members?channel=${encodeURIComponent(activeKey)}`);
+        const data = await res.json();
+        if (!cancelled && res.ok) setChannelInfo(data);
       } catch (_) {}
     })();
     return () => { cancelled = true; };
@@ -165,7 +199,7 @@ export default function MessagesPage() {
     const tempId = `temp-${tempIdRef.current++}`;
     const optimistic = {
       _id: tempId, channelKey: activeKey, body, authorEmail: userEmail,
-      authorName: session?.user?.name || userEmail, authorRole: userRole,
+      authorName: session?.user?.name || userEmail, authorImage: session?.user?.image || null, authorRole: userRole,
       createdAt: new Date().toISOString(), editedAt: null, isAnnouncement, priority,
       pinned: isAnnouncement, reactions: {}, _pending: true,
     };
@@ -299,9 +333,11 @@ export default function MessagesPage() {
       <div className="flex-1 flex min-h-0">
         <div className={`${mobileShowStream ? 'hidden' : 'flex'} md:flex w-full md:w-64 flex-col border-r border-slate-700 flex-shrink-0`}>
           {loadingChannels ? (
-            <div className="p-4 text-slate-500 text-sm">Loading channels…</div>
+            <div className="flex-1 p-3 space-y-2 animate-pulse">
+              {[...Array(7)].map((_, i) => <div key={i} className="h-9 bg-slate-700/50 rounded-md" />)}
+            </div>
           ) : channels.length === 0 ? (
-            <div className="p-4 text-slate-500 text-sm">No channels available for your access level.</div>
+            <div className="flex-1 p-4 text-slate-500 text-sm">No channels available for your access level.</div>
           ) : (
             <ChannelSidebar
               channels={channels}
@@ -309,27 +345,73 @@ export default function MessagesPage() {
               onSelect={(key) => { setActiveKey(key); setMobileShowStream(true); }}
             />
           )}
+          {userEmail && (
+            <div className="flex items-center gap-2 border-t border-slate-700 p-2 flex-shrink-0">
+              <UserAvatar name={session?.user?.name} image={session?.user?.image} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1 text-sm text-white truncate">
+                  <span className="truncate">{session?.user?.name || userEmail}</span>
+                  {ROLE_BADGE_CLASS[userRole] && (
+                    <span className={`px-1 py-px text-[9px] font-semibold ${ROLE_BADGE_CLASS[userRole]} text-white rounded leading-none flex-shrink-0`}>{userRole}</span>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-500 truncate">{userEmail}</div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className={`${mobileShowStream ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0`}>
           {activeChannel ? (
             <>
-              <div className="flex items-center gap-2 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-shrink-0">
+              <div className="flex items-center gap-2.5 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-shrink-0">
                 <button onClick={() => setMobileShowStream(false)} className="md:hidden p-2 -ml-1 text-slate-400 hover:text-white" aria-label="Back to channels"><ArrowLeft size={18} /></button>
-                <span className="font-semibold">{activeChannel.name}</span>
-                <button
-                  onClick={() => toggleMute(activeChannel)}
-                  className="ml-auto p-2 text-slate-400 hover:text-white"
-                  title={activeChannel.muted ? 'Unmute' : 'Mute'}
-                >
-                  {activeChannel.muted ? <BellOff size={18} /> : <Bell size={18} />}
-                </button>
+                {(() => {
+                  const meta = CHANNEL_META[activeChannel.type] || CHANNEL_META.location;
+                  const Icon = meta.Icon;
+                  return (
+                    <>
+                      <div className="h-8 w-8 rounded-lg bg-slate-700 flex items-center justify-center text-slate-300 flex-shrink-0">
+                        <Icon size={16} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold leading-tight truncate">{activeChannel.name}</div>
+                        <div className="text-[11px] text-slate-400 leading-tight truncate">{meta.subtitle(activeChannel)}</div>
+                      </div>
+                    </>
+                  );
+                })()}
+                <div className="ml-auto flex items-center gap-1 flex-shrink-0">
+                  {channelInfo && channelInfo.count > 0 && (
+                    <button
+                      onClick={() => { if (canApprove) setShowUsers(true); }}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded ${canApprove ? 'hover:bg-slate-700' : 'cursor-default'}`}
+                      title={canApprove ? 'View members' : `${channelInfo.count} members`}
+                    >
+                      <div className="flex -space-x-2">
+                        {channelInfo.sample.slice(0, 3).map((m, i) => (
+                          <UserAvatar key={i} name={m.name} image={m.image} size="h-6 w-6" extra="ring-2 ring-slate-800" />
+                        ))}
+                      </div>
+                      <span className="hidden sm:inline text-xs text-slate-400">{channelInfo.count}</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => toggleMute(activeChannel)}
+                    className="p-2 text-slate-400 hover:text-white"
+                    title={activeChannel.muted ? 'Unmute' : 'Mute'}
+                  >
+                    {activeChannel.muted ? <BellOff size={18} /> : <Bell size={18} />}
+                  </button>
+                </div>
               </div>
               <MessageStream
                 messages={messages}
                 pinned={pinned}
                 userEmail={userEmail}
                 canModerate={canModerate}
+                loading={loadingMessages}
+                unreadMarkerAt={unreadMarkerAt}
                 onReact={handleReact}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
@@ -338,7 +420,10 @@ export default function MessagesPage() {
               <Composer channelName={activeChannel.name} canAnnounce={canModerate} onSend={handleSend} />
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-500">Select a channel</div>
+            <div className="flex-1 flex flex-col items-center justify-center gap-2 text-slate-500">
+              <MessageSquare size={40} className="opacity-40" />
+              <p className="text-sm">Select a channel to start chatting</p>
+            </div>
           )}
         </div>
       </div>
