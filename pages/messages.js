@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { useSession, signIn } from 'next-auth/react';
-import { ArrowLeft, Home, UserPlus, Bell, BellOff } from 'lucide-react';
+import { ArrowLeft, Home, UserPlus, Users, Bell, BellOff } from 'lucide-react';
 import ChannelSidebar from '../components/chat/ChannelSidebar';
 import MessageStream from '../components/chat/MessageStream';
 import Composer from '../components/chat/Composer';
 import Onboarding from '../components/chat/Onboarding';
 import PendingApprovals from '../components/chat/PendingApprovals';
+import UsersDirectory from '../components/chat/UsersDirectory';
 import EnablePush from '../components/chat/EnablePush';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
@@ -35,6 +36,7 @@ export default function MessagesPage() {
   const canApprove = hasDashboard; // dashboard users approve their stores; admin approves all
 
   const [showApprovals, setShowApprovals] = useState(false);
+  const [showUsers, setShowUsers] = useState(false);
 
   const watermarkRef = useRef(null);
   const tempIdRef = useRef(0);
@@ -242,13 +244,23 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="h-[100dvh] bg-slate-900 text-white flex flex-col">
-      <div className="sticky top-0 z-20 flex items-center justify-between gap-2 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-shrink-0">
+    <div className="h-[100dvh] overflow-hidden bg-slate-900 text-white flex flex-col">
+      <div className="z-20 flex items-center justify-between gap-2 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-shrink-0">
         <div className="flex items-center gap-2">
           <img src="/icon-192x192.png" alt="Andy's" className="h-7 w-7 rounded-full" />
           <h1 className="font-bold text-lg">Messages</h1>
         </div>
         <div className="flex items-center gap-1">
+          {canApprove && (
+            <button
+              onClick={() => setShowUsers(true)}
+              className="flex items-center gap-1.5 min-h-[40px] px-2 text-slate-300 hover:text-white"
+              title="Members by channel"
+            >
+              <Users size={18} />
+              <span className="hidden sm:inline text-sm">Users</span>
+            </button>
+          )}
           {canApprove && (
             <button
               onClick={() => setShowApprovals(true)}
@@ -320,6 +332,7 @@ export default function MessagesPage() {
       </div>
 
       {showApprovals && <PendingApprovals onClose={() => setShowApprovals(false)} />}
+      {showUsers && <UsersDirectory onClose={() => setShowUsers(false)} />}
     </div>
   );
 }

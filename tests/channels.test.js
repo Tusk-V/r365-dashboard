@@ -135,3 +135,32 @@ test('canManageStore: admin/all manage any; specific manages only their location
   assert.equal(canManageStore({ isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Bixby'] } }, 'Allen'), false);
   assert.equal(canManageStore({ isAdmin: false, dashboardAccess: { type: 'none' } }, 'Allen'), false);
 });
+
+// Members directory scoping
+const { canViewChannelMembers } = require('../lib/channels');
+
+const COMPANY = { key: 'company-wide', type: 'company', name: 'Company' };
+const MKT_DALLAS = { key: 'market:dallas', type: 'market', name: 'Dallas', market: 'Dallas' };
+const LOC_ALLEN = { key: 'loc:allen', type: 'location', name: 'Allen', market: 'Dallas' };
+const LOC_BIXBY = { key: 'loc:bixby', type: 'location', name: 'Bixby', market: 'Tulsa' };
+
+test('canViewChannelMembers: admin and full-access see every channel', () => {
+  for (const ch of [COMPANY, MKT_DALLAS, LOC_ALLEN, LOC_BIXBY]) {
+    assert.equal(canViewChannelMembers({ isAdmin: true }, ch), true);
+    assert.equal(canViewChannelMembers({ isAdmin: false, dashboardAccess: { type: 'all' } }, ch), true);
+  }
+});
+
+test('canViewChannelMembers: store-scoped manager sees only their own store rosters', () => {
+  const mgr = { isAdmin: false, dashboardAccess: { type: 'specific', locations: ['Allen'] } };
+  assert.equal(canViewChannelMembers(mgr, LOC_ALLEN), true);
+  assert.equal(canViewChannelMembers(mgr, LOC_BIXBY), false);
+  assert.equal(canViewChannelMembers(mgr, MKT_DALLAS), false); // not the market roster
+  assert.equal(canViewChannelMembers(mgr, COMPANY), false);    // not the company roster
+});
+
+test('canViewChannelMembers: no-access users see nothing', () => {
+  assert.equal(canViewChannelMembers({ isAdmin: false, dashboardAccess: { type: 'none' } }, LOC_ALLEN), false);
+  assert.equal(canViewChannelMembers(null, LOC_ALLEN), false);
+  assert.equal(canViewChannelMembers({ isAdmin: false }, COMPANY), false);
+});

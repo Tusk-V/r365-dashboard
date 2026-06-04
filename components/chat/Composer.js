@@ -18,7 +18,7 @@ export default function Composer({ channelName, canAnnounce, onSend }) {
   };
 
   return (
-    <div className="border-t border-slate-700 p-3">
+    <div className="flex-shrink-0 border-t border-slate-700 p-3">
       {canAnnounce && (
         <div className="flex items-center gap-3 mb-2">
           <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300">
