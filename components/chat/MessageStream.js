@@ -36,22 +36,36 @@ function MessageSkeleton() {
   );
 }
 
-export default function MessageStream({ messages, pinned, userEmail, canModerate, loading, unreadMarkerAt, onReact, onEdit, onDelete, onRetry }) {
+export default function MessageStream({ messages, pinned, userEmail, canModerate, loading, unreadMarkerAt, hasMoreOlder, loadingOlder, onLoadOlder, onReact, onEdit, onDelete, onRetry }) {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
   const nearBottomRef = useRef(true);
+  const restoreRef = useRef(null); // preserve scroll position when prepending older messages
 
   const onScroll = () => {
     const el = containerRef.current;
     if (!el) return;
     nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    // Near the top → page in older history, remembering where we were.
+    if (el.scrollTop < 80 && hasMoreOlder && !loadingOlder && onLoadOlder) {
+      restoreRef.current = { prevHeight: el.scrollHeight, prevTop: el.scrollTop };
+      onLoadOlder();
+    }
   };
 
   useEffect(() => {
-    // Scroll the message container itself (never scrollIntoView, which on iOS can
-    // scroll ancestor containers and drag the sticky header/footer out of place).
-    if (nearBottomRef.current && containerRef.current) {
-      const el = containerRef.current;
+    const el = containerRef.current;
+    if (!el) return;
+    // After prepending older messages, keep the viewport on the same message.
+    if (restoreRef.current) {
+      el.scrollTop = el.scrollHeight - restoreRef.current.prevHeight + restoreRef.current.prevTop;
+      restoreRef.current = null;
+      return;
+    }
+    // Otherwise stick to the bottom on new messages. Scroll the container itself
+    // (never scrollIntoView, which on iOS scrolls ancestors and drags the
+    // sticky header/footer out of place).
+    if (nearBottomRef.current) {
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     }
   }, [messages]);
@@ -90,6 +104,9 @@ export default function MessageStream({ messages, pinned, userEmail, canModerate
           </div>
         ) : (
           <div className="max-w-4xl mx-auto w-full py-1">
+            {loadingOlder && (
+              <div className="flex justify-center py-2 text-[11px] text-slate-500">Loading earlier messages…</div>
+            )}
             {messages.map((m, i) => {
               const prev = messages[i - 1];
               const newDay = !prev || !sameDay(prev.createdAt, m.createdAt);

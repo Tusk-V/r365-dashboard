@@ -8,6 +8,7 @@ import Composer from '../components/chat/Composer';
 import Onboarding from '../components/chat/Onboarding';
 import PendingApprovals from '../components/chat/PendingApprovals';
 import UsersDirectory from '../components/chat/UsersDirectory';
+import ChannelMembersPanel from '../components/chat/ChannelMembersPanel';
 import EnablePush from '../components/chat/EnablePush';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
@@ -54,9 +55,12 @@ export default function MessagesPage() {
 
   const [showApprovals, setShowApprovals] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
+  const [showChannelMembers, setShowChannelMembers] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [unreadMarkerAt, setUnreadMarkerAt] = useState(null);
   const [channelInfo, setChannelInfo] = useState(null);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   const watermarkRef = useRef(null);
   const tempIdRef = useRef(0);
@@ -138,6 +142,7 @@ export default function MessagesPage() {
     const ch = channelsRef.current.find(c => c.key === activeKey);
     setUnreadMarkerAt(ch?.lastReadAt || null);
     setMessages([]); setPinned([]); setChannelInfo(null); setLoadingMessages(true);
+    setHasMoreOlder(false); setLoadingOlder(false);
     (async () => {
       try {
         const res = await fetch(`/api/chat/messages?channel=${encodeURIComponent(activeKey)}`);
@@ -145,6 +150,7 @@ export default function MessagesPage() {
         if (cancelled || !res.ok) return;
         setMessages(data.messages || []);
         setPinned(data.pinned || []);
+        setHasMoreOlder(!!data.hasMore);
         if (data.watermark) watermarkRef.current = data.watermark;
         markRead(activeKey);
       } catch (_) {} finally { if (!cancelled) setLoadingMessages(false); }
@@ -276,6 +282,26 @@ export default function MessagesPage() {
     }
   };
 
+  const loadOlder = useCallback(async () => {
+    if (loadingOlder || !hasMoreOlder || !activeKey) return;
+    const oldest = messages[0];
+    if (!oldest) return;
+    setLoadingOlder(true);
+    try {
+      const res = await fetch(`/api/chat/messages?channel=${encodeURIComponent(activeKey)}&before=${encodeURIComponent(oldest.createdAt)}`);
+      const data = await res.json();
+      if (res.ok) {
+        setMessages(prev => {
+          const seen = new Set(prev.map(m => m._id));
+          const older = (data.messages || []).filter(m => !seen.has(m._id));
+          return older.length ? [...older, ...prev] : prev;
+        });
+        setHasMoreOlder(!!data.hasMore);
+      }
+    } catch (_) {}
+    setLoadingOlder(false);
+  }, [activeKey, messages, loadingOlder, hasMoreOlder]);
+
   const activeChannel = channels.find(c => c.key === activeKey);
 
   if (status === 'loading') {
@@ -384,9 +410,9 @@ export default function MessagesPage() {
                 <div className="ml-auto flex items-center gap-1 flex-shrink-0">
                   {channelInfo && channelInfo.count > 0 && (
                     <button
-                      onClick={() => { if (canApprove) setShowUsers(true); }}
+                      onClick={() => { if (canApprove) setShowChannelMembers(true); }}
                       className={`flex items-center gap-1.5 px-2 py-1 rounded ${canApprove ? 'hover:bg-slate-700' : 'cursor-default'}`}
-                      title={canApprove ? 'View members' : `${channelInfo.count} members`}
+                      title={canApprove ? 'Manage members' : `${channelInfo.count} members`}
                     >
                       <div className="flex -space-x-2">
                         {channelInfo.sample.slice(0, 3).map((m, i) => (
@@ -412,6 +438,9 @@ export default function MessagesPage() {
                 canModerate={canModerate}
                 loading={loadingMessages}
                 unreadMarkerAt={unreadMarkerAt}
+                hasMoreOlder={hasMoreOlder}
+                loadingOlder={loadingOlder}
+                onLoadOlder={loadOlder}
                 onReact={handleReact}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
@@ -430,6 +459,9 @@ export default function MessagesPage() {
 
       {showApprovals && <PendingApprovals onClose={() => setShowApprovals(false)} />}
       {showUsers && <UsersDirectory onClose={() => setShowUsers(false)} />}
+      {showChannelMembers && activeChannel && (
+        <ChannelMembersPanel channel={activeChannel.key} channelName={activeChannel.name} onClose={() => setShowChannelMembers(false)} />
+      )}
     </div>
   );
 }

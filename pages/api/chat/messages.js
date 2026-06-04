@@ -42,7 +42,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const { channel, after, since } = req.query;
+      const { channel, after, since, before } = req.query;
       if (!channel) return res.status(400).json({ error: 'channel is required' });
       if (!canAccessChannel(accessUser, channel)) return res.status(403).json({ error: 'No access to this channel' });
 
@@ -79,6 +79,19 @@ export default async function handler(req, res) {
 
       // Initial load (and legacy createdAt-cursor poll) — non-deleted only.
       const baseQuery = { channelKey: channel, deleted: { $ne: true } };
+
+      // Scroll-up pagination: the page of messages older than the given cursor.
+      if (before) {
+        const older = await db.collection('chat_messages')
+          .find({ ...baseQuery, createdAt: { $lt: new Date(before) } })
+          .sort({ createdAt: -1 }).limit(PAGE_SIZE).toArray();
+        return res.status(200).json({
+          messages: older.reverse().map(ser),
+          pinned: pinned.map(ser),
+          hasMore: older.length === PAGE_SIZE,
+        });
+      }
+
       let messages;
       if (after) {
         messages = await db.collection('chat_messages')
@@ -94,6 +107,8 @@ export default async function handler(req, res) {
         messages: messages.map(ser),
         pinned: pinned.map(ser),
         watermark: watermarkOf(messages),
+        // Only meaningful on the initial load: are there older messages to page back to?
+        hasMore: !after && messages.length === PAGE_SIZE,
       });
     } catch (error) {
       console.error('Error loading messages:', error);
