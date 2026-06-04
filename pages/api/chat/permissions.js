@@ -7,7 +7,7 @@ const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
 export default async function handler(req, res) {
   const session = await getServerSession(req, res, authOptions);
-  
+
   if (!session) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -25,11 +25,11 @@ export default async function handler(req, res) {
     try {
       const users = await db.collection('users')
         .find({})
-        .project({ 
-          email: 1, 
-          name: 1, 
+        .project({
+          email: 1,
+          name: 1,
           role: 1,
-          dashboardAccess: 1 
+          dashboardAccess: 1
         })
         .sort({ name: 1, email: 1 })
         .toArray();
@@ -85,7 +85,7 @@ export default async function handler(req, res) {
 
       // Get user to check email
       const user = await db.collection('users').findOne({ _id: new ObjectId(userId) });
-      
+
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
@@ -98,8 +98,9 @@ export default async function handler(req, res) {
       // Delete user
       await db.collection('users').deleteOne({ _id: new ObjectId(userId) });
 
-      // Clean up message reads
-      await db.collection('message_reads').deleteMany({ userEmail: user.email });
+      // Clean up chat read pointers
+      await db.collection('chat_reads').deleteMany({ userEmail: user.email });
+      await db.collection('push_subscriptions').deleteMany({ userEmail: user.email });
 
       return res.status(200).json({ success: true });
     } catch (error) {

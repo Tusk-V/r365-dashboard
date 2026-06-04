@@ -28,16 +28,12 @@ export default function SignIn({ providers }) {
       setEmailError('Email is required.');
       return;
     }
-    if (!trimmed.endsWith('@rancherscustard.com')) {
-      setEmailError('Must be a @rancherscustard.com address.');
-      return;
-    }
 
     setSending(true);
     try {
       const result = await signIn('email', {
         email: trimmed,
-        callbackUrl: '/',
+        callbackUrl: '/messages',
         redirect: false,
       });
       if (result?.error) {
@@ -70,10 +66,10 @@ export default function SignIn({ providers }) {
         {/* Warning Message - Centered */}
         <div className="text-center space-y-2 py-2">
           <h3 className="text-lg font-semibold text-gray-800">
-            Authorized Access Only
+            Andy's Messages
           </h3>
           <p className="text-sm text-gray-600">
-            You must sign in with a <span className="font-bold text-gray-900">@rancherscustard.com</span> email address to access this dashboard.
+            <span className="font-semibold text-gray-900">Employees:</span> enter your email for a sign-in link. <span className="font-semibold text-gray-900">Managers:</span> use your <span className="font-bold text-gray-900">@rancherscustard.com</span> Google account.
           </p>
         </div>
 
@@ -97,14 +93,14 @@ export default function SignIn({ providers }) {
             ) : (
               <form onSubmit={handleEmailSubmit} className="space-y-2">
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Sign in with email
+                  Sign in with email (employees)
                 </label>
                 <input
                   id="email"
                   type="email"
                   autoComplete="email"
                   inputMode="email"
-                  placeholder="you@rancherscustard.com"
+                  placeholder="you@email.com"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(''); }}
                   disabled={sending}

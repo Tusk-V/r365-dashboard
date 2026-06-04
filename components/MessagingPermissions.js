@@ -17,7 +17,7 @@ export default function MessagingPermissions({ onClose }) {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/messages/permissions');
+      const res = await fetch('/api/chat/permissions');
       const data = await res.json();
       
       if (res.ok) {
@@ -34,7 +34,7 @@ export default function MessagingPermissions({ onClose }) {
   const updateRole = async (userId, role) => {
     setSaving(userId);
     try {
-      const res = await fetch('/api/messages/permissions', {
+      const res = await fetch('/api/chat/permissions', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, role })
@@ -59,7 +59,7 @@ export default function MessagingPermissions({ onClose }) {
 
     setSaving(userId);
     try {
-      const res = await fetch(`/api/messages/permissions?userId=${userId}`, {
+      const res = await fetch(`/api/chat/permissions?userId=${userId}`, {
         method: 'DELETE'
       });
 

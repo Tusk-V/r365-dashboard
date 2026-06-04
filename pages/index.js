@@ -3,9 +3,8 @@ import { useRouter } from "next/router"
 import Head from "next/head"
 import { useState, useEffect } from 'react';
 import React from 'react';
-import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen, MessageSquare, Settings, Receipt } from 'lucide-react';
+import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen, MessageSquare, Settings, Receipt, Shield } from 'lucide-react';
 import SwipeNavigation from '../components/SwipeNavigation';
-import MessagesPanel from '../components/MessagesPanel';
 import MessagingPermissions from '../components/MessagingPermissions';
 import { getMarket, sortByMarket } from '../lib/markets';
 import { parseSheetData, parseHistoricalData } from '../lib/sheetParsers';
@@ -160,9 +159,7 @@ const [modelCoefficients, setModelCoefficients] = useState(null);
 
 // Messages state
 const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
-const [showMessagesPanel, setShowMessagesPanel] = useState(false);
 const [showPermissionsModal, setShowPermissionsModal] = useState(false);
-const [userRole, setUserRole] = useState(null);
 
 // Access control
 const [dashboardAccess, setDashboardAccess] = useState(null);
@@ -893,30 +890,6 @@ const url = `/api/sheets-proxy?range=${encodeURIComponent(range)}`;
 
 };
 
-const loadCurrentUserRole = async () => {
-try {
-const res = await fetch('/api/check-access');
-const data = await res.json();
-if (res.ok && data.role) {
-setUserRole(data.role);
-}
-} catch (err) {
-console.error('Error loading user role:', err);
-}
-};
-
-const loadUnreadCount = async () => {
-try {
-const res = await fetch('/api/messages/read');
-const data = await res.json();
-if (res.ok) {
-setUnreadMessagesCount(data.unreadCount || 0);
-}
-} catch (err) {
-console.error('Error loading unread count:', err);
-}
-};
-
 const getEmployeeTitle = (name) => {
 if (!name) return null;
 return employeeTitles[name.toLowerCase()] || null;
@@ -1208,10 +1181,15 @@ sessionStorage.removeItem('pendingTab');
 useEffect(() => {
 if (status === "authenticated" && !accessLoading && !isAdmin) {
 if (!dashboardAccess || dashboardAccess.type === 'none') {
+// Approved chat-only employees (no dashboard access) belong in /messages
+if (session?.user?.chatAccess?.status === 'approved') {
+router.replace('/messages');
+} else {
 router.push('/auth/access-pending');
 }
 }
-}, [status, accessLoading, isAdmin, dashboardAccess, router])
+}
+}, [status, accessLoading, isAdmin, dashboardAccess, session, router])
 
 // Load dashboard access permissions
 const loadDashboardAccess = async () => {
@@ -1280,8 +1258,6 @@ return () => {
 useEffect(() => {
 if (status === "authenticated") {
 loadDashboardAccess();
-loadCurrentUserRole();
-loadUnreadCount();
 loadDataFromGoogleSheets();
 loadAvailableWeeks();
 loadAutoClockouts();
@@ -1299,6 +1275,29 @@ loadModelForecastData();
 loadModelCoefficients();
 }
 }, [status]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    let active = true;
+    const load = async () => {
+      try {
+        const res = await fetch('/api/chat/channels');
+        const data = await res.json();
+        if (active && res.ok) {
+          setUnreadMessagesCount(data.totalUnread || 0);
+          try {
+            if ('setAppBadge' in navigator) {
+              const n = data.totalUnread || 0;
+              if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge();
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+    };
+    load();
+    const id = setInterval(() => { if (!document.hidden) load(); }, 15000);
+    return () => { active = false; clearInterval(id); };
+  }, [status]);
 
 useEffect(() => {
 if (selectedWeek === 'current') {
@@ -1452,7 +1451,7 @@ loadModelCoefficients();
 
             {/* Messages Button */}
             <button
-              onClick={() => setShowMessagesPanel(true)}
+              onClick={() => router.push('/messages')}
               className="relative p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
               title="Messages"
             >
@@ -1463,6 +1462,17 @@ loadModelCoefficients();
                 </span>
               )}
             </button>
+
+            {/* User Roles Button (admin only) */}
+            {isAdmin && (
+              <button
+                onClick={() => setShowPermissionsModal(true)}
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                title="User Roles"
+              >
+                <Shield size={16} className="text-white" />
+              </button>
+            )}
 
             {/* Admin Button (admin only) */}
             {isAdmin && (
@@ -1494,7 +1504,7 @@ loadModelCoefficients();
           <div className="flex items-center gap-2">
             {/* Messages Button */}
             <button
-              onClick={() => setShowMessagesPanel(true)}
+              onClick={() => router.push('/messages')}
               className="relative p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
               title="Messages"
             >
@@ -1505,6 +1515,15 @@ loadModelCoefficients();
                 </span>
               )}
             </button>
+            {isAdmin && (
+              <button
+                onClick={() => setShowPermissionsModal(true)}
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                title="User Roles"
+              >
+                <Shield size={16} className="text-white" />
+              </button>
+            )}
             {isAdmin && (
               <button
                 onClick={() => router.push('/admin')}
@@ -1759,15 +1778,6 @@ loadModelCoefficients();
     {showPermissionsModal && (
       <MessagingPermissions onClose={() => setShowPermissionsModal(false)} />
     )}
-
-    <MessagesPanel
-      isOpen={showMessagesPanel}
-      onClose={() => setShowMessagesPanel(false)}
-      userEmail={session?.user?.email}
-      userRole={userRole}
-      onUnreadCountChange={setUnreadMessagesCount}
-      onOpenPermissions={() => setShowPermissionsModal(true)}
-    />
   </div>
 </>
 
