@@ -28,7 +28,7 @@ async function loadContext(req, res) {
   const isAdmin = userEmail === ADMIN_EMAIL;
   const user = await db.collection('users').findOne({ email: userEmail });
   // Transition-safe: honor the legacy `role` field until the FOM migration runs.
-  const owner = !!user?.owner;
+  const owner = isAdmin || !!user?.owner;
   const fom = isAdmin ? true : !!(user?.fom || user?.role === 'FOM');
   const manager = !!user?.manager;
   const managedMarkets = user?.managedMarkets || [];
