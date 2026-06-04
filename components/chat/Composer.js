@@ -20,7 +20,7 @@ export default function Composer({ channelName, canAnnounce, onSend }) {
   return (
     <div
       className="flex-shrink-0 border-t border-slate-700 p-3"
-      style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+      style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
     >
       {canAnnounce && (
         <div className="flex items-center gap-3 mb-2">

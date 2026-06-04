@@ -9,13 +9,14 @@ html,
 body {
   margin: 0;
   background-color: #0f172a; /* slate-900 */
-  /* Fill the safe-area insets with the slate background under the notch
-     and home indicator when viewport-fit=cover is set. */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-    env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 body {
+  /* Apply the safe-area insets ONCE. Putting this padding on both `html` and
+     `body` double-counts the insets and over-pads every page (the notch-height
+     gap was appearing twice at the top). Body-only = a single correct inset. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
