@@ -8,6 +8,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import clientPromise from "../../../lib/mongodb";
 import { MARKETS } from "../../../lib/channels";
+import { logAudit } from "../../../lib/audit";
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -38,7 +39,7 @@ export default async function handler(req, res) {
         managedMarkets: u.managedMarkets || [],
         hasDashboard: !!(u.dashboardAccess && u.dashboardAccess.type && u.dashboardAccess.type !== 'none'),
       })).sort((a, b) => a.name.localeCompare(b.name));
-      return res.status(200).json({ isSuperAdmin, users: list });
+      return res.status(200).json({ isSuperAdmin, canGrantOwner: isSuperAdmin || !!me?.owner, users: list });
     } catch (error) {
       console.error('roles GET error:', error);
       return res.status(500).json({ error: 'Failed to load roles' });
@@ -54,10 +55,14 @@ export default async function handler(req, res) {
       if (!target) return res.status(404).json({ error: 'User not found' });
 
       if (action === 'owner') {
-        if (!isSuperAdmin) return res.status(403).json({ error: 'Only the super admin can set admins' });
-        // Owner implies all-channel capability (fom); revoking removes both.
-        const set = value ? { owner: true, fom: true, manager: false, managedMarkets: [] } : { owner: false, fom: false };
+        if (!isSuperAdmin && !me?.owner) return res.status(403).json({ error: 'Only the super admin or an Owner can set Owners' });
+        // Owner is a standalone top tier — no implicit fom. Granting clears the
+        // lower tiers; revoking just drops owner.
+        const set = value
+          ? { owner: true, fom: false, manager: false, managedMarkets: [] }
+          : { owner: false };
         await db.collection('users').updateOne({ email: targetEmail }, { $set: set, $unset: { role: '' } });
+        await logAudit(db, { actorEmail: email, action: value ? 'grant-owner' : 'revoke-owner', targetEmail });
         return res.status(200).json({ success: true });
       }
       if (action === 'fom') {
@@ -65,23 +70,27 @@ export default async function handler(req, res) {
         // Tiers are exclusive — promoting to FOM clears Manager/Market.
         const set = value ? { fom: true, manager: false, managedMarkets: [] } : { fom: false };
         await db.collection('users').updateOne({ email: targetEmail }, { $set: set, $unset: { role: '' } });
+        await logAudit(db, { actorEmail: email, action: 'set-fom', targetEmail, detail: { value: !!value } });
         return res.status(200).json({ success: true });
       }
       if (action === 'manager') {
         const set = value ? { manager: true, fom: false, managedMarkets: [] } : { manager: false };
         await db.collection('users').updateOne({ email: targetEmail }, { $set: set, $unset: { role: '' } });
+        await logAudit(db, { actorEmail: email, action: 'set-manager', targetEmail, detail: { value: !!value } });
         return res.status(200).json({ success: true });
       }
       if (action === 'markets') {
         const valid = Array.isArray(markets) ? markets.filter(m => MARKETS.includes(m)) : [];
         const set = valid.length ? { managedMarkets: valid, fom: false, manager: false } : { managedMarkets: valid };
         await db.collection('users').updateOne({ email: targetEmail }, { $set: set, $unset: { role: '' } });
+        await logAudit(db, { actorEmail: email, action: 'set-markets', targetEmail, detail: { markets: valid } });
         return res.status(200).json({ success: true });
       }
       if (action === 'name') {
         const name = (req.body.name || '').trim();
         if (!name) return res.status(400).json({ error: 'Name is required' });
         await db.collection('users').updateOne({ email: targetEmail }, { $set: { name } });
+        await logAudit(db, { actorEmail: email, action: 'rename', targetEmail, detail: { name } });
         return res.status(200).json({ success: true });
       }
       return res.status(400).json({ error: 'Unknown action' });
