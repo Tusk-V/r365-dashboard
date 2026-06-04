@@ -17,9 +17,10 @@ export default async function handler(req, res) {
     const email = session.user.email;
     const isAdmin = email === ADMIN_EMAIL;
     const user = await db.collection('users').findOne({ email });
+    const fom = isAdmin || !!(user?.fom || user?.role === 'FOM' || user?.role === 'Admin');
     const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
     const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
-    if (!canAccessChannel({ isAdmin, dashboardAccess, chatAccess }, channel)) return res.status(403).json({ error: 'No access to this channel' });
+    if (!canAccessChannel({ isAdmin, fom, managedMarkets: user?.managedMarkets || [], dashboardAccess, chatAccess }, channel)) return res.status(403).json({ error: 'No access to this channel' });
     await db.collection('users').updateOne({ email }, muted ? { $addToSet: { mutedChannels: channel } } : { $pull: { mutedChannels: channel } });
     return res.status(200).json({ success: true, muted: !!muted });
   } catch (e) { console.error('mute error', e); return res.status(500).json({ error: 'Failed to update mute' }); }

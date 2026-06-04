@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { X, Check, Ban, UserMinus, Users } from 'lucide-react';
 
-const ROLES = ['User', 'Manager', 'FOM', 'Admin'];
-const ROLE_BADGE = { Admin: 'bg-red-600', FOM: 'bg-blue-600', Manager: 'bg-green-600' };
+const MARKETS = ['Tulsa', 'Oklahoma City', 'Dallas', 'Orlando'];
+const MARKET_LABEL = { 'Oklahoma City': 'OKC' };
 
 function Avatar({ name, image }) {
   if (image) {
@@ -11,6 +11,10 @@ function Avatar({ name, image }) {
   }
   const initial = (name || '?').trim().charAt(0).toUpperCase();
   return <div className="h-8 w-8 rounded-full bg-slate-600 flex items-center justify-center text-sm font-semibold text-slate-200 flex-shrink-0">{initial}</div>;
+}
+
+function chipClass(on) {
+  return `px-1.5 py-0.5 text-[10px] rounded border ${on ? 'bg-blue-600/30 border-blue-500 text-white' : 'bg-slate-700 border-slate-600 text-slate-400 hover:border-slate-500'}`;
 }
 
 export default function ChannelMembersPanel({ channel, channelName, onClose }) {
@@ -85,28 +89,36 @@ export default function ChannelMembersPanel({ channel, channelName, onClose }) {
                 <h3 className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1.5 px-1">{data.members.length} member{data.members.length === 1 ? '' : 's'}</h3>
                 <div className="space-y-1">
                   {data.members.map(m => (
-                    <div key={m.email} className="flex items-center gap-2 p-1.5 rounded hover:bg-slate-700/40">
+                    <div key={m.email} className="flex items-start gap-2 p-1.5 rounded hover:bg-slate-700/40">
                       <Avatar name={m.name} image={m.image} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1 text-sm text-white">
                           <span className="truncate">{m.name}</span>
-                          {ROLE_BADGE[m.role] && <span className={`px-1 py-px text-[9px] font-semibold ${ROLE_BADGE[m.role]} text-white rounded leading-none flex-shrink-0`}>{m.role}</span>}
+                          {m.isAdmin && <span className="px-1 py-px text-[9px] font-semibold bg-red-600 text-white rounded leading-none flex-shrink-0">Admin</span>}
+                          {!m.isAdmin && m.fom && <span className="px-1 py-px text-[9px] font-semibold bg-blue-600 text-white rounded leading-none flex-shrink-0">FOM</span>}
+                          {!m.isAdmin && !m.fom && (m.managedMarkets || []).length > 0 && <span className="px-1 py-px text-[9px] font-semibold bg-green-600 text-white rounded leading-none flex-shrink-0">Market mgr</span>}
                         </div>
                         <div className="text-[11px] text-slate-500 truncate">{m.email}</div>
+
+                        {isAdmin && !m.isAdmin && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            <button disabled={busy === m.email} onClick={() => post({ email: m.email, action: 'fom', value: !m.fom })} className={chipClass(m.fom)} title="Field Ops Manager — all channels">FOM</button>
+                            {MARKETS.map(mk => {
+                              const on = (m.managedMarkets || []).includes(mk);
+                              const next = on ? (m.managedMarkets || []).filter(x => x !== mk) : [...(m.managedMarkets || []), mk];
+                              return (
+                                <button key={mk} disabled={busy === m.email || m.fom} onClick={() => post({ email: m.email, action: 'markets', markets: next })} className={chipClass(on) + (m.fom ? ' opacity-40' : '')} title={`Market manager — ${mk}`}>
+                                  {MARKET_LABEL[mk] || mk}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                      {isAdmin && m.role !== 'Admin' && (
-                        <select
-                          value={m.role}
-                          disabled={busy === m.email}
-                          onChange={(e) => post({ email: m.email, action: 'role', role: e.target.value })}
-                          className="text-xs bg-slate-700 border border-slate-600 rounded px-1 py-1 text-slate-200 focus:outline-none"
-                        >
-                          {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                      )}
+
                       {m.removable && (
                         <button disabled={busy === m.email} onClick={() => post({ email: m.email, action: 'remove' })}
-                          className="p-1.5 text-slate-400 hover:text-red-400 disabled:opacity-50 flex-shrink-0" title="Remove from this store">
+                          className="p-1.5 text-slate-400 hover:text-red-400 disabled:opacity-50 flex-shrink-0" title="Remove from this channel">
                           <UserMinus size={16} />
                         </button>
                       )}

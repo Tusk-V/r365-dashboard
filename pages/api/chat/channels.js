@@ -17,11 +17,13 @@ export default async function handler(req, res) {
     const isAdmin = userEmail === ADMIN_EMAIL;
 
     const user = await db.collection('users').findOne({ email: userEmail });
+    const fom = isAdmin || !!(user?.fom || user?.role === 'FOM' || user?.role === 'Admin');
+    const managedMarkets = user?.managedMarkets || [];
     const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
     const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
     const mutedChannels = user?.mutedChannels || [];
 
-    const channels = deriveChannelsForUser({ isAdmin, dashboardAccess, chatAccess });
+    const channels = deriveChannelsForUser({ isAdmin, fom, managedMarkets, dashboardAccess, chatAccess });
     if (channels.length === 0) {
       return res.status(200).json({ channels: [], totalUnread: 0 });
     }

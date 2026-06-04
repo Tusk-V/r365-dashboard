@@ -1,31 +1,36 @@
 // pages/api/chat/channel-admin.js
 // Manage the members of a single channel, in-context.
-//   GET  ?channel=KEY -> { canManage, isAdmin, store, members:[{email,name,role,image,removable}], pending:[{email,name,stores}] }
-//   POST { channel, action: 'approve'|'deny'|'remove'|'role', email, role? }
-// Store-scoped: a manager/FOM may manage location channels for the stores they
-// oversee; admins (and dashboard "all") may manage any channel. "Remove" applies
-// only to location channels (revokes that store from the member's chat access).
+//   GET  ?channel=KEY -> { canManage, isAdmin, store, members:[{email,name,image,fom,managedMarkets,removable}], pending:[{email,name,stores}] }
+//   POST { channel, action: 'approve'|'deny'|'remove'|'fom'|'markets', email, value?, markets? }
+// Scope-based: admin/FOM manage any channel; a market manager manages their
+// markets' channels; a store manager manages their store channels. "Remove"
+// revokes a member's chat access to a location channel's store.
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import clientPromise from "../../../lib/mongodb";
-import { canAccessChannel, canManageStore, LOCATIONS, channelKeyForLocation } from "../../../lib/channels";
+import { canAccessChannel, canManageStore, canManageChannel, LOCATIONS, MARKETS, channelKeyForLocation } from "../../../lib/channels";
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
-const ROLES = ['Admin', 'FOM', 'Manager', 'User'];
+
+// Transition-safe FOM read (honors the legacy `role` field until migration).
+function isFom(u) {
+  return !!(u?.fom || u?.role === 'FOM' || u?.role === 'Admin');
+}
 
 function actorFrom(session, user) {
   const email = session.user.email;
   const isAdmin = email === ADMIN_EMAIL;
-  return { email, isAdmin, dashboardAccess: isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' }) };
+  return {
+    email,
+    isAdmin,
+    fom: isAdmin || isFom(user),
+    managedMarkets: user?.managedMarkets || [],
+    dashboardAccess: isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' }),
+  };
 }
 
 function storeForChannel(channel) {
   return LOCATIONS.find(l => channelKeyForLocation(l) === channel) || null;
-}
-
-function canManageChannel(actor, channel, store) {
-  if (store) return canManageStore(actor, store);
-  return actor.isAdmin || actor.dashboardAccess.type === 'all'; // market/company
 }
 
 export default async function handler(req, res) {
@@ -40,13 +45,13 @@ export default async function handler(req, res) {
   const channel = req.method === 'GET' ? req.query.channel : req.body?.channel;
   if (!channel) return res.status(400).json({ error: 'channel is required' });
   const store = storeForChannel(channel);
-  if (!canManageChannel(actor, channel, store)) return res.status(403).json({ error: 'Not authorized to manage this channel' });
+  if (!canManageChannel(actor, channel)) return res.status(403).json({ error: 'Not authorized to manage this channel' });
 
   if (req.method === 'GET') {
     try {
       const users = await db.collection('users')
         .find({})
-        .project({ email: 1, name: 1, image: 1, role: 1, dashboardAccess: 1, chatAccess: 1 })
+        .project({ email: 1, name: 1, image: 1, role: 1, fom: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1 })
         .toArray();
 
       const members = [];
@@ -54,14 +59,22 @@ export default async function handler(req, res) {
       for (const u of users) {
         if (!u.email) continue;
         const uIsAdmin = u.email === ADMIN_EMAIL;
-        const access = { isAdmin: uIsAdmin, dashboardAccess: u.dashboardAccess, chatAccess: u.chatAccess };
+        const access = {
+          isAdmin: uIsAdmin,
+          fom: isFom(u),
+          managedMarkets: u.managedMarkets || [],
+          dashboardAccess: u.dashboardAccess,
+          chatAccess: u.chatAccess,
+        };
         const inChannelByStore = !!store && (u.chatAccess?.stores || []).includes(store);
         if (canAccessChannel(access, channel)) {
           members.push({
             email: u.email,
             name: u.name || u.email,
             image: u.image || null,
-            role: uIsAdmin ? 'Admin' : (u.role || 'User'),
+            fom: uIsAdmin || isFom(u),
+            managedMarkets: u.managedMarkets || [],
+            isAdmin: uIsAdmin,
             removable: inChannelByStore && u.email !== actor.email && u.email !== ADMIN_EMAIL,
           });
         }
@@ -79,7 +92,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST') {
     try {
-      const { action, email, role } = req.body;
+      const { action, email, value, markets } = req.body;
       if (!email || !action) return res.status(400).json({ error: 'email and action are required' });
       if (email === actor.email) return res.status(400).json({ error: 'You cannot manage your own account here' });
       if (email === ADMIN_EMAIL) return res.status(403).json({ error: 'Cannot modify the admin account' });
@@ -113,11 +126,18 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, stores: remaining });
       }
 
-      if (action === 'role') {
-        if (!actor.isAdmin) return res.status(403).json({ error: 'Only an admin can change roles' });
-        if (!ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
-        await db.collection('users').updateOne({ email }, { $set: { role } });
-        return res.status(200).json({ success: true, role });
+      // Scope assignment — admin only.
+      if (action === 'fom') {
+        if (!actor.isAdmin) return res.status(403).json({ error: 'Only an admin can set FOM' });
+        await db.collection('users').updateOne({ email }, { $set: { fom: !!value }, $unset: { role: '' } });
+        return res.status(200).json({ success: true, fom: !!value });
+      }
+
+      if (action === 'markets') {
+        if (!actor.isAdmin) return res.status(403).json({ error: 'Only an admin can set market managers' });
+        const valid = Array.isArray(markets) ? markets.filter(m => MARKETS.includes(m)) : [];
+        await db.collection('users').updateOne({ email }, { $set: { managedMarkets: valid }, $unset: { role: '' } });
+        return res.status(200).json({ success: true, managedMarkets: valid });
       }
 
       return res.status(400).json({ error: 'Unknown action' });

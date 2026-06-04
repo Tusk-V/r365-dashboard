@@ -22,8 +22,11 @@ export default async function handler(req, res) {
   const email = session.user.email;
   const isAdmin = email === ADMIN_EMAIL;
   const me = await db.collection('users').findOne({ email });
+  const fomOf = (u) => !!(u?.fom || u?.role === 'FOM' || u?.role === 'Admin');
   const meAccess = {
     isAdmin,
+    fom: isAdmin || fomOf(me),
+    managedMarkets: me?.managedMarkets || [],
     dashboardAccess: isAdmin ? { type: 'all' } : (me?.dashboardAccess || { type: 'none' }),
     chatAccess: me?.chatAccess || { status: 'none', stores: [] },
   };
@@ -32,14 +35,14 @@ export default async function handler(req, res) {
   try {
     const users = await db.collection('users')
       .find({})
-      .project({ email: 1, name: 1, image: 1, dashboardAccess: 1, chatAccess: 1 })
+      .project({ email: 1, name: 1, image: 1, role: 1, fom: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1 })
       .toArray();
 
     const members = [];
     for (const u of users) {
       if (!u.email) continue;
       const uIsAdmin = u.email === ADMIN_EMAIL;
-      const access = { isAdmin: uIsAdmin, dashboardAccess: u.dashboardAccess, chatAccess: u.chatAccess };
+      const access = { isAdmin: uIsAdmin, fom: fomOf(u), managedMarkets: u.managedMarkets || [], dashboardAccess: u.dashboardAccess, chatAccess: u.chatAccess };
       if (canAccessChannel(access, channel)) {
         members.push({ name: u.name || u.email, image: u.image || null });
       }

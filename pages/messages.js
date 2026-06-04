@@ -10,6 +10,7 @@ import PendingApprovals from '../components/chat/PendingApprovals';
 import UsersDirectory from '../components/chat/UsersDirectory';
 import ChannelMembersPanel from '../components/chat/ChannelMembersPanel';
 import EnablePush from '../components/chat/EnablePush';
+import { canManageChannel, isDashboardUser } from '../lib/channels';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 const MSG_POLL_MS = 3000;
@@ -45,13 +46,13 @@ export default function MessagesPage() {
 
   const userEmail = session?.user?.email;
   const isAdmin = userEmail === ADMIN_EMAIL;
-  const [userRole, setUserRole] = useState('User');
-  const canModerate = userRole === 'Admin' || userRole === 'FOM';
+  const [scope, setScope] = useState({ fom: false, managedMarkets: [], dashboardAccess: null });
 
-  const dashType = session?.user?.dashboardAccess?.type;
-  const hasDashboard = isAdmin || (dashType && dashType !== 'none');
+  const dashboardAccess = session?.user?.dashboardAccess || scope.dashboardAccess || { type: 'none' };
+  const meActor = { isAdmin, fom: isAdmin || scope.fom, managedMarkets: scope.managedMarkets, dashboardAccess };
+  const hasDashboard = isDashboardUser(meActor);
   const chatStatus = session?.user?.chatAccess?.status || 'none';
-  const canApprove = hasDashboard; // dashboard users approve their stores; admin approves all
+  const canApprove = hasDashboard; // dashboard users / FOM / market managers manage members
 
   const [showApprovals, setShowApprovals] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
@@ -72,11 +73,10 @@ export default function MessagesPage() {
   }, [status]);
 
   useEffect(() => {
-    if (!userEmail) return;
-    if (isAdmin) { setUserRole('Admin'); return; }
+    if (!userEmail || isAdmin) return;
     fetch('/api/check-access')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.role) setUserRole(d.role); })
+      .then(d => { if (d) setScope({ fom: !!d.fom, managedMarkets: d.managedMarkets || [], dashboardAccess: d.dashboardAccess || null }); })
       .catch(() => {});
   }, [userEmail, isAdmin]);
 
@@ -303,6 +303,7 @@ export default function MessagesPage() {
   }, [activeKey, messages, loadingOlder, hasMoreOlder]);
 
   const activeChannel = channels.find(c => c.key === activeKey);
+  const canManageActive = activeChannel ? canManageChannel(meActor, activeChannel.key) : false;
 
   if (status === 'loading') {
     return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Loading…</div>;
@@ -435,7 +436,7 @@ export default function MessagesPage() {
                 messages={messages}
                 pinned={pinned}
                 userEmail={userEmail}
-                canModerate={canModerate}
+                canModerate={canManageActive}
                 loading={loadingMessages}
                 unreadMarkerAt={unreadMarkerAt}
                 hasMoreOlder={hasMoreOlder}
@@ -446,7 +447,7 @@ export default function MessagesPage() {
                 onDelete={handleDelete}
                 onRetry={handleRetry}
               />
-              <Composer channelName={activeChannel.name} canAnnounce={canModerate} onSend={handleSend} />
+              <Composer channelName={activeChannel.name} canAnnounce={canManageActive} onSend={handleSend} />
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center gap-2 text-slate-500">
