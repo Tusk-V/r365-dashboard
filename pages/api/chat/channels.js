@@ -19,6 +19,7 @@ export default async function handler(req, res) {
     const user = await db.collection('users').findOne({ email: userEmail });
     const dashboardAccess = isAdmin ? { type: 'all' } : (user?.dashboardAccess || { type: 'none' });
     const chatAccess = user?.chatAccess || { status: 'none', stores: [] };
+    const mutedChannels = user?.mutedChannels || [];
 
     const channels = deriveChannelsForUser({ isAdmin, dashboardAccess, chatAccess });
     if (channels.length === 0) {
@@ -67,7 +68,7 @@ export default async function handler(req, res) {
     const withUnread = channels.map(c => {
       const unread = unreadByChannel[c.key] || 0;
       totalUnread += unread;
-      return { ...c, unread };
+      return { ...c, unread, muted: mutedChannels.includes(c.key) };
     });
 
     return res.status(200).json({ channels: withUnread, totalUnread });
