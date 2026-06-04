@@ -57,7 +57,7 @@ export default function MessageStream({ messages, pinned, userEmail, canModerate
         </div>
       )}
 
-      <div ref={containerRef} onScroll={onScroll} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+      <div ref={containerRef} onScroll={onScroll} className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-slim">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
             <MessageSquare size={40} className="mb-2 opacity-50" />
