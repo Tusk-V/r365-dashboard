@@ -35,7 +35,7 @@ export default function Onboarding({ status, onSubmitted }) {
 
   return (
     <div className="h-[100dvh] bg-slate-900 text-white flex flex-col">
-      <div className="p-6 border-b border-slate-700">
+      <div className="p-6 border-b border-white/5">
         <h1 className="text-xl font-bold flex items-center gap-2"><Store size={20} className="text-blue-400" /> Welcome to Andy's Messages</h1>
         <p className="text-slate-400 text-sm mt-1">Which store(s) do you work at? Pick all that apply — your manager will approve you.</p>
       </div>
@@ -44,14 +44,14 @@ export default function Onboarding({ status, onSubmitted }) {
           const on = selected.includes(loc);
           return (
             <button key={loc} onClick={() => toggle(loc)}
-              className={`flex items-center justify-between min-h-[48px] px-3 py-2 rounded-lg border text-sm text-left ${on ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>
+              className={`flex items-center justify-between min-h-[48px] px-3 py-2 rounded-lg border text-sm text-left ${on ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-slate-800 border-white/5 text-slate-300'}`}>
               <span className="truncate">{loc}</span>
               {on && <Check size={16} className="text-blue-400 flex-shrink-0" />}
             </button>
           );
         })}
       </div>
-      <div className="p-4 border-t border-slate-700">
+      <div className="p-4 border-t border-white/5">
         {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
         <button onClick={submit} disabled={saving || selected.length === 0}
           className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:text-slate-400 text-white font-medium rounded-lg">

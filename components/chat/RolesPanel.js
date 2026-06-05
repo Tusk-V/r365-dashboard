@@ -49,7 +49,7 @@ export default function RolesPanel({ onClose }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-slate-800 w-full sm:max-w-lg sm:rounded-lg rounded-t-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-4 border-b border-slate-700">
+        <div className="flex items-center justify-between p-4 border-b border-white/5">
           <h2 className="font-bold text-white flex items-center gap-2"><ShieldCheck size={18} /> Roles</h2>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-white"><X size={20} /></button>
         </div>
@@ -58,7 +58,7 @@ export default function RolesPanel({ onClose }) {
           <div className="relative">
             <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people"
-              className="w-full pl-7 pr-2 py-1.5 bg-slate-700/50 border border-slate-600 rounded-md text-base md:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600" />
+              className="w-full pl-7 pr-2 py-1.5 bg-slate-700/50 border border-slate-600 rounded-md text-base md:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
           <p className="text-[11px] text-slate-500 mt-1.5 px-1">
             Owner = full access (all channels, moderation, role management). FOM = all channels. MM = a market. Manager = badge.

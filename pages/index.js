@@ -3,7 +3,7 @@ import { useRouter } from "next/router"
 import Head from "next/head"
 import { useState, useEffect } from 'react';
 import React from 'react';
-import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen, MessageSquare, Settings, Receipt } from 'lucide-react';
+import { Filter, TrendingUp, Users, DollarSign, Clock, AlertTriangle, Target, Activity, RefreshCw, AlertCircle, ChevronDown, BookOpen, MessageSquare, Settings, Receipt, LogOut } from 'lucide-react';
 import SwipeNavigation from '../components/SwipeNavigation';
 import { getMarket, sortByMarket } from '../lib/markets';
 import { parseSheetData, parseHistoricalData } from '../lib/sheetParsers';
@@ -1351,7 +1351,7 @@ loadModelCoefficients();
 
 if (status === "loading" || accessLoading) {
 return (
-<div className="min-h-screen bg-slate-900 flex items-center justify-center">
+<div className="min-h-screen flex items-center justify-center">
 <div className="text-white text-lg">Loading...</div>
 </div>
 )
@@ -1364,7 +1364,7 @@ return null
 // Show loading while redirecting to access-pending (useEffect handles the redirect)
 if (!isAdmin && (!dashboardAccess || dashboardAccess.type === 'none')) {
 return (
-<div className="min-h-screen bg-slate-900 flex items-center justify-center">
+<div className="min-h-screen flex items-center justify-center">
 <div className="text-white text-lg">Checking access...</div>
 </div>
 );
@@ -1372,208 +1372,168 @@ return (
 
 const totals = calculateTotals();
 
+// Refresh the data for whichever dashboard is active (shared by the
+// desktop + mobile refresh buttons so the logic lives in one place).
+const handleRefresh = () => {
+  if (activeTab === 'sales') {
+    if (selectedWeek === 'current') { loadDataFromGoogleSheets(); } else { loadHistoricalWeek(selectedWeek); }
+  } else if (activeTab === 'clockouts') { loadAutoClockouts(); }
+  else if (activeTab === 'call-offs') { loadCallOffs(); }
+  else if (activeTab === 'overtime') { loadOvertimeWarnings(); }
+  else if (activeTab === 'scheduled-today') { loadScheduledToday(); }
+  else if (activeTab === 'daily-sales') { loadDailyFlash(); }
+  else if (activeTab === 'daily-labor') { loadDailyLabor(); }
+  else if (activeTab === 'logbook') { loadLogbookEntries(); }
+  else if (activeTab === 'paid-outs') { loadPaidOuts(); }
+  else if (activeTab === 'forecast') { loadForecastData(); loadModelForecastData(); loadModelCoefficients(); }
+};
+
+const handleDashboardChange = (e) => {
+  if (e.target.value === 'pl') { router.push('/pl'); }
+  else if (e.target.value === 'bonus') { router.push('/bonus'); }
+  else { setActiveTab(e.target.value); }
+};
+
 return (
 <>
 <Head>
-<title>Andy's Dashboards</title>
+<title>The Scoop — Andy's Operations</title>
 </Head>
-<div className="min-h-screen bg-slate-900 p-2 md:p-4">
+<div className="min-h-screen p-2 md:p-4">
 <div className="max-w-[1400px] mx-auto">
-<div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 md:mb-4 shadow-2xl">
-<div className="hidden md:flex items-center justify-between gap-3">
-<div className="flex items-center gap-3">
-<img 
-src="https://i.imgur.com/kkJMVz0.png" 
-alt="Andy's Frozen Custard" 
-className="h-16"
-/>
-<div>
-<h1 className="text-2xl font-bold text-white mb-1">R365 Dashboards</h1>
-{activeTab === 'sales' && reportDate && reportDate !== 'Loading...' && !reportDate.includes('.') && (
-<p className="text-sm text-slate-400">Week Ending: {reportDate}</p>
-)}
-</div>
-</div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
-            <DashboardSelect
-              value={activeTab}
-              onChange={(e) => {
-                if (e.target.value === 'pl') {
-                  router.push('/pl');
-                } else if (e.target.value === 'bonus') {
-                  router.push('/bonus');
-                } else {
-                  setActiveTab(e.target.value);
-                }
-              }}
-              className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+<div className="surface rounded-2xl mb-3 md:mb-4 shadow-card overflow-hidden">
+<div className="h-1 bg-andy-red" />
+<div className="p-3 md:p-4">
+<div className="hidden md:flex items-center justify-between gap-4">
+          {/* Brand / wordmark */}
+          <div className="flex items-center gap-3.5">
+            <img
+              src="https://i.imgur.com/kkJMVz0.png"
+              alt="Andy's Frozen Custard"
+              className="h-14 w-auto drop-shadow"
             />
-            
+            <div className="leading-none">
+              <h1 className="text-3xl font-bold tracking-tight text-white">The Scoop</h1>
+              <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Andy&apos;s Operations
+                {activeTab === 'sales' && reportDate && reportDate !== 'Loading...' && !reportDate.includes('.') && (
+                  <span className="text-slate-400"> · Week ending {reportDate}</span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Actions — Refresh sits to the LEFT of the dashboard selector */}
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                if (activeTab === 'sales') {
-                  if (selectedWeek === 'current') {
-                    loadDataFromGoogleSheets();
-                  } else {
-                    loadHistoricalWeek(selectedWeek);
-                  }
-                } else if (activeTab === 'clockouts') {
-                  loadAutoClockouts();
-                } else if (activeTab === 'call-offs') {
-                  loadCallOffs();
-                } else if (activeTab === 'overtime') {
-                  loadOvertimeWarnings();
-                } else if (activeTab === 'scheduled-today') {
-                  loadScheduledToday();
-                } else if (activeTab === 'daily-sales') {
-                  loadDailyFlash();
-                } else if (activeTab === 'daily-labor') {
-                  loadDailyLabor();
-                } else if (activeTab === 'logbook') {
-                  loadLogbookEntries();
-                } else if (activeTab === 'paid-outs') {
-                  loadPaidOuts();
-                } else if (activeTab === 'forecast') {
-                  loadForecastData();
-loadModelForecastData();
-loadModelCoefficients();
-                }
-              }}
-              className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              onClick={handleRefresh}
+              className="grid place-items-center min-h-[44px] min-w-[44px] rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
               title="Refresh data"
             >
-              <RefreshCw size={16} className="text-white" />
+              <RefreshCw size={18} />
             </button>
 
-            {/* Message Board Button */}
+            <DashboardSelect
+              value={activeTab}
+              onChange={handleDashboardChange}
+              className="px-4 min-h-[44px] text-sm font-medium bg-slate-800/80 hairline rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+
             <button
               onClick={() => router.push('/messages')}
-              className="relative flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white text-sm font-medium"
-              title="Message Board"
-            >
-              <MessageSquare size={16} />
-              <span>Message Board</span>
-              {unreadMessagesCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-[10px] font-bold bg-red-600 text-white rounded-full">
-                  {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
-                </span>
-              )}
-            </button>
-
-            {/* Admin Button (admin only) */}
-            {isAdmin && (
-              <button
-                onClick={() => router.push('/admin')}
-                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
-                title="Admin"
-              >
-                <Settings size={16} className="text-white" />
-              </button>
-            )}
-
-            <button
-              onClick={() => signOut()}
-              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
-              title="Sign out"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-
-        <div className="md:hidden flex items-center justify-between mb-3">
-          <img 
-            src="https://i.imgur.com/kkJMVz0.png" 
-            alt="Andy's Frozen Custard" 
-            className="h-12"
-          />
-          <div className="flex items-center gap-2">
-            {/* Message Board Button */}
-            <button
-              onClick={() => router.push('/messages')}
-              className="relative flex items-center gap-1.5 px-2.5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white text-sm font-medium"
+              className="relative flex items-center gap-2 min-h-[44px] px-4 bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors text-white text-sm font-semibold shadow-lg shadow-blue-600/20"
               title="Message Board"
             >
               <MessageSquare size={16} />
               <span>Messages</span>
               {unreadMessagesCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-[10px] font-bold bg-red-600 text-white rounded-full">
+                <span className="absolute -top-1.5 -right-1.5 h-5 min-w-[20px] px-1 flex items-center justify-center text-[11px] font-bold bg-andy-red text-white rounded-full ring-2 ring-slate-900">
                   {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
                 </span>
               )}
             </button>
+
             {isAdmin && (
               <button
                 onClick={() => router.push('/admin')}
-                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                className="grid place-items-center min-h-[44px] min-w-[44px] rounded-xl bg-white/5 hover:bg-white/10 text-white transition-colors"
                 title="Admin"
               >
-                <Settings size={16} className="text-white" />
+                <Settings size={18} />
               </button>
             )}
+
             <button
               onClick={() => signOut()}
-              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+              className="grid place-items-center min-h-[44px] min-w-[44px] rounded-xl text-slate-500 hover:text-rose-400 hover:bg-white/5 transition-colors"
               title="Sign out"
+              aria-label="Sign out"
             >
-              Sign Out
+              <LogOut size={18} />
             </button>
           </div>
         </div>
 
-        <div className="md:hidden flex items-center gap-2">
-          <DashboardSelect
-            value={activeTab}
-            onChange={(e) => {
-              if (e.target.value === 'pl') {
-                router.push('/pl');
-              } else if (e.target.value === 'bonus') {
-                router.push('/bonus');
-              } else {
-                setActiveTab(e.target.value);
-              }
-            }}
-            className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-          />
-          
-          <button
-            onClick={() => {
-              if (activeTab === 'sales') {
-                if (selectedWeek === 'current') {
-                  loadDataFromGoogleSheets();
-                } else {
-                  loadHistoricalWeek(selectedWeek);
-                }
-              } else if (activeTab === 'clockouts') {
-                loadAutoClockouts();
-              } else if (activeTab === 'call-offs') {
-                loadCallOffs();
-              } else if (activeTab === 'overtime') {
-                loadOvertimeWarnings();
-              } else if (activeTab === 'scheduled-today') {
-                loadScheduledToday();
-              } else if (activeTab === 'daily-sales') {
-                loadDailyFlash();
-              } else if (activeTab === 'daily-labor') {
-                loadDailyLabor();
-              } else if (activeTab === 'logbook') {
-                loadLogbookEntries();
-              } else if (activeTab === 'paid-outs') {
-                loadPaidOuts();
-              } else if (activeTab === 'forecast') {
-                loadForecastData();
-loadModelForecastData();
-loadModelCoefficients();
-              }
-            }}
-            className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-            title="Refresh data"
-          >
-            <RefreshCw size={16} className="text-white" />
-          </button>
+        <div className="md:hidden">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-2.5">
+              <img
+                src="https://i.imgur.com/kkJMVz0.png"
+                alt="Andy's Frozen Custard"
+                className="h-10 w-auto"
+              />
+              <h1 className="text-xl font-bold tracking-tight text-white">The Scoop</h1>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => router.push('/messages')}
+                className="relative grid place-items-center h-10 w-10 bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors text-white"
+                title="Message Board"
+              >
+                <MessageSquare size={18} />
+                {unreadMessagesCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 h-5 min-w-[20px] px-1 flex items-center justify-center text-[11px] font-bold bg-andy-red text-white rounded-full ring-2 ring-slate-900">
+                    {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
+                  </span>
+                )}
+              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => router.push('/admin')}
+                  className="grid place-items-center h-10 w-10 rounded-xl bg-white/5 hover:bg-white/10 text-white transition-colors"
+                  title="Admin"
+                >
+                  <Settings size={18} />
+                </button>
+              )}
+              <button
+                onClick={() => signOut()}
+                className="grid place-items-center h-10 w-10 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-white/5 transition-colors"
+                title="Sign out"
+                aria-label="Sign out"
+              >
+                <LogOut size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Refresh sits to the LEFT of the dashboard selector */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              className="grid place-items-center h-10 w-10 flex-shrink-0 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+              title="Refresh data"
+            >
+              <RefreshCw size={18} />
+            </button>
+            <DashboardSelect
+              value={activeTab}
+              onChange={handleDashboardChange}
+              className="flex-1 px-4 h-10 text-sm font-medium bg-slate-800/80 hairline rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
+      </div>
       </div>
 
       <SwipeNavigation activeTab={activeTab} setActiveTab={setActiveTab}>

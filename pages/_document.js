@@ -8,7 +8,7 @@ export default function Document() {
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-        {/* Tints the PWA status-bar region to match the dark slate background */}
+        {/* Tints the PWA status-bar region to match the dark base background */}
         <meta name="theme-color" content="#0f172a" />
 
         {/* PWA / home-screen behavior */}

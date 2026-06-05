@@ -16,7 +16,7 @@ export default function ScheduledTodayTab({
 }) {
   return (
     <>
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+      <div className="surface rounded-lg p-3 mb-3 shadow-lg">
         <button
           onClick={() => setIsScheduledFiltersOpen(!isScheduledFiltersOpen)}
           className="flex items-center gap-2 w-full"
@@ -32,7 +32,7 @@ export default function ScheduledTodayTab({
               <select
                 value={scheduledLocationFilter}
                 onChange={(e) => setScheduledLocationFilter(e.target.value)}
-                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Locations</option>
                 {[...new Set(scheduledToday.map(emp => emp.location))].sort().map(loc => (
@@ -45,7 +45,7 @@ export default function ScheduledTodayTab({
               <select
                 value={scheduledMarketFilter}
                 onChange={(e) => setScheduledMarketFilter(e.target.value)}
-                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Markets</option>
                 <option value="Tulsa">Tulsa</option>
@@ -59,17 +59,17 @@ export default function ScheduledTodayTab({
       </div>
 
       {scheduledError && (
-        <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+        <div className="bg-rose-950/50 ring-1 ring-rose-500/30 rounded-lg p-3 mb-3 text-red-200">
           <strong>Error:</strong> {scheduledError}
         </div>
       )}
 
       {scheduledLoading ? (
         <div className="flex justify-center items-center py-20">
-          <div className="text-white text-lg">Loading scheduled employees...</div>
+          <div className="flex flex-col items-center gap-3 text-slate-400"><div className="h-8 w-8 rounded-full border-2 border-white/15 border-t-andy-red animate-spin" /><span className="text-sm">Loading scheduled employees...</span></div>
         </div>
       ) : filteredScheduled.length === 0 ? (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+        <div className="surface rounded-lg p-8 text-center">
           <p className="text-slate-400">No scheduled employees found</p>
         </div>
       ) : (
@@ -89,7 +89,7 @@ export default function ScheduledTodayTab({
               const employees = groupedByLocation[location];
 
               return (
-                <div key={locIdx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+                <div key={locIdx} className="surface rounded-lg p-2 md:p-3 shadow-lg">
                   <div className="mb-2 md:mb-3">
                     <h3 className="text-sm md:text-base font-bold text-white">{location}</h3>
                     <p className="text-xs text-slate-400">{employees.length} employee{employees.length !== 1 ? 's' : ''} scheduled</p>
@@ -98,7 +98,7 @@ export default function ScheduledTodayTab({
                   <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
                     <div className="space-y-1">
                       {employees.map((emp, empIdx) => (
-                        <div key={empIdx} className="flex justify-between items-center py-1 border-b border-slate-700 last:border-b-0">
+                        <div key={empIdx} className="flex justify-between items-center py-1 border-b border-white/5 last:border-b-0">
                           <span className="text-white text-xs md:text-sm font-medium flex items-center">
                             {emp.employee}
                             <TitleBadge title={getEmployeeTitle(emp.employee)} />

@@ -120,7 +120,7 @@ export default function RecapRoster() {
 
   if (status === 'loading' || loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-white">Loading...</div>
       </div>
     );
@@ -128,7 +128,7 @@ export default function RecapRoster() {
 
   if (status === 'unauthenticated') {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <button
           onClick={() => signIn('google')}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -154,7 +154,7 @@ export default function RecapRoster() {
         <div className="max-w-[1400px] mx-auto">
 
           {/* Header */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-4 mb-2 md:mb-3 shadow-2xl">
+          <div className="surface rounded-lg p-2 md:p-4 mb-2 md:mb-3 shadow-2xl">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <h1 className="text-xl md:text-2xl font-bold text-white">Recap Roster</h1>
@@ -220,8 +220,8 @@ export default function RecapRoster() {
           )}
 
           {/* Editable list */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-700 bg-slate-700/50">
+          <div className="surface rounded-lg overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/5 bg-slate-700/50">
               <span className="font-semibold text-white text-sm">Locations ({locations.length})</span>
             </div>
             <div className="divide-y divide-slate-700">
@@ -292,7 +292,7 @@ function RosterRow({ location, recipients, remaining, onAddUser, onAddFree, onRe
         <select
           value=""
           onChange={(e) => { onAddUser(location, e.target.value); }}
-          className="bg-slate-700 border border-slate-600 text-slate-200 text-xs rounded px-2 py-1.5 focus:outline-none focus:border-blue-500"
+          className="bg-slate-800/80 hairline text-slate-200 text-xs rounded px-2 py-1.5 focus:outline-none focus:border-blue-500"
         >
           <option value="">+ Add app user…</option>
           {remaining.map((u) => (
@@ -308,7 +308,7 @@ function RosterRow({ location, recipients, remaining, onAddUser, onAddFree, onRe
           onChange={(e) => setEmail(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') submitFree(); }}
           placeholder="email@address.com"
-          className="bg-slate-700 border border-slate-600 text-slate-200 text-xs rounded px-2 py-1.5 focus:outline-none focus:border-blue-500"
+          className="bg-slate-800/80 hairline text-slate-200 text-xs rounded px-2 py-1.5 focus:outline-none focus:border-blue-500"
         />
         <input
           type="text"
@@ -316,7 +316,7 @@ function RosterRow({ location, recipients, remaining, onAddUser, onAddFree, onRe
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') submitFree(); }}
           placeholder="name (optional)"
-          className="bg-slate-700 border border-slate-600 text-slate-200 text-xs rounded px-2 py-1.5 focus:outline-none focus:border-blue-500"
+          className="bg-slate-800/80 hairline text-slate-200 text-xs rounded px-2 py-1.5 focus:outline-none focus:border-blue-500"
         />
         <button
           onClick={submitFree}

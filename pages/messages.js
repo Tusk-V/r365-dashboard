@@ -12,6 +12,7 @@ import RolesPanel from '../components/chat/RolesPanel';
 import ProfilePanel from '../components/chat/ProfilePanel';
 import EnablePush from '../components/chat/EnablePush';
 import { canManageChannel, isDashboardUser } from '../lib/channels';
+import { avatarColor } from '../lib/avatarColor';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 const MSG_POLL_MS = 3000;
@@ -23,13 +24,13 @@ const CHANNEL_META = {
   location: { Icon: Store, subtitle: () => 'Store channel' },
 };
 
-function UserAvatar({ name, image, size = 'h-8 w-8', extra = '' }) {
+function UserAvatar({ name, image, size = 'h-8 w-8', extra = '', colorKey }) {
   if (image) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={image} alt={name || ''} className={`${size} rounded-full object-cover ${extra}`} referrerPolicy="no-referrer" />;
   }
   const initial = (name || '?').trim().charAt(0).toUpperCase();
-  return <div className={`${size} rounded-full bg-slate-600 flex items-center justify-center text-sm font-semibold text-slate-200 ${extra}`}>{initial}</div>;
+  return <div className={`${size} rounded-full ${avatarColor(colorKey || name)} flex items-center justify-center text-sm font-semibold text-white ${extra}`}>{initial}</div>;
 }
 
 const ROLE_BADGE_CLASS = { Owner: 'bg-red-600', Admin: 'bg-red-600', FOM: 'bg-blue-600', Market: 'bg-purple-600', Manager: 'bg-green-600' };
@@ -341,7 +342,7 @@ export default function MessagesPage() {
   const canManageActive = activeChannel ? canManageChannel(meActor, activeChannel.key) : false;
 
   if (status === 'loading') {
-    return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-400">Loading…</div>;
+    return <div className="min-h-screen flex items-center justify-center text-slate-400">Loading…</div>;
   }
 
   if (!loadingChannels && channels.length === 0 && !hasDashboard) {
@@ -350,8 +351,9 @@ export default function MessagesPage() {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-slate-900 text-white flex flex-col">
+      <div className="h-1 bg-andy-red flex-shrink-0" />
       <div
-        className="z-20 flex items-center justify-between gap-2 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-shrink-0"
+        className="z-20 flex items-center justify-between gap-2 px-3 py-2 bg-slate-900/70 backdrop-blur-xl border-b border-white/5 flex-shrink-0"
         style={{ paddingTop: 'calc(0.5rem + env(safe-area-inset-top))' }}
       >
         <div className="flex items-center gap-2">
@@ -380,7 +382,7 @@ export default function MessagesPage() {
               {showMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                  <div className="absolute right-0 top-full mt-1 z-20 w-44 bg-slate-800 border border-slate-700 rounded-lg shadow-lg py-1">
+                  <div className="absolute right-0 top-full mt-1 z-20 w-44 surface rounded-lg shadow-lg py-1">
                     {(isAdmin || scope.owner) && (
                       <button onClick={() => { setShowRoles(true); setShowMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700">
                         <ShieldCheck size={16} /> Roles
@@ -402,7 +404,7 @@ export default function MessagesPage() {
       <EnablePush />
 
       <div className="flex-1 flex min-h-0">
-        <div className={`${mobileShowStream ? 'hidden' : 'flex'} md:flex w-full md:w-64 flex-col border-r border-slate-700 flex-shrink-0`}>
+        <div className={`${mobileShowStream ? 'hidden' : 'flex'} md:flex w-full md:w-64 flex-col border-r border-white/5 flex-shrink-0`}>
           {loadingChannels ? (
             <div className="flex-1 p-3 space-y-2 animate-pulse">
               {[...Array(7)].map((_, i) => <div key={i} className="h-9 bg-slate-700/50 rounded-md" />)}
@@ -421,11 +423,11 @@ export default function MessagesPage() {
           {userEmail && (
             <button
               onClick={() => setShowProfile(true)}
-              className="flex items-center gap-2 border-t border-slate-700 p-2 flex-shrink-0 w-full text-left hover:bg-slate-700/50"
+              className="flex items-center gap-2 border-t border-white/5 p-2 flex-shrink-0 w-full text-left hover:bg-slate-700/50"
               style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
               title="Edit your profile"
             >
-              <UserAvatar name={session?.user?.name} image={session?.user?.image} />
+              <UserAvatar name={session?.user?.name} image={session?.user?.image} colorKey={userEmail} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1 text-sm text-white truncate">
                   <span className="truncate">{session?.user?.name || userEmail}</span>
@@ -442,7 +444,7 @@ export default function MessagesPage() {
         <div className={`${mobileShowStream ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0`}>
           {activeChannel ? (
             <>
-              <div className="flex items-center gap-2.5 px-3 py-2 bg-slate-800 border-b border-slate-700 flex-shrink-0">
+              <div className="flex items-center gap-2.5 px-3 py-2 bg-slate-900/60 backdrop-blur-xl border-b border-white/5 flex-shrink-0">
                 <button onClick={() => setMobileShowStream(false)} className="md:hidden p-2 -ml-1 text-slate-400 hover:text-white" aria-label="Back to channels"><ArrowLeft size={18} /></button>
                 {(() => {
                   const meta = CHANNEL_META[activeChannel.type] || CHANNEL_META.location;
@@ -468,7 +470,7 @@ export default function MessagesPage() {
                     >
                       <div className="flex -space-x-2">
                         {channelInfo.sample.slice(0, 3).map((m, i) => (
-                          <UserAvatar key={i} name={m.name} image={m.image} size="h-6 w-6" extra="ring-2 ring-slate-800" />
+                          <UserAvatar key={i} name={m.name} image={m.image} colorKey={m.email || m.name} size="h-6 w-6" extra="ring-2 ring-slate-900" />
                         ))}
                       </div>
                       <span className="hidden sm:inline text-xs text-slate-400">{channelInfo.count}</span>

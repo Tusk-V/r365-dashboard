@@ -21,7 +21,7 @@ export default function ForecastingTab({
   return (
     <>
       {/* Filters Bar */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+      <div className="surface rounded-lg p-3 mb-3 shadow-lg">
         <div className="flex items-center justify-between mb-2">
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
@@ -40,7 +40,7 @@ export default function ForecastingTab({
             ))}
           </div>
           <select value={forecastMarketFilter} onChange={(e) => setForecastMarketFilter(e.target.value)}
-            className="px-3 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white">
+            className="px-3 py-1.5 text-xs bg-slate-800/80 hairline rounded-lg text-white">
             <option value="all">All Markets</option>
             <option value="Tulsa">Tulsa</option><option value="Oklahoma City">Oklahoma City</option>
             <option value="Dallas">Dallas</option><option value="Orlando">Orlando</option>
@@ -98,8 +98,8 @@ export default function ForecastingTab({
         const overallR365 = r365Locs.length > 0 ? r365Locs.reduce((s, l) => s + l.avgR365, 0) / r365Locs.length : null;
 
         return (
-          <div className="bg-slate-800 border border-slate-700 rounded-lg mb-3 overflow-hidden shadow-lg">
-            <div className="px-4 py-2.5 border-b border-slate-700 flex items-center justify-between cursor-pointer select-none" onClick={() => setForecastAccuracyExpanded(!forecastAccuracyExpanded)}>
+          <div className="surface rounded-lg mb-3 overflow-hidden shadow-lg">
+            <div className="px-4 py-2.5 border-b border-white/5 flex items-center justify-between cursor-pointer select-none" onClick={() => setForecastAccuracyExpanded(!forecastAccuracyExpanded)}>
               <div className="flex items-center gap-2">
                 <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${forecastAccuracyExpanded ? '' : '-rotate-90'}`} />
                 <div>
@@ -143,7 +143,7 @@ export default function ForecastingTab({
                 </thead>
                 <tbody>
                   {locAccuracy.sort((a, b) => b.avgAccuracy - a.avgAccuracy).map(loc => (
-                    <tr key={loc.location} className="border-b border-slate-700/40">
+                    <tr key={loc.location} className="border-b border-white/5/40">
                       <td className="text-left pl-3 py-1.5 font-medium text-slate-200">{loc.location}</td>
                       {loc.weeks.map((w, i) => (
                         <React.Fragment key={i}>
@@ -167,7 +167,7 @@ export default function ForecastingTab({
       })()}
 
       {forecastLoading && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+        <div className="surface rounded-lg p-8 text-center">
           <RefreshCw className="w-6 h-6 text-blue-400 animate-spin mx-auto mb-2" />
           <p className="text-slate-400 text-sm">Loading forecast data...</p>
         </div>
@@ -195,8 +195,8 @@ export default function ForecastingTab({
           const totalPY = days.filter(d => d.pySales !== null).reduce((s, d) => s + d.pySales, 0);
 
           return (
-            <div key={loc} className="bg-slate-800 border border-slate-700 rounded-lg mb-3 shadow-lg">
-              <div className="px-4 py-2 border-b border-slate-700 flex items-center justify-between">
+            <div key={loc} className="surface rounded-lg mb-3 shadow-lg">
+              <div className="px-4 py-2 border-b border-white/5 flex items-center justify-between">
                 <span className="font-bold text-sm text-white">{loc}</span>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-slate-300">{getMarket(loc)}</span>
               </div>
@@ -219,7 +219,7 @@ export default function ForecastingTab({
                   </thead>
                   <tbody>
                     {days.map((day, idx) => (
-                      <tr key={idx} className={`border-b border-slate-700/40 ${day.isToday ? 'bg-blue-900/10' : ''}`}>
+                      <tr key={idx} className={`border-b border-white/5/40 ${day.isToday ? 'bg-blue-900/10' : ''}`}>
                         <td className="text-left pl-3 py-1.5">
                           <span className="font-medium text-slate-200">{day.dayLabel}</span>
                           {day.holiday && <span className="ml-1.5 text-[9px] font-semibold bg-purple-600 text-white px-1.5 py-px rounded align-middle">{day.holiday}</span>}
@@ -333,7 +333,7 @@ export default function ForecastingTab({
       })()}
 
       {!forecastLoading && forecastData.length === 0 && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+        <div className="surface rounded-lg p-8 text-center">
           <TrendingUp className="w-8 h-8 text-slate-600 mx-auto mb-2" />
           <p className="text-slate-400 text-sm">No forecast data available</p>
           <p className="text-slate-500 text-xs mt-1">Make sure the Forecast Data sheet has been populated</p>

@@ -18,7 +18,7 @@ export default function AccessPending() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
       </div>
     );
@@ -29,8 +29,8 @@ export default function AccessPending() {
       <Head>
         <title>Access Pending | Andy's Dashboard</title>
       </Head>
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl p-8 w-full max-w-md text-center">
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="surface rounded-lg shadow-xl p-8 w-full max-w-md text-center">
           {/* Logo */}
           <div className="mb-6">
             <img 

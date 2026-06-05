@@ -44,7 +44,7 @@ export default function ChannelMembersPanel({ channel, channelName, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-slate-800 w-full sm:max-w-md sm:rounded-lg rounded-t-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-4 border-b border-slate-700">
+        <div className="flex items-center justify-between p-4 border-b border-white/5">
           <div className="min-w-0">
             <h2 className="font-bold text-white flex items-center gap-2"><Users size={18} /> Members</h2>
             <p className="text-xs text-slate-400 truncate">{channelName}</p>
@@ -70,7 +70,7 @@ export default function ChannelMembersPanel({ channel, channelName, onClose }) {
                     <button onClick={() => { setAdding(false); setAddQuery(''); }} className="text-xs text-slate-400 hover:text-white">Done</button>
                   </div>
                   <input value={addQuery} onChange={(e) => setAddQuery(e.target.value)} placeholder="Search people"
-                    className="w-full px-2 py-1.5 mb-1 bg-slate-700 border border-slate-600 rounded text-base md:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600" />
+                    className="w-full px-2 py-1.5 mb-1 bg-slate-800/80 hairline rounded text-base md:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                   <div className="max-h-48 overflow-y-auto scrollbar-slim space-y-0.5">
                     {(() => {
                       const q = addQuery.trim().toLowerCase();

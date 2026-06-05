@@ -4,7 +4,7 @@ export default function CallOffsTab({ filteredCallOffs, callOffsLoading, callOff
   return (
     <>
       {/* Header with date range */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+      <div className="surface rounded-lg p-3 mb-3 shadow-lg">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-white">Call-Offs</h2>
@@ -22,17 +22,17 @@ export default function CallOffsTab({ filteredCallOffs, callOffsLoading, callOff
       </div>
 
       {callOffsError && (
-        <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+        <div className="bg-rose-950/50 ring-1 ring-rose-500/30 rounded-lg p-3 mb-3 text-red-200">
           <strong>Error:</strong> {callOffsError}
         </div>
       )}
 
       {callOffsLoading ? (
         <div className="flex justify-center items-center py-20">
-          <div className="text-white text-lg">Loading call-offs...</div>
+          <div className="flex flex-col items-center gap-3 text-slate-400"><div className="h-8 w-8 rounded-full border-2 border-white/15 border-t-andy-red animate-spin" /><span className="text-sm">Loading call-offs...</span></div>
         </div>
       ) : filteredCallOffs.length === 0 ? (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+        <div className="surface rounded-lg p-8 text-center">
           <AlertCircle className="mx-auto mb-3 text-green-400" size={48} />
           <h3 className="text-xl font-bold text-white mb-2">No Call-Offs Found</h3>
           <p className="text-slate-400">All scheduled employees showed up!</p>
@@ -55,14 +55,14 @@ export default function CallOffsTab({ filteredCallOffs, callOffsLoading, callOff
             return sortedDates.map((date) => {
               const callOffs = groupedByDate[date];
               return (
-                <div key={date} className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
-                  <div className="bg-slate-900 p-3 border-b border-slate-700">
+                <div key={date} className="surface rounded-lg shadow-lg">
+                  <div className="bg-slate-900 p-3 border-b border-white/5">
                     <h3 className="text-lg font-bold text-white">{date}</h3>
                     <p className="text-xs text-slate-400">{callOffs.length} call-off{callOffs.length !== 1 ? 's' : ''}</p>
                   </div>
 
                   {/* Desktop Header */}
-                  <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-3 border-b border-slate-700 bg-slate-800" style={{gridTemplateColumns: '1fr 120px 150px'}}>
+                  <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-3 border-b border-white/5 bg-slate-800" style={{gridTemplateColumns: '1fr 120px 150px'}}>
                     <div className="text-slate-400 text-xs md:text-sm font-semibold">Name</div>
                     <div className="text-slate-400 text-xs md:text-sm font-semibold">Location</div>
                     <div className="text-slate-400 text-xs md:text-sm font-semibold">Scheduled Time</div>

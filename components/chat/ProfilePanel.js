@@ -69,7 +69,7 @@ export default function ProfilePanel({ initialName, initialImage, onClose, onUpd
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-slate-800 w-full sm:max-w-sm sm:rounded-lg rounded-t-2xl flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-700">
+        <div className="flex items-center justify-between p-4 border-b border-white/5">
           <h2 className="font-bold text-white">Edit Profile</h2>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-white"><X size={20} /></button>
         </div>
@@ -120,7 +120,7 @@ export default function ProfilePanel({ initialName, initialImage, onClose, onUpd
               value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && canSave) handleSave(); }}
-              className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-md text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
+              className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-md text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="Your name"
             />
           </div>

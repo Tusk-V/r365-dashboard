@@ -17,7 +17,7 @@ export default function LogbookTab({
   return (
     <>
       {/* Header */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+      <div className="surface rounded-lg p-3 mb-3 shadow-lg">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -36,7 +36,7 @@ export default function LogbookTab({
       </div>
 
       {/* Filters */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+      <div className="surface rounded-lg p-3 mb-3 shadow-lg">
         <button
           onClick={() => setIsLogbookFiltersOpen(!isLogbookFiltersOpen)}
           className="flex items-center gap-2 w-full"
@@ -52,7 +52,7 @@ export default function LogbookTab({
               <select
                 value={logbookFilters.location}
                 onChange={(e) => setLogbookFilters({...logbookFilters, location: e.target.value})}
-                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Locations</option>
                 {[...new Set(logbookEntries.map(e => e.location))].sort().map(loc => (
@@ -65,7 +65,7 @@ export default function LogbookTab({
               <select
                 value={logbookFilters.market}
                 onChange={(e) => setLogbookFilters({...logbookFilters, market: e.target.value})}
-                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Markets</option>
                 <option value="Tulsa">Tulsa</option>
@@ -79,17 +79,17 @@ export default function LogbookTab({
       </div>
 
       {logbookError && (
-        <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+        <div className="bg-rose-950/50 ring-1 ring-rose-500/30 rounded-lg p-3 mb-3 text-red-200">
           <strong>Error:</strong> {logbookError}
         </div>
       )}
 
       {logbookLoading ? (
         <div className="flex justify-center items-center py-20">
-          <div className="text-white text-lg">Loading logbook entries...</div>
+          <div className="flex flex-col items-center gap-3 text-slate-400"><div className="h-8 w-8 rounded-full border-2 border-white/15 border-t-andy-red animate-spin" /><span className="text-sm">Loading logbook entries...</span></div>
         </div>
       ) : filteredLogbook.length === 0 ? (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+        <div className="surface rounded-lg p-8 text-center">
           <BookOpen className="mx-auto mb-3 text-slate-500" size={48} />
           <h3 className="text-xl font-bold text-white mb-2">No Logbook Entries</h3>
           <p className="text-slate-400">No entries found for the selected filters</p>
@@ -115,8 +115,8 @@ export default function LogbookTab({
               });
 
               return (
-                <div key={date} className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg">
-                  <div className="bg-slate-900 p-3 border-b border-slate-700">
+                <div key={date} className="surface rounded-lg shadow-lg">
+                  <div className="bg-slate-900 p-3 border-b border-white/5">
                     <h3 className="text-lg font-bold text-white">{formattedDate}</h3>
                     <p className="text-xs text-slate-400">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</p>
                   </div>

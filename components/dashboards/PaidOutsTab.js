@@ -15,7 +15,7 @@ export default function PaidOutsTab({
   return (
     <>
       {/* Header */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+      <div className="surface rounded-lg p-3 mb-3 shadow-lg">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -34,7 +34,7 @@ export default function PaidOutsTab({
       </div>
 
       {/* Filters */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+      <div className="surface rounded-lg p-3 mb-3 shadow-lg">
         <button
           onClick={() => setIsPaidOutsFiltersOpen(!isPaidOutsFiltersOpen)}
           className="flex items-center gap-2 w-full"
@@ -50,7 +50,7 @@ export default function PaidOutsTab({
               <select
                 value={paidOutsFilters.location}
                 onChange={(e) => setPaidOutsFilters({...paidOutsFilters, location: e.target.value})}
-                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Locations</option>
                 {[...new Set(paidOuts.map(e => e.location))].sort().map(loc => (
@@ -63,7 +63,7 @@ export default function PaidOutsTab({
               <select
                 value={paidOutsFilters.type}
                 onChange={(e) => setPaidOutsFilters({...paidOutsFilters, type: e.target.value})}
-                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Types</option>
                 {[...new Set(paidOuts.map(e => e.type))].sort().map(type => (
@@ -76,7 +76,7 @@ export default function PaidOutsTab({
               <select
                 value={paidOutsFilters.market}
                 onChange={(e) => setPaidOutsFilters({...paidOutsFilters, market: e.target.value})}
-                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Markets</option>
                 <option value="Tulsa">Tulsa</option>
@@ -90,17 +90,17 @@ export default function PaidOutsTab({
       </div>
 
       {paidOutsError && (
-        <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+        <div className="bg-rose-950/50 ring-1 ring-rose-500/30 rounded-lg p-3 mb-3 text-red-200">
           <strong>Error:</strong> {paidOutsError}
         </div>
       )}
 
       {paidOutsLoading ? (
         <div className="flex justify-center items-center py-20">
-          <div className="text-white text-lg">Loading paid outs...</div>
+          <div className="flex flex-col items-center gap-3 text-slate-400"><div className="h-8 w-8 rounded-full border-2 border-white/15 border-t-andy-red animate-spin" /><span className="text-sm">Loading paid outs...</span></div>
         </div>
       ) : filteredPaidOuts.length === 0 ? (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+        <div className="surface rounded-lg p-8 text-center">
           <Receipt className="mx-auto mb-3 text-slate-500" size={48} />
           <h3 className="text-xl font-bold text-white mb-2">No Paid Outs</h3>
           <p className="text-slate-400">No paid outs found for the selected filters</p>
@@ -121,8 +121,8 @@ export default function PaidOutsTab({
               const dayTotal = entries.reduce((sum, e) => sum + (e.amount || 0), 0);
 
               return (
-                <div key={date} className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-hidden">
-                  <div className="bg-slate-900 px-3 py-2 border-b border-slate-700 flex justify-between items-center">
+                <div key={date} className="surface rounded-lg shadow-lg overflow-hidden">
+                  <div className="bg-slate-900 px-3 py-2 border-b border-white/5 flex justify-between items-center">
                     <span className="text-sm font-semibold text-white">{date}</span>
                     <span className="text-sm font-bold text-amber-400">${dayTotal.toFixed(2)}</span>
                   </div>
@@ -155,7 +155,7 @@ export default function PaidOutsTab({
           })()}
 
           {/* Summary by Type */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
+          <div className="surface rounded-lg p-3 shadow-lg">
             <h3 className="text-sm font-semibold text-white mb-2">Summary by Type</h3>
             <div className="space-y-1">
               {Object.entries(getPaidOutsTotals().byType).sort((a, b) => b[1] - a[1]).map(([type, total]) => (

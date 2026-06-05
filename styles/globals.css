@@ -2,16 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Paint the dark slate background on html + body so the safe-area insets
-   (notch / status bar / home indicator) match the app instead of falling
-   back to white on a home-screen PWA. */
+/* ============================================================
+   App background — "FlightKit"-style depth.
+   A deep slate base with two soft aurora glows (a cool blue and a
+   faint Andy's-red) over a subtle vertical gradient. Painted on
+   html+body so the safe-area insets (notch / status bar / home
+   indicator) match the app on an installed PWA, and so cards read
+   as *elevated* off a textured base instead of floating on flat slate.
+   background-attachment: fixed keeps the glows anchored while content
+   scrolls. These are background *images*, so they always paint behind
+   content — no z-index or stacking risk for any page layout.
+   ============================================================ */
 html,
 body {
   margin: 0;
-  background-color: #0f172a; /* slate-900 */
+  background-color: #0f172a; /* slate-900 base */
 }
 
 body {
+  background-image:
+    radial-gradient(60rem 40rem at 12% -10%, rgba(59, 130, 246, 0.1), transparent 60%),
+    radial-gradient(50rem 40rem at 105% 0%, rgba(225, 29, 42, 0.05), transparent 55%),
+    linear-gradient(180deg, #1c2740 0%, #16203a 50%, #0f172a 100%);
+  background-attachment: fixed;
+
   /* Apply the safe-area insets ONCE. Putting this padding on both `html` and
      `body` double-counts the insets and over-pads every page (the notch-height
      gap was appearing twice at the top). Body-only = a single correct inset. */
@@ -24,7 +38,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ensure the root color region behind any overscroll is also slate. */
+/* Ensure the root color region behind any overscroll matches the base. */
 :root {
   background-color: #0f172a;
 }
@@ -34,8 +48,37 @@ code {
     monospace;
 }
 
+/* ============================================================
+   Surface / elevation system.
+   `.surface`  — primary card: translucent so the aurora shows through,
+                 hairline inner ring + soft shadow, subtle blur.
+   `.surface-2`— nested panel (e.g. a table block inside a card).
+   `.hairline` — just the 1px inner ring, for dividers/inputs/pills.
+   Use these in place of `bg-slate-800 border border-slate-700`.
+   ============================================================ */
+.surface {
+  background-color: #334155; /* slate-700 — clearly lighter so cards pop off the page */
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+    0 12px 28px -14px rgba(0, 0, 0, 0.5);
+}
+.surface-2 {
+  background-color: #1e293b; /* slate-800 nested panel — reads as inset on the lighter card */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.hairline {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* Tabular figures for all financial/numeric data so digits line up
+   column-to-column and row-to-row. Apply with `.tnum`. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Slim dark scrollbars for chat surfaces (default browser bars look heavy on
-   the dark slate theme). Apply with the `scrollbar-slim` class. */
+   the dark theme). Apply with the `scrollbar-slim` class. */
 .scrollbar-slim {
   scrollbar-width: thin;
   scrollbar-color: #334155 transparent; /* slate-700 thumb */

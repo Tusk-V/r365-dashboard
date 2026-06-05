@@ -30,7 +30,7 @@ export default function Composer({ channelName, canAnnounce, onSend }) {
 
   return (
     <div
-      className="flex-shrink-0 border-t border-slate-700 p-3"
+      className="flex-shrink-0 border-t border-white/5 p-3"
       style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
     >
       <div className="max-w-4xl mx-auto">
@@ -54,14 +54,14 @@ export default function Composer({ channelName, canAnnounce, onSend }) {
 
         <div className="relative flex items-end gap-2">
           {showEmoji && (
-            <div className="absolute bottom-full left-0 mb-2 w-60 max-h-44 overflow-y-auto scrollbar-slim bg-slate-700 border border-slate-600 rounded-lg p-2 shadow-xl grid grid-cols-8 gap-0.5 z-10">
+            <div className="absolute bottom-full left-0 mb-2 w-60 max-h-44 overflow-y-auto scrollbar-slim bg-slate-800/80 hairline rounded-lg p-2 shadow-xl grid grid-cols-8 gap-0.5 z-10">
               {EMOJIS.map(em => (
                 <button key={em} onClick={() => insertEmoji(em)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-600 rounded text-base">{em}</button>
               ))}
             </div>
           )}
 
-          <div className="flex-1 flex items-end bg-slate-700 border border-slate-600 rounded-2xl pl-1 pr-2 focus-within:ring-1 focus-within:ring-blue-600">
+          <div className="flex-1 flex items-end bg-slate-800/80 hairline rounded-2xl pl-1 pr-2 focus-within:ring-1 focus-within:ring-blue-600">
             <button
               onClick={() => setShowEmoji(v => !v)}
               className={`p-2 flex-shrink-0 rounded-full hover:text-slate-200 ${showEmoji ? 'text-blue-400' : 'text-slate-400'}`}
