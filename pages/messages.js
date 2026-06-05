@@ -9,6 +9,7 @@ import Onboarding from '../components/chat/Onboarding';
 import PendingApprovals from '../components/chat/PendingApprovals';
 import ChannelMembersPanel from '../components/chat/ChannelMembersPanel';
 import RolesPanel from '../components/chat/RolesPanel';
+import ProfilePanel from '../components/chat/ProfilePanel';
 import EnablePush from '../components/chat/EnablePush';
 import { canManageChannel, isDashboardUser } from '../lib/channels';
 
@@ -53,7 +54,7 @@ function applyAppBadge(channels) {
 }
 
 export default function MessagesPage() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
 
   const [channels, setChannels] = useState([]);
@@ -77,6 +78,7 @@ export default function MessagesPage() {
   const [showApprovals, setShowApprovals] = useState(false);
   const [showChannelMembers, setShowChannelMembers] = useState(false);
   const [showRoles, setShowRoles] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [unreadMarkerAt, setUnreadMarkerAt] = useState(null);
@@ -417,7 +419,12 @@ export default function MessagesPage() {
             />
           )}
           {userEmail && (
-            <div className="flex items-center gap-2 border-t border-slate-700 p-2 flex-shrink-0" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
+            <button
+              onClick={() => setShowProfile(true)}
+              className="flex items-center gap-2 border-t border-slate-700 p-2 flex-shrink-0 w-full text-left hover:bg-slate-700/50"
+              style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+              title="Edit your profile"
+            >
               <UserAvatar name={session?.user?.name} image={session?.user?.image} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1 text-sm text-white truncate">
@@ -428,7 +435,7 @@ export default function MessagesPage() {
                 </div>
                 <div className="text-[11px] text-slate-500 truncate">{userEmail}</div>
               </div>
-            </div>
+            </button>
           )}
         </div>
 
@@ -506,6 +513,14 @@ export default function MessagesPage() {
       {showRoles && <RolesPanel onClose={() => setShowRoles(false)} />}
       {showChannelMembers && activeChannel && (
         <ChannelMembersPanel channel={activeChannel.key} channelName={activeChannel.name} onClose={() => setShowChannelMembers(false)} />
+      )}
+      {showProfile && (
+        <ProfilePanel
+          initialName={session?.user?.name || userEmail}
+          initialImage={session?.user?.image || null}
+          onClose={() => setShowProfile(false)}
+          onUpdated={() => update()}
+        />
       )}
     </div>
   );
