@@ -1401,7 +1401,9 @@ return (
 </Head>
 <div className="min-h-screen p-2 md:p-4">
 <div className="max-w-[1400px] mx-auto">
-<div className="surface rounded-2xl p-3 md:p-4 mb-3 md:mb-4 shadow-card">
+<div className="surface rounded-2xl mb-3 md:mb-4 shadow-card overflow-hidden">
+<div className="h-1 bg-gradient-to-r from-andy-red via-andy-gold to-andy-red" />
+<div className="p-3 md:p-4">
 <div className="hidden md:flex items-center justify-between gap-4">
           {/* Brand / wordmark */}
           <div className="flex items-center gap-3.5">
@@ -1531,6 +1533,7 @@ return (
             />
           </div>
         </div>
+      </div>
       </div>
 
       <SwipeNavigation activeTab={activeTab} setActiveTab={setActiveTab}>

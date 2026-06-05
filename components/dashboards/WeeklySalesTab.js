@@ -256,7 +256,10 @@ export default function WeeklySalesTab({
             {filteredLocations.map((loc, idx) => (
               <div key={idx} className="surface rounded-2xl p-3 shadow-card">
                 <div className="flex items-start justify-between mb-2 md:mb-3">
-                  <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
+                  <h3 className="flex items-center gap-2 text-sm md:text-base font-bold text-white">
+                    <span className="h-4 w-1 rounded-full bg-gradient-to-b from-andy-gold to-andy-red" />
+                    {loc.location}
+                  </h3>
                   <div className="flex gap-1">
                     {(() => {
                       const clockoutData = getAutoClockoutData(loc.location);
