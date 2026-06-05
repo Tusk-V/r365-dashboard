@@ -1412,7 +1412,7 @@ return (
             />
             <div className="leading-none">
               <h1 className="text-3xl font-bold tracking-tight text-white">The Scoop</h1>
-              <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                 Andy&apos;s Operations
                 {activeTab === 'sales' && reportDate && reportDate !== 'Loading...' && !reportDate.includes('.') && (
                   <span className="text-slate-400"> · Week ending {reportDate}</span>
