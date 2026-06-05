@@ -90,14 +90,14 @@ export default function PaidOutsTab({
       </div>
 
       {paidOutsError && (
-        <div className="bg-red-900 border border-red-700 rounded-lg p-3 mb-3 text-red-200">
+        <div className="bg-rose-950/50 ring-1 ring-rose-500/30 rounded-lg p-3 mb-3 text-red-200">
           <strong>Error:</strong> {paidOutsError}
         </div>
       )}
 
       {paidOutsLoading ? (
         <div className="flex justify-center items-center py-20">
-          <div className="text-white text-lg">Loading paid outs...</div>
+          <div className="flex flex-col items-center gap-3 text-slate-400"><div className="h-8 w-8 rounded-full border-2 border-white/15 border-t-andy-red animate-spin" /><span className="text-sm">Loading paid outs...</span></div>
         </div>
       ) : filteredPaidOuts.length === 0 ? (
         <div className="surface rounded-lg p-8 text-center">

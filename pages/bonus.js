@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { ChevronDown, ChevronRight, Settings, RefreshCw, Printer, Upload, CheckCircle, XCircle, ArrowLeft, ArrowUp, ArrowDown } from 'lucide-react';
+import { ChevronDown, ChevronRight, Settings, RefreshCw, Printer, Upload, CheckCircle, XCircle, ArrowLeft, ArrowUp, ArrowDown, LogOut } from 'lucide-react';
 import DashboardSelect from '../components/shared/DashboardSelect';
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
@@ -579,7 +579,7 @@ export default function BonusDashboard() {
   // RENDER GATES
   // ============================================================
   if (status === 'loading') {
-    return <div className="min-h-screen flex items-center justify-center"><div className="text-white text-lg">Loading...</div></div>;
+    return <div className="min-h-screen flex items-center justify-center"><div className="flex flex-col items-center gap-3 text-slate-400"><div className="h-8 w-8 rounded-full border-2 border-white/15 border-t-andy-red animate-spin" /><span className="text-sm">Loading...</span></div></div>;
   }
 
   if (!session) {
@@ -642,66 +642,76 @@ export default function BonusDashboard() {
           </div>
 
           {/* Main Header */}
-          <div className="no-print surface rounded-2xl border-t-4 border-andy-red p-2 md:p-4 mb-2 md:mb-3 shadow-card">
+          <div className="no-print surface rounded-2xl mb-2 md:mb-3 shadow-card overflow-hidden">
+            <div className="h-1 bg-andy-red" />
+            <div className="p-3 md:p-4">
             {/* Desktop Header */}
-            <div className="hidden md:flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <img src="https://i.imgur.com/kkJMVz0.png" alt="Andy's Frozen Custard" className="h-16" />
-                <h1 className="text-2xl font-bold text-white">The Scoop</h1>
+            <div className="hidden md:flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <img src="https://i.imgur.com/kkJMVz0.png" alt="Andy's Frozen Custard" className="h-14 w-auto drop-shadow" />
+                <div className="leading-none">
+                  <h1 className="text-3xl font-bold tracking-tight text-white">The Scoop</h1>
+                  <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Quarterly Bonus</p>
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
-                <DashboardSelect
-                  value="bonus"
-                  className="px-4 py-2 text-sm bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-
-                <button onClick={handleRefresh} className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors" title="Refresh data">
-                  <RefreshCw size={16} className="text-white" />
+                <button onClick={handleRefresh} className="grid place-items-center min-h-[44px] min-w-[44px] rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors" title="Refresh data">
+                  <RefreshCw size={18} />
                 </button>
 
+                <DashboardSelect
+                  value="bonus"
+                  className="px-4 min-h-[44px] text-sm font-medium bg-slate-800/80 hairline rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+
                 {isAdmin && (
-                  <label className="p-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors cursor-pointer" title="Upload Quarterly P&L">
-                    <Upload size={16} className="text-white" />
+                  <label className="grid place-items-center min-h-[44px] min-w-[44px] rounded-xl bg-white/5 hover:bg-white/10 text-white transition-colors cursor-pointer" title="Upload Quarterly P&L">
+                    <Upload size={18} />
                     <input type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { if (e.target.files?.[0]) { handleUpload(e.target.files[0]); e.target.value = ''; } }} />
                   </label>
                 )}
 
-                <button onClick={() => window.print()} className="p-2 bg-slate-600 hover:bg-slate-500 rounded-lg transition-colors" title="Print">
-                  <Printer size={16} className="text-white" />
+                <button onClick={() => window.print()} className="grid place-items-center min-h-[44px] min-w-[44px] rounded-xl bg-white/5 hover:bg-white/10 text-white transition-colors" title="Print">
+                  <Printer size={18} />
                 </button>
 
-                <button onClick={() => signOut()} className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap">
-                  Sign Out
+                <button onClick={() => signOut()} className="grid place-items-center min-h-[44px] min-w-[44px] rounded-xl text-slate-500 hover:text-rose-400 hover:bg-white/5 transition-colors" title="Sign out" aria-label="Sign out">
+                  <LogOut size={18} />
                 </button>
               </div>
             </div>
 
             {/* Mobile Header */}
             <div className="md:hidden">
-              <div className="flex items-center justify-between mb-2">
-                <img src="https://i.imgur.com/kkJMVz0.png" alt="Andy's Frozen Custard" className="h-10" />
-                <div className="flex items-center gap-1">
-                  <button onClick={handleRefresh} className="p-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors" title="Refresh data">
-                    <RefreshCw size={14} className="text-white" />
-                  </button>
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="flex items-center gap-2.5">
+                  <img src="https://i.imgur.com/kkJMVz0.png" alt="Andy's Frozen Custard" className="h-10 w-auto" />
+                  <h1 className="text-xl font-bold tracking-tight text-white">The Scoop</h1>
+                </div>
+                <div className="flex items-center gap-1.5">
                   {isAdmin && (
-                    <label className="p-1.5 bg-green-600 hover:bg-green-700 rounded-lg transition-colors cursor-pointer" title="Upload Quarterly P&L">
-                      <Upload size={14} className="text-white" />
+                    <label className="grid place-items-center h-10 w-10 rounded-xl bg-white/5 hover:bg-white/10 text-white transition-colors cursor-pointer" title="Upload Quarterly P&L">
+                      <Upload size={18} />
                       <input type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { if (e.target.files?.[0]) { handleUpload(e.target.files[0]); e.target.value = ''; } }} />
                     </label>
                   )}
-                  <button onClick={() => signOut()} className="px-2 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors">
-                    Sign Out
+                  <button onClick={() => signOut()} className="grid place-items-center h-10 w-10 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-white/5 transition-colors" title="Sign out" aria-label="Sign out">
+                    <LogOut size={18} />
                   </button>
                 </div>
               </div>
 
-              <DashboardSelect
-                value="bonus"
-                className="w-full px-2 py-1.5 text-xs bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="flex items-center gap-2">
+                <button onClick={handleRefresh} className="grid place-items-center h-10 w-10 flex-shrink-0 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors" title="Refresh data">
+                  <RefreshCw size={18} />
+                </button>
+                <DashboardSelect
+                  value="bonus"
+                  className="flex-1 px-4 h-10 text-sm font-medium bg-slate-800/80 hairline rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
             </div>
           </div>
 
