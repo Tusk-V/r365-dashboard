@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Headings + the wordmark use the Outfit display typeface (loaded in
+   _document.js); body copy stays on the system stack. Slight negative
+   tracking gives titles a tighter, more designed feel. */
+@layer base {
+  h1, h2, h3, h4 {
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+      'Roboto', sans-serif;
+    letter-spacing: -0.015em;
+  }
+}
+
+/* Opt-in display font for big numbers / the wordmark. */
+.font-display {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'Roboto', sans-serif;
+}
+
 /* ============================================================
    App background — "FlightKit"-style depth.
    A deep slate base with two soft aurora glows (a cool blue and a

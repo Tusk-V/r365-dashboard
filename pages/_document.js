@@ -8,8 +8,17 @@ export default function Document() {
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-        {/* Tints the PWA status-bar region to match the dark slate background */}
-        <meta name="theme-color" content="#0f172a" />
+        {/* Display typeface — "Outfit" for the wordmark, headings, and big
+            numbers. Body copy stays on the system stack. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+
+        {/* Tints the PWA status-bar region to match the dark base background */}
+        <meta name="theme-color" content="#060a16" />
 
         {/* PWA / home-screen behavior */}
         <meta name="apple-mobile-web-app-capable" content="yes" />

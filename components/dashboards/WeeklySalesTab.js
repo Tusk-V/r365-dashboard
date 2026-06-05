@@ -191,20 +191,20 @@ export default function WeeklySalesTab({
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3 mb-3 md:mb-4">
-            <div className="surface rounded-lg p-2 md:p-3 shadow-lg text-center">
-              <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
-                <DollarSign className="text-green-400" size={14} />
-                <p className="text-slate-400 text-xs font-medium">Actual Sales</p>
+            <div className="surface rounded-2xl p-3 shadow-card">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="grid place-items-center h-6 w-6 md:h-7 md:w-7 rounded-lg bg-emerald-500/10 text-emerald-400"><DollarSign size={15} /></span>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Actual Sales</p>
               </div>
-              <p className="text-sm md:text-lg font-bold text-white">${totals.totalSales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+              <p className="font-display text-sm md:text-2xl font-bold text-white tnum">${totals.totalSales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
             </div>
 
-            <div className="surface rounded-lg p-2 md:p-3 shadow-lg text-center">
-              <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
-                <Target className="text-blue-400" size={14} />
-                <p className="text-slate-400 text-xs font-medium">Forecast</p>
+            <div className="surface rounded-2xl p-3 shadow-card">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="grid place-items-center h-6 w-6 md:h-7 md:w-7 rounded-lg bg-blue-500/10 text-blue-400"><Target size={15} /></span>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Forecast</p>
               </div>
-              <p className="text-sm md:text-lg font-bold text-white">${totals.totalForecast.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+              <p className="font-display text-sm md:text-2xl font-bold text-white tnum">${totals.totalForecast.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
             </div>
 
             <button
@@ -214,47 +214,47 @@ export default function WeeklySalesTab({
                 }
               }}
               title="Tap to show only stores under forecast and over scheduled hours"
-              className={`w-full bg-slate-800 border rounded-lg p-2 md:p-3 shadow-lg text-center transition-colors focus:outline-none ${filters.flaggedOnly ? 'border-red-500 ring-1 ring-red-500 cursor-pointer' : (totals.flaggedCount > 0 ? 'border-white/5 cursor-pointer hover:border-slate-500' : 'border-white/5 cursor-default')}`}
+              className={`w-full surface rounded-2xl p-3 shadow-card text-left transition-all focus:outline-none ${filters.flaggedOnly ? 'ring-2 ring-andy-red cursor-pointer' : (totals.flaggedCount > 0 ? 'cursor-pointer hover:ring-1 hover:ring-white/20' : 'cursor-default')}`}
             >
-              <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
-                <AlertTriangle className={totals.flaggedCount > 0 ? 'text-red-400' : 'text-green-400'} size={14} />
-                <p className="text-slate-400 text-xs font-medium">Fcst ↓ Sch ↑</p>
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`grid place-items-center h-6 w-6 md:h-7 md:w-7 rounded-lg ${totals.flaggedCount > 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'}`}><AlertTriangle size={15} /></span>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Fcst ↓ Sch ↑</p>
               </div>
-              <p className={`text-sm md:text-lg font-bold ${totals.flaggedCount > 0 ? 'text-red-400' : 'text-green-400'}`}>{totals.flaggedCount} {totals.flaggedCount === 1 ? 'Location' : 'Locations'}</p>
+              <p className={`font-display text-sm md:text-2xl font-bold tnum ${totals.flaggedCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{totals.flaggedCount} <span className="text-xs font-medium text-slate-400">{totals.flaggedCount === 1 ? 'location' : 'locations'}</span></p>
             </button>
 
-            <div className="surface rounded-lg p-2 md:p-3 shadow-lg text-center">
-              <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
-                <TrendingUp className="text-cyan-400" size={14} />
-                <p className="text-slate-400 text-xs font-medium">Comp PY Var</p>
+            <div className="surface rounded-2xl p-3 shadow-card">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="grid place-items-center h-6 w-6 md:h-7 md:w-7 rounded-lg bg-cyan-500/10 text-cyan-400"><TrendingUp size={15} /></span>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Comp PY Var</p>
               </div>
-              <p className={`text-sm md:text-lg font-bold ${totals.comparablePyVariancePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <p className={`font-display text-sm md:text-2xl font-bold tnum ${totals.comparablePyVariancePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {totals.comparablePyVariancePercent >= 0 ? '+' : ''}{totals.comparablePyVariancePercent.toFixed(1)}%
               </p>
             </div>
 
-            <div className="surface rounded-lg p-2 md:p-3 shadow-lg text-center">
-              <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
-                <Users className="text-orange-400" size={14} />
-                <p className="text-slate-400 text-xs font-medium">Labor %</p>
+            <div className="surface rounded-2xl p-3 shadow-card">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="grid place-items-center h-6 w-6 md:h-7 md:w-7 rounded-lg bg-amber-500/10 text-amber-400"><Users size={15} /></span>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Labor %</p>
               </div>
-              <p className="text-sm md:text-lg font-bold text-white">{totals.avgLaborPercent.toFixed(1)}%</p>
+              <p className="font-display text-sm md:text-2xl font-bold text-white tnum">{totals.avgLaborPercent.toFixed(1)}%</p>
             </div>
 
-            <div className="surface rounded-lg p-2 md:p-3 shadow-lg text-center">
-              <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
-                <Clock className="text-red-400" size={14} />
-                <p className="text-slate-400 text-xs font-medium">Act vs. Sch</p>
+            <div className="surface rounded-2xl p-3 shadow-card">
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`grid place-items-center h-6 w-6 md:h-7 md:w-7 rounded-lg ${totals.totalActVsSch > 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'}`}><Clock size={15} /></span>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Act vs. Sch</p>
               </div>
-              <p className={`text-sm md:text-lg font-bold ${totals.totalActVsSch > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                {totals.totalActVsSch > 0 ? '+' : ''}{totals.totalActVsSch.toFixed(1)} hrs
+              <p className={`font-display text-sm md:text-2xl font-bold tnum ${totals.totalActVsSch > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {totals.totalActVsSch > 0 ? '+' : ''}{totals.totalActVsSch.toFixed(1)} <span className="text-xs font-medium text-slate-400">hrs</span>
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
             {filteredLocations.map((loc, idx) => (
-              <div key={idx} className="surface rounded-lg p-2 md:p-3 shadow-lg">
+              <div key={idx} className="surface rounded-2xl p-3 shadow-card">
                 <div className="flex items-start justify-between mb-2 md:mb-3">
                   <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
                   <div className="flex gap-1">
@@ -297,7 +297,7 @@ export default function WeeklySalesTab({
                 </div>
 
                 <div className="grid grid-cols-3 gap-1.5 md:gap-2">
-                  <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                  <div className="surface-2 rounded-xl p-1.5 md:p-2">
                     <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">SALES</p>
                     <div className="space-y-0.5 md:space-y-1">
                       <div className="flex justify-between items-center">
@@ -319,7 +319,7 @@ export default function WeeklySalesTab({
                     </div>
                   </div>
 
-                  <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                  <div className="surface-2 rounded-xl p-1.5 md:p-2">
                     <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">LABOR</p>
                     <div className="space-y-0.5 md:space-y-1">
                       <div className="flex justify-between items-center">
@@ -341,7 +341,7 @@ export default function WeeklySalesTab({
                     </div>
                   </div>
 
-                  <div className="bg-slate-900 rounded-lg p-1.5 md:p-2">
+                  <div className="surface-2 rounded-xl p-1.5 md:p-2">
                     <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">HOURS</p>
                     <div className="space-y-0.5 md:space-y-1">
                       <div className="flex justify-between items-center">
