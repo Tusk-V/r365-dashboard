@@ -69,13 +69,13 @@ export default function ChannelSidebar({ channels, activeKey, onSelect, onMarkAl
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search channels"
-            className="w-full pl-7 pr-2 py-1.5 bg-slate-700/50 border border-slate-600 rounded-md text-base md:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-600"
+            className="w-full pl-7 pr-2 py-1.5 bg-slate-700/50 border border-slate-600 rounded-md text-base md:text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
       </div>
       {hasUnread && (
         <div className="px-2 pb-1 flex-shrink-0">
-          <button onClick={onMarkAllRead} className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-slate-400 hover:text-white hover:bg-slate-700/50 border border-slate-700">
+          <button onClick={onMarkAllRead} className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-slate-400 hover:text-white hover:bg-slate-700/50 border border-white/5">
             <Check size={13} /> Mark all read
           </button>
         </div>

@@ -4,7 +4,7 @@ export default function OvertimeTab({ filteredOvertime, overtimeLoading, overtim
   return (
     <>
       {/* Header */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+      <div className="surface rounded-lg p-3 mb-3 shadow-lg">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-white">OT Warnings</h2>
@@ -28,15 +28,15 @@ export default function OvertimeTab({ filteredOvertime, overtimeLoading, overtim
           <div className="text-white text-lg">Loading overtime warnings...</div>
         </div>
       ) : filteredOvertime.length === 0 ? (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+        <div className="surface rounded-lg p-8 text-center">
           <AlertCircle className="mx-auto mb-3 text-green-400" size={48} />
           <h3 className="text-xl font-bold text-white mb-2">No OT Warnings</h3>
           <p className="text-slate-400">No employees approaching overtime this week!</p>
         </div>
       ) : (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-lg overflow-x-auto">
+        <div className="surface rounded-lg shadow-lg overflow-x-auto">
           {/* Header Row */}
-          <div className="grid gap-2 p-2 border-b border-slate-700 bg-slate-900 min-w-[360px]" style={{gridTemplateColumns: '1fr 90px 130px'}}>
+          <div className="grid gap-2 p-2 border-b border-white/5 bg-slate-900 min-w-[360px]" style={{gridTemplateColumns: '1fr 90px 130px'}}>
             <div className="text-slate-400 text-xs font-semibold">Name</div>
             <div className="text-slate-400 text-xs font-semibold">Location</div>
             <div className="text-slate-400 text-xs font-semibold text-right">Est OT Start</div>

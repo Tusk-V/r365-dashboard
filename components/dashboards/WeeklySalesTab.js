@@ -29,7 +29,7 @@ export default function WeeklySalesTab({
   return (
     <>
       {/* Control bar: week selector + filters share one row */}
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg">
+      <div className="surface rounded-lg p-2 md:p-3 mb-3 md:mb-4 shadow-lg">
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => setIsFiltersOpen(!isFiltersOpen)}
@@ -49,14 +49,14 @@ export default function WeeklySalesTab({
                     e.stopPropagation();
                     setIsWeekDropdownOpen(!isWeekDropdownOpen);
                   }}
-                  className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600 flex items-center gap-2"
+                  className="px-3 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
                 >
                   <span>{selectedWeek === 'current' ? 'Current Week' : `Week ending ${selectedWeek}`}</span>
                   <span className="text-slate-400">▼</span>
                 </button>
                 {isWeekDropdownOpen && (
                   <div
-                    className="absolute z-10 mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg min-w-[200px]"
+                    className="absolute z-10 mt-1 bg-slate-800/80 hairline rounded shadow-lg min-w-[200px]"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
@@ -98,14 +98,14 @@ export default function WeeklySalesTab({
                   e.stopPropagation();
                   setIsLocationDropdownOpen(!isLocationDropdownOpen);
                 }}
-                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-600 flex justify-between items-center"
+                className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-blue-500 flex justify-between items-center"
               >
                 <span>{filters.locations.length === 0 ? 'All Locations' : `${filters.locations.length} selected`}</span>
                 <span className="text-slate-400">▼</span>
               </button>
               {isLocationDropdownOpen && (
                 <div
-                  className="absolute z-10 w-full mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg max-h-64 overflow-y-auto"
+                  className="absolute z-10 w-full mt-1 bg-slate-800/80 hairline rounded shadow-lg max-h-64 overflow-y-auto"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-600">
@@ -139,7 +139,7 @@ export default function WeeklySalesTab({
               <select
                 value={filters.market}
                 onChange={(e) => setFilters({...filters, market: e.target.value})}
-                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Markets</option>
                 <option value="Tulsa">Tulsa</option>
@@ -154,7 +154,7 @@ export default function WeeklySalesTab({
               <select
                 value={filters.actVsOptVariance}
                 onChange={(e) => setFilters({...filters, actVsOptVariance: e.target.value})}
-                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Variances</option>
                 <option value="positive">Over Optimal</option>
@@ -167,7 +167,7 @@ export default function WeeklySalesTab({
               <select
                 value={filters.salesVariance}
                 onChange={(e) => setFilters({...filters, salesVariance: e.target.value})}
-                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Variances</option>
                 <option value="positive">Above Forecast</option>
@@ -191,7 +191,7 @@ export default function WeeklySalesTab({
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3 mb-3 md:mb-4">
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+            <div className="surface rounded-lg p-2 md:p-3 shadow-lg text-center">
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
                 <DollarSign className="text-green-400" size={14} />
                 <p className="text-slate-400 text-xs font-medium">Actual Sales</p>
@@ -199,7 +199,7 @@ export default function WeeklySalesTab({
               <p className="text-sm md:text-lg font-bold text-white">${totals.totalSales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+            <div className="surface rounded-lg p-2 md:p-3 shadow-lg text-center">
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
                 <Target className="text-blue-400" size={14} />
                 <p className="text-slate-400 text-xs font-medium">Forecast</p>
@@ -214,7 +214,7 @@ export default function WeeklySalesTab({
                 }
               }}
               title="Tap to show only stores under forecast and over scheduled hours"
-              className={`w-full bg-slate-800 border rounded-lg p-2 md:p-3 shadow-lg text-center transition-colors focus:outline-none ${filters.flaggedOnly ? 'border-red-500 ring-1 ring-red-500 cursor-pointer' : (totals.flaggedCount > 0 ? 'border-slate-700 cursor-pointer hover:border-slate-500' : 'border-slate-700 cursor-default')}`}
+              className={`w-full bg-slate-800 border rounded-lg p-2 md:p-3 shadow-lg text-center transition-colors focus:outline-none ${filters.flaggedOnly ? 'border-red-500 ring-1 ring-red-500 cursor-pointer' : (totals.flaggedCount > 0 ? 'border-white/5 cursor-pointer hover:border-slate-500' : 'border-white/5 cursor-default')}`}
             >
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
                 <AlertTriangle className={totals.flaggedCount > 0 ? 'text-red-400' : 'text-green-400'} size={14} />
@@ -223,7 +223,7 @@ export default function WeeklySalesTab({
               <p className={`text-sm md:text-lg font-bold ${totals.flaggedCount > 0 ? 'text-red-400' : 'text-green-400'}`}>{totals.flaggedCount} {totals.flaggedCount === 1 ? 'Location' : 'Locations'}</p>
             </button>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+            <div className="surface rounded-lg p-2 md:p-3 shadow-lg text-center">
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
                 <TrendingUp className="text-cyan-400" size={14} />
                 <p className="text-slate-400 text-xs font-medium">Comp PY Var</p>
@@ -233,7 +233,7 @@ export default function WeeklySalesTab({
               </p>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+            <div className="surface rounded-lg p-2 md:p-3 shadow-lg text-center">
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
                 <Users className="text-orange-400" size={14} />
                 <p className="text-slate-400 text-xs font-medium">Labor %</p>
@@ -241,7 +241,7 @@ export default function WeeklySalesTab({
               <p className="text-sm md:text-lg font-bold text-white">{totals.avgLaborPercent.toFixed(1)}%</p>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg text-center">
+            <div className="surface rounded-lg p-2 md:p-3 shadow-lg text-center">
               <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
                 <Clock className="text-red-400" size={14} />
                 <p className="text-slate-400 text-xs font-medium">Act vs. Sch</p>
@@ -254,7 +254,7 @@ export default function WeeklySalesTab({
 
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 md:gap-3">
             {filteredLocations.map((loc, idx) => (
-              <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+              <div key={idx} className="surface rounded-lg p-2 md:p-3 shadow-lg">
                 <div className="flex items-start justify-between mb-2 md:mb-3">
                   <h3 className="text-sm md:text-base font-bold text-white">{loc.location}</h3>
                   <div className="flex gap-1">

@@ -1351,7 +1351,7 @@ loadModelCoefficients();
 
 if (status === "loading" || accessLoading) {
 return (
-<div className="min-h-screen bg-slate-900 flex items-center justify-center">
+<div className="min-h-screen flex items-center justify-center">
 <div className="text-white text-lg">Loading...</div>
 </div>
 )
@@ -1364,7 +1364,7 @@ return null
 // Show loading while redirecting to access-pending (useEffect handles the redirect)
 if (!isAdmin && (!dashboardAccess || dashboardAccess.type === 'none')) {
 return (
-<div className="min-h-screen bg-slate-900 flex items-center justify-center">
+<div className="min-h-screen flex items-center justify-center">
 <div className="text-white text-lg">Checking access...</div>
 </div>
 );
@@ -1377,9 +1377,9 @@ return (
 <Head>
 <title>Andy's Dashboards</title>
 </Head>
-<div className="min-h-screen bg-slate-900 p-2 md:p-4">
+<div className="min-h-screen p-2 md:p-4">
 <div className="max-w-[1400px] mx-auto">
-<div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 md:mb-4 shadow-2xl">
+<div className="surface rounded-2xl p-3 md:p-4 mb-3 md:mb-4 shadow-card">
 <div className="hidden md:flex items-center justify-between gap-3">
 <div className="flex items-center gap-3">
 <img 
@@ -1408,9 +1408,9 @@ className="h-16"
                   setActiveTab(e.target.value);
                 }
               }}
-              className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              className="px-4 min-h-[44px] text-sm bg-slate-800/80 hairline rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            
+
             <button
               onClick={() => {
                 if (activeTab === 'sales') {
@@ -1441,16 +1441,16 @@ loadModelForecastData();
 loadModelCoefficients();
                 }
               }}
-              className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              className="grid place-items-center min-h-[44px] min-w-[44px] rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
               title="Refresh data"
             >
-              <RefreshCw size={16} className="text-white" />
+              <RefreshCw size={16} />
             </button>
 
             {/* Message Board Button */}
             <button
               onClick={() => router.push('/messages')}
-              className="relative flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white text-sm font-medium"
+              className="relative flex items-center gap-2 min-h-[44px] px-4 bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors text-white text-sm font-semibold shadow-lg shadow-blue-600/20"
               title="Message Board"
             >
               <MessageSquare size={16} />
@@ -1466,7 +1466,7 @@ loadModelCoefficients();
             {isAdmin && (
               <button
                 onClick={() => router.push('/admin')}
-                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                className="grid place-items-center min-h-[44px] min-w-[44px] rounded-xl bg-white/5 hover:bg-white/10 text-white transition-colors"
                 title="Admin"
               >
                 <Settings size={16} className="text-white" />
@@ -1475,7 +1475,7 @@ loadModelCoefficients();
 
             <button
               onClick={() => signOut()}
-              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+              className="min-h-[44px] px-4 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-colors whitespace-nowrap"
               title="Sign out"
             >
               Sign Out
@@ -1493,7 +1493,7 @@ loadModelCoefficients();
             {/* Message Board Button */}
             <button
               onClick={() => router.push('/messages')}
-              className="relative flex items-center gap-1.5 px-2.5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white text-sm font-medium"
+              className="relative flex items-center gap-1.5 min-h-[44px] px-3 bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors text-white text-sm font-semibold shadow-lg shadow-blue-600/20"
               title="Message Board"
             >
               <MessageSquare size={16} />
@@ -1507,7 +1507,7 @@ loadModelCoefficients();
             {isAdmin && (
               <button
                 onClick={() => router.push('/admin')}
-                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                className="grid place-items-center min-h-[44px] min-w-[44px] rounded-xl bg-white/5 hover:bg-white/10 text-white transition-colors"
                 title="Admin"
               >
                 <Settings size={16} className="text-white" />
@@ -1515,7 +1515,7 @@ loadModelCoefficients();
             )}
             <button
               onClick={() => signOut()}
-              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+              className="min-h-[44px] px-4 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-colors whitespace-nowrap"
               title="Sign out"
             >
               Sign Out
@@ -1535,7 +1535,7 @@ loadModelCoefficients();
                 setActiveTab(e.target.value);
               }
             }}
-            className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+            className="flex-1 px-4 min-h-[44px] text-sm bg-slate-800/80 hairline rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           
           <button

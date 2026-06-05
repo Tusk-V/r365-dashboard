@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pencil, Trash2, SmilePlus, Megaphone } from 'lucide-react';
+import { avatarColor } from '../../lib/avatarColor';
 
 const EMOJIS = [
   '👍', '👎', '❤️', '🔥', '🎉', '👀', '😂', '😅',
@@ -35,14 +36,14 @@ function formatClock(dateString) {
   return new Date(dateString).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
-function Avatar({ name, image }) {
+function Avatar({ name, image, colorKey }) {
   if (image) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={image} alt={name || ''} className="h-9 w-9 rounded-full object-cover" referrerPolicy="no-referrer" />;
   }
   const initial = (name || '?').trim().charAt(0).toUpperCase();
   return (
-    <div className="h-9 w-9 rounded-full bg-slate-600 flex items-center justify-center text-sm font-semibold text-slate-200">
+    <div className={`h-9 w-9 rounded-full ${avatarColor(colorKey || name)} flex items-center justify-center text-sm font-semibold text-white`}>
       {initial}
     </div>
   );
@@ -80,13 +81,13 @@ export default function MessageItem({ message, userEmail, canModerate, showHeade
           className={`absolute right-2 top-1 z-10 transition-opacity ${actionsOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'}`}
           onClick={stop}
         >
-          <div className="flex items-center gap-0.5 bg-slate-700 border border-slate-600 rounded-lg shadow-lg px-0.5 py-0.5">
+          <div className="flex items-center gap-0.5 bg-slate-800/80 hairline rounded-lg shadow-lg px-0.5 py-0.5">
             <button onClick={() => setShowEmoji(v => !v)} className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-600 rounded" title="Add reaction"><SmilePlus size={16} /></button>
             {canEdit && <button onClick={() => setEditing(true)} className="p-1.5 text-slate-300 hover:text-blue-400 hover:bg-slate-600 rounded" title="Edit"><Pencil size={16} /></button>}
             {canRemove && <button onClick={() => onDelete(message._id)} className="p-1.5 text-slate-300 hover:text-red-400 hover:bg-slate-600 rounded" title="Delete"><Trash2 size={16} /></button>}
           </div>
           {showEmoji && (
-            <div className="absolute top-full right-0 mt-1 w-56 max-h-44 overflow-y-auto scrollbar-slim bg-slate-700 border border-slate-600 rounded-lg p-2 shadow-xl grid grid-cols-8 gap-0.5">
+            <div className="absolute top-full right-0 mt-1 w-56 max-h-44 overflow-y-auto scrollbar-slim bg-slate-800/80 hairline rounded-lg p-2 shadow-xl grid grid-cols-8 gap-0.5">
               {EMOJIS.map(emoji => (
                 <button key={emoji} onClick={() => react(emoji)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-600 rounded text-base">{emoji}</button>
               ))}
@@ -98,7 +99,7 @@ export default function MessageItem({ message, userEmail, canModerate, showHeade
       {/* Avatar column (or hover timestamp for grouped messages) */}
       <div className="w-9 flex-shrink-0 select-none">
         {showHeader
-          ? <Avatar name={message.authorName} image={message.authorImage} />
+          ? <Avatar name={message.authorName} image={message.authorImage} colorKey={message.authorEmail} />
           : <span className="block pt-0.5 pr-1 text-right text-[10px] leading-5 text-slate-600 opacity-0 group-hover:opacity-100">{formatClock(message.createdAt)}</span>}
       </div>
 
@@ -121,7 +122,7 @@ export default function MessageItem({ message, userEmail, canModerate, showHeade
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={2}
-              className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-base md:text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-600"
+              className="w-full px-2 py-1 bg-slate-800/80 hairline rounded text-white text-base md:text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
               autoFocus
             />
             <div className="flex gap-2 justify-end mt-1">
@@ -150,14 +151,14 @@ export default function MessageItem({ message, userEmail, canModerate, showHeade
                 <button
                   key={emoji}
                   onClick={(e) => { stop(e); onReact(message._id, emoji); }}
-                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs ${users.includes(userEmail) ? 'bg-blue-600/30 border border-blue-500' : 'bg-slate-700 border border-slate-600 hover:border-slate-500'}`}
+                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs ${users.includes(userEmail) ? 'bg-blue-600/30 border border-blue-500' : 'bg-slate-800/80 hairline hover:border-slate-500'}`}
                   title={users.join(', ')}
                 >
                   <span>{emoji}</span><span className="text-slate-300">{users.length}</span>
                 </button>
               )
             ))}
-            <button onClick={(e) => { stop(e); setActionsOpen(true); setShowEmoji(true); }} className="px-1.5 py-0.5 rounded-full text-xs bg-slate-700 border border-slate-600 text-slate-400 hover:text-white hover:border-slate-500" title="Add reaction">
+            <button onClick={(e) => { stop(e); setActionsOpen(true); setShowEmoji(true); }} className="px-1.5 py-0.5 rounded-full text-xs bg-slate-800/80 hairline text-slate-400 hover:text-white hover:border-slate-500" title="Add reaction">
               <SmilePlus size={13} />
             </button>
           </div>

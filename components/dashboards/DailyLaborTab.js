@@ -25,7 +25,7 @@ export default function DailyLaborTab({
 }) {
   return (
     <>
-      <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+      <div className="surface rounded-lg p-3 mb-3 shadow-lg">
         <button
           onClick={() => setIsDailyLaborFiltersOpen(!isDailyLaborFiltersOpen)}
           className="flex items-center gap-2 w-full"
@@ -44,13 +44,13 @@ export default function DailyLaborTab({
                     e.stopPropagation();
                     setIsDailyLaborLocationDropdownOpen(!isDailyLaborLocationDropdownOpen);
                   }}
-                  className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <span>{dailyLaborFilters.locations.length === 0 ? 'All Locations' : `${dailyLaborFilters.locations.length} selected`}</span>
                   <ChevronDown size={14} />
                 </button>
                 {isDailyLaborLocationDropdownOpen && (
-                  <div className="absolute z-10 mt-1 w-full bg-slate-700 border border-slate-600 rounded shadow-lg max-h-60 overflow-y-auto">
+                  <div className="absolute z-10 mt-1 w-full bg-slate-800/80 hairline rounded shadow-lg max-h-60 overflow-y-auto">
                     <label className="flex items-center px-3 py-2 hover:bg-slate-600 cursor-pointer">
                       <input
                         type="checkbox"
@@ -80,7 +80,7 @@ export default function DailyLaborTab({
               <select
                 value={dailyLaborFilters.market}
                 onChange={(e) => setDailyLaborFilters({...dailyLaborFilters, market: e.target.value})}
-                className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">All Markets</option>
                 <option value="Tulsa">Tulsa</option>
@@ -104,7 +104,7 @@ export default function DailyLaborTab({
           <div className="text-white text-lg">Loading labor data...</div>
         </div>
       ) : filteredDailyLabor.length === 0 ? (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+        <div className="surface rounded-lg p-8 text-center">
           <AlertCircle className="mx-auto mb-3 text-blue-400" size={48} />
           <h3 className="text-xl font-bold text-white mb-2">No Labor Data</h3>
           <p className="text-slate-400">Select locations to view labor metrics</p>
@@ -115,7 +115,7 @@ export default function DailyLaborTab({
             const locationData = filterPrior7Days(dailyLaborData[location]);
             if (locationData.length === 0) return null;
             return (
-              <div key={location} className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 shadow-lg">
+              <div key={location} className="surface rounded-lg p-2 md:p-3 shadow-lg">
                 <div className="mb-2 md:mb-3 flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm md:text-base font-bold text-white">{location}</h3>
                   {(() => {
@@ -137,10 +137,10 @@ export default function DailyLaborTab({
                   })()}
                 </div>
 
-                <div className="bg-slate-900 rounded-lg overflow-x-auto">
+                <div className="surface-2 rounded-xl overflow-x-auto">
                   {/* Desktop Table */}
-                  <table className="hidden md:table w-full text-xs table-fixed">
-                    <thead className="bg-slate-800">
+                  <table className="hidden md:table w-full text-sm tnum table-fixed">
+                    <thead className="bg-white/5">
                       <tr>
                         <th className="text-center p-2 text-slate-400 font-semibold w-16">Grade</th>
                         <th className="text-left p-2 text-slate-400 font-semibold w-44">Date</th>
@@ -162,7 +162,7 @@ export default function DailyLaborTab({
                         const dayClockouts = clockouts.filter(c => c.location === location && c.reportDate === day.date);
                         const dayExtraHrs = dayClockouts.reduce((sum, c) => { const h = parseFloat(c.extraHours); return sum + (isNaN(h) ? 0 : h); }, 0);
                         return (
-                          <tr key={idx} className="border-t border-slate-700">
+                          <tr key={idx} className="border-t border-white/5 odd:bg-white/[0.02] hover:bg-white/[0.05] transition-colors">
                             <td className="text-center p-2">
                               {grade ? (
                                 <span className={`inline-block w-7 py-0.5 rounded text-xs font-bold border ${grade.bg} ${grade.color}`}>
@@ -205,7 +205,7 @@ export default function DailyLaborTab({
                   {/* Mobile Ultra-Compact - All on one line per day */}
                   <div className="md:hidden">
                     {/* Mobile Headers */}
-                    <div className="border-b border-slate-700 px-1.5 py-2 text-[11px] flex items-center bg-slate-800 sticky top-0">
+                    <div className="border-b border-white/5 px-1.5 py-2 text-[11px] flex items-center bg-slate-800 sticky top-0">
                       <div className="text-slate-400 font-semibold w-5 text-center">G</div>
                       <div className="text-slate-400 font-semibold w-12">Day</div>
                       <div className="text-slate-400 font-semibold text-right flex-1">Act</div>
@@ -237,7 +237,7 @@ export default function DailyLaborTab({
                       const dayExtraHrs = dayClockouts.reduce((sum, c) => { const h = parseFloat(c.extraHours); return sum + (isNaN(h) ? 0 : h); }, 0);
 
                       return (
-                        <div key={idx} className="border-b border-slate-700 last:border-b-0">
+                        <div key={idx} className="border-b border-white/5 last:border-b-0">
                           <div className="px-1.5 py-1.5 text-[11px] flex items-center">
                           {/* Grade */}
                           <div className="w-5 text-center flex-shrink-0">

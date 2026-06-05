@@ -5,7 +5,7 @@ export default function CallOffModal({ data, onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-slate-800 border border-slate-700 rounded-lg p-4 max-w-sm w-full shadow-xl"
+        className="surface rounded-lg p-4 max-w-sm w-full shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
@@ -20,7 +20,7 @@ export default function CallOffModal({ data, onClose }) {
 
         <div className="space-y-1">
           {data.employees.map((emp, idx) => (
-            <div key={idx} className="text-white text-sm py-1 border-b border-slate-700 last:border-b-0">
+            <div key={idx} className="text-white text-sm py-1 border-b border-white/5 last:border-b-0">
               {emp}
             </div>
           ))}

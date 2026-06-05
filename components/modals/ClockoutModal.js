@@ -5,7 +5,7 @@ export default function ClockoutModal({ data, onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-slate-800 border border-slate-700 rounded-lg p-4 max-w-sm w-full shadow-xl"
+        className="surface rounded-lg p-4 max-w-sm w-full shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
@@ -20,7 +20,7 @@ export default function ClockoutModal({ data, onClose }) {
 
         <div className="space-y-1">
           {data.data.map((c, idx) => (
-            <div key={idx} className="flex justify-between text-sm py-1 border-b border-slate-700 last:border-b-0">
+            <div key={idx} className="flex justify-between text-sm py-1 border-b border-white/5 last:border-b-0">
               <span className="text-white">{c.employee}</span>
               <span className="text-red-400 font-medium">{c.extraHours === 'N/A' ? 'N/A' : c.extraHours ? `${c.extraHours}h` : ''}</span>
             </div>

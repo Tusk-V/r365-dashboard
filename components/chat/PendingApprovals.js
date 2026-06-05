@@ -31,7 +31,7 @@ export default function PendingApprovals({ onClose }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div className="bg-slate-800 w-full sm:max-w-md sm:rounded-lg rounded-t-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-4 border-b border-slate-700">
+        <div className="flex items-center justify-between p-4 border-b border-white/5">
           <h2 className="font-bold text-white">Pending approvals</h2>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-white"><X size={20} /></button>
         </div>
