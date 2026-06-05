@@ -17,7 +17,7 @@ export default function LogbookTab({
   return (
     <>
       {/* Header */}
-      <div className="surface rounded-lg p-3 mb-3 shadow-lg">
+      <div className="surface rounded-2xl p-3 mb-3 shadow-card">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -36,7 +36,7 @@ export default function LogbookTab({
       </div>
 
       {/* Filters */}
-      <div className="surface rounded-lg p-3 mb-3 shadow-lg">
+      <div className="surface rounded-2xl p-3 mb-3 shadow-card">
         <button
           onClick={() => setIsLogbookFiltersOpen(!isLogbookFiltersOpen)}
           className="flex items-center gap-2 w-full"
@@ -89,7 +89,7 @@ export default function LogbookTab({
           <div className="flex flex-col items-center gap-3 text-slate-400"><div className="h-8 w-8 rounded-full border-2 border-white/15 border-t-andy-red animate-spin" /><span className="text-sm">Loading logbook entries...</span></div>
         </div>
       ) : filteredLogbook.length === 0 ? (
-        <div className="surface rounded-lg p-8 text-center">
+        <div className="surface rounded-2xl p-8 text-center">
           <BookOpen className="mx-auto mb-3 text-slate-500" size={48} />
           <h3 className="text-xl font-bold text-white mb-2">No Logbook Entries</h3>
           <p className="text-slate-400">No entries found for the selected filters</p>
@@ -115,13 +115,13 @@ export default function LogbookTab({
               });
 
               return (
-                <div key={date} className="surface rounded-lg shadow-lg">
-                  <div className="bg-slate-900 p-3 border-b border-white/5">
+                <div key={date} className="surface rounded-2xl shadow-card overflow-hidden">
+                  <div className="bg-white/5 p-3 border-b border-white/10">
                     <h3 className="text-lg font-bold text-white">{formattedDate}</h3>
                     <p className="text-xs text-slate-400">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</p>
                   </div>
 
-                  <div className="divide-y divide-slate-700">
+                  <div className="divide-y divide-white/10">
                     {entries.map((entry) => {
                       const isExpanded = expandedLogbookIds.has(entry.id);
                       const summary = entry.summary || generateSummary(entry.comment);
@@ -131,7 +131,7 @@ export default function LogbookTab({
                       return (
                         <div
                           key={entry.id}
-                          className="p-3 cursor-pointer hover:bg-slate-750 transition-colors"
+                          className="p-3 cursor-pointer hover:bg-white/5 transition-colors"
                           onClick={() => toggleLogbookExpanded(entry.id)}
                         >
                           <div className="flex items-start justify-between gap-3">
