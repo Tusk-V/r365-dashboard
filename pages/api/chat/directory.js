@@ -6,7 +6,7 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]";
 import clientPromise from "../../../lib/mongodb";
-import { deriveChannelsForUser, canViewChannelMembers } from "../../../lib/channels";
+import { deriveChannelsForUser, canViewChannelMembers, tierOf } from "../../../lib/channels";
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
   try {
     const users = await db.collection('users')
       .find({})
-      .project({ email: 1, name: 1, role: 1, owner: 1, fom: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1 })
+      .project({ email: 1, name: 1, role: 1, owner: 1, fom: 1, manager: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1, channelInclusions: 1, channelExclusions: 1 })
       .toArray();
 
     // Build channel -> members from each user's derived channel membership.
@@ -47,16 +47,20 @@ export default async function handler(req, res) {
     for (const u of users) {
       if (!u.email) continue;
       const uIsAdmin = u.email === ADMIN_EMAIL;
-      const chans = deriveChannelsForUser({
+      const uActor = {
         isAdmin: uIsAdmin,
         owner: uIsAdmin || !!u.owner,
         fom: !!(u.fom || u.role === 'FOM'),
+        manager: !!u.manager,
         managedMarkets: u.managedMarkets || [],
         dashboardAccess: u.dashboardAccess,
         chatAccess: u.chatAccess,
-      });
+        channelInclusions: u.channelInclusions || [],
+        channelExclusions: u.channelExclusions || [],
+      };
+      const chans = deriveChannelsForUser(uActor);
       if (chans.length === 0) continue;
-      const role = uIsAdmin ? 'Admin' : (u.role || 'User');
+      const role = tierOf(uActor) || 'User';
       for (const c of chans) {
         if (!meta.has(c.key)) meta.set(c.key, { key: c.key, name: c.name, type: c.type, market: c.market || null });
         if (!membersByKey.has(c.key)) membersByKey.set(c.key, []);
