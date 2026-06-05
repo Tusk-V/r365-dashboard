@@ -149,6 +149,19 @@ export default function MessagesPage() {
     }).catch(() => {});
   }, []);
 
+  const markAllRead = useCallback(async () => {
+    try {
+      const res = await fetch('/api/chat/read-all', { method: 'POST' });
+      if (res.ok) {
+        setChannels(prev => {
+          const next = prev.map(c => ({ ...c, unread: 0 }));
+          applyAppBadge(next);
+          return next;
+        });
+      }
+    } catch (_) {}
+  }, []);
+
   useEffect(() => {
     if (!activeKey) return;
     let cancelled = false;
@@ -399,6 +412,8 @@ export default function MessagesPage() {
               channels={channels}
               activeKey={activeKey}
               onSelect={(key) => { setActiveKey(key); setMobileShowStream(true); }}
+              onMarkAllRead={markAllRead}
+              hasUnread={channels.some(c => !c.muted && (c.unread || 0) > 0)}
             />
           )}
           {userEmail && (
