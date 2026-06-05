@@ -69,10 +69,12 @@ export default async function handler(req, res) {
 
     let totalUnread = 0;
     const withUnread = channels.map(c => {
+      const muted = mutedChannels.includes(c.key);
       const unread = unreadByChannel[c.key] || 0;
-      totalUnread += unread;
+      // Muted channels never contribute to the app-icon badge total.
+      if (!muted) totalUnread += unread;
       const last = readMap.get(c.key);
-      return { ...c, unread, muted: mutedChannels.includes(c.key), lastReadAt: last ? new Date(last).toISOString() : null };
+      return { ...c, unread, muted, lastReadAt: last ? new Date(last).toISOString() : null };
     });
 
     return res.status(200).json({ channels: withUnread, totalUnread });

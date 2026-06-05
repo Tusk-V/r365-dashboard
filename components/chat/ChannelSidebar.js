@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Map, Store, Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { Building2, Map, Store, Search, ChevronDown, ChevronRight, BellOff } from 'lucide-react';
 
 const SECTIONS = [
   { type: 'company', label: 'Company', Icon: Building2 },
@@ -9,17 +9,21 @@ const SECTIONS = [
 const MARKET_ORDER = ['Tulsa', 'Oklahoma City', 'Dallas', 'Orlando'];
 
 function ChannelRow({ channel, active, onSelect }) {
+  // Muted channels never alert: no bold, no red unread pill — just a quiet mute icon.
+  const showUnread = channel.unread > 0 && !channel.muted;
   return (
     <button
       onClick={() => onSelect(channel.key)}
       className={`group w-full flex items-center justify-between gap-2 min-h-[40px] pl-2.5 pr-3 py-2 rounded-md text-sm border-l-2 transition-colors ${active ? 'bg-blue-600/20 text-white border-blue-500' : 'border-transparent text-slate-300 hover:bg-slate-700/50 hover:text-white'}`}
     >
-      <span className={`truncate ${channel.unread > 0 && !active ? 'font-semibold text-white' : ''}`}>{channel.name}</span>
-      {channel.unread > 0 && (
+      <span className={`truncate ${showUnread && !active ? 'font-semibold text-white' : ''} ${channel.muted && !active ? 'text-slate-500' : ''}`}>{channel.name}</span>
+      {showUnread ? (
         <span className="ml-2 px-1.5 py-px text-[10px] font-bold bg-red-600 text-white rounded-full flex-shrink-0">
           {channel.unread > 99 ? '99+' : channel.unread}
         </span>
-      )}
+      ) : channel.muted ? (
+        <BellOff size={12} className="ml-2 text-slate-600 flex-shrink-0" />
+      ) : null}
     </button>
   );
 }
@@ -74,7 +78,7 @@ export default function ChannelSidebar({ channels, activeKey, onSelect }) {
         {SECTIONS.map(({ type, label, Icon }) => {
           const group = filtered.filter(c => c.type === type);
           if (group.length === 0) return null;
-          const groupUnread = group.reduce((s, c) => s + (c.unread || 0), 0);
+          const groupUnread = group.reduce((s, c) => s + (c.muted ? 0 : (c.unread || 0)), 0);
           const isCollapsed = collapsed[type] && !query; // searching forces sections open
           return (
             <div key={type}>

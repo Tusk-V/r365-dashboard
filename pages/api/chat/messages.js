@@ -160,7 +160,7 @@ export default async function handler(req, res) {
       // Fan out a push to everyone who can see this channel (minus author/muters).
       try {
         const allUsers = await db.collection('users')
-          .find({}, { projection: { email: 1, dashboardAccess: 1, chatAccess: 1, mutedChannels: 1 } })
+          .find({}, { projection: { email: 1, owner: 1, fom: 1, role: 1, managedMarkets: 1, dashboardAccess: 1, chatAccess: 1, channelInclusions: 1, channelExclusions: 1, mutedChannels: 1 } })
           .toArray();
         const recipients = recipientsForChannel(allUsers, channel, { excludeEmail: userEmail, isAnnouncement: !!isAnnouncement });
         const chName = (deriveChannelsForUser(accessUser).find(c => c.key === channel)?.name) || channel;

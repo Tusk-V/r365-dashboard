@@ -42,6 +42,16 @@ function tierOf({ isAdmin, owner, fom, managedMarkets, manager }) {
   return null;
 }
 
+// Set the PWA app-icon badge to the unread total, excluding muted channels.
+function applyAppBadge(channels) {
+  try {
+    if ('setAppBadge' in navigator) {
+      const n = (channels || []).reduce((sum, c) => sum + (c.muted ? 0 : (c.unread || 0)), 0);
+      if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge();
+    }
+  } catch (_) {}
+}
+
 export default function MessagesPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -133,12 +143,7 @@ export default function MessagesPage() {
     }).then(() => {
       setChannels(prev => {
         const next = prev.map(c => c.key === channel ? { ...c, unread: 0 } : c);
-        try {
-          if ('setAppBadge' in navigator) {
-            const n = next.reduce((sum, c) => sum + (c.unread || 0), 0);
-            if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge();
-          }
-        } catch (_) {}
+        applyAppBadge(next);
         return next;
       });
     }).catch(() => {});
@@ -282,7 +287,11 @@ export default function MessagesPage() {
 
   const toggleMute = async (ch) => {
     const muted = !ch.muted;
-    setChannels(prev => prev.map(c => c.key === ch.key ? { ...c, muted } : c));
+    setChannels(prev => {
+      const next = prev.map(c => c.key === ch.key ? { ...c, muted } : c);
+      applyAppBadge(next); // muting/unmuting updates the icon badge right away
+      return next;
+    });
     try {
       await fetch('/api/chat/mute', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
