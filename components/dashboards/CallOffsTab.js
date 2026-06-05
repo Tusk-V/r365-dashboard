@@ -4,7 +4,7 @@ export default function CallOffsTab({ filteredCallOffs, callOffsLoading, callOff
   return (
     <>
       {/* Header with date range */}
-      <div className="surface rounded-lg p-3 mb-3 shadow-lg">
+      <div className="surface rounded-2xl p-3 mb-3 shadow-card">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-white">Call-Offs</h2>
@@ -32,7 +32,7 @@ export default function CallOffsTab({ filteredCallOffs, callOffsLoading, callOff
           <div className="flex flex-col items-center gap-3 text-slate-400"><div className="h-8 w-8 rounded-full border-2 border-white/15 border-t-andy-red animate-spin" /><span className="text-sm">Loading call-offs...</span></div>
         </div>
       ) : filteredCallOffs.length === 0 ? (
-        <div className="surface rounded-lg p-8 text-center">
+        <div className="surface rounded-2xl p-8 text-center">
           <AlertCircle className="mx-auto mb-3 text-green-400" size={48} />
           <h3 className="text-xl font-bold text-white mb-2">No Call-Offs Found</h3>
           <p className="text-slate-400">All scheduled employees showed up!</p>
@@ -55,8 +55,8 @@ export default function CallOffsTab({ filteredCallOffs, callOffsLoading, callOff
             return sortedDates.map((date) => {
               const callOffs = groupedByDate[date];
               return (
-                <div key={date} className="surface rounded-lg shadow-lg">
-                  <div className="bg-slate-900 p-3 border-b border-white/5">
+                <div key={date} className="surface rounded-2xl shadow-card overflow-hidden">
+                  <div className="bg-white/5 p-3 border-b border-white/10">
                     <h3 className="text-lg font-bold text-white">{date}</h3>
                     <p className="text-xs text-slate-400">{callOffs.length} call-off{callOffs.length !== 1 ? 's' : ''}</p>
                   </div>
@@ -68,11 +68,11 @@ export default function CallOffsTab({ filteredCallOffs, callOffsLoading, callOff
                     <div className="text-slate-400 text-xs md:text-sm font-semibold">Scheduled Time</div>
                   </div>
 
-                  <div className="divide-y divide-slate-700">
+                  <div className="divide-y divide-white/10">
                     {callOffs.map((callOff, idx) => (
                       <div key={idx}>
                         {/* Desktop Layout */}
-                        <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-3 hover:bg-slate-750 transition-colors" style={{gridTemplateColumns: '1fr 120px 150px'}}>
+                        <div className="hidden md:grid gap-2 md:gap-4 p-2 md:p-3 hover:bg-white/5 transition-colors" style={{gridTemplateColumns: '1fr 120px 150px'}}>
                           <div className="text-white font-medium text-xs md:text-sm">{callOff.employee}</div>
                           <div className="text-slate-300 text-xs md:text-sm">{callOff.location}</div>
                           <div className="text-slate-300 text-xs md:text-sm">{callOff.scheduledTime}</div>
