@@ -164,18 +164,11 @@ export const authOptions = {
           // Check if we need to send notification (user exists but notification never sent)
           const shouldNotify = !existingUser.notificationSent;
           
-          // Update last login and sync name/image if changed
-          await db.collection('users').updateOne(
-            { email: user.email },
-            {
-              $set: {
-                lastLogin: new Date(),
-                name: user.name || profile?.name || existingUser.name,
-                image: user.image || profile?.picture || existingUser.image,
-                notificationSent: true
-              }
-            }
-          );
+          // Update last login and sync name/image if changed (skip if user has customized them)
+          const set = { lastLogin: new Date(), notificationSent: true };
+          if (!existingUser.nameCustom) set.name = user.name || profile?.name || existingUser.name;
+          if (!existingUser.imageCustom) set.image = user.image || profile?.picture || existingUser.image;
+          await db.collection('users').updateOne({ email: user.email }, { $set: set });
           
           // Send notification if this user was never notified about
           if (shouldNotify) {

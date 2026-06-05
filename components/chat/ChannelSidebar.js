@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Map, Store, Search, ChevronDown, ChevronRight, BellOff } from 'lucide-react';
+import { Building2, Map, Store, Search, ChevronDown, ChevronRight, BellOff, Check } from 'lucide-react';
 
 const SECTIONS = [
   { type: 'company', label: 'Company', Icon: Building2 },
@@ -53,7 +53,7 @@ function LocationsByMarket({ group, activeKey, onSelect }) {
   );
 }
 
-export default function ChannelSidebar({ channels, activeKey, onSelect }) {
+export default function ChannelSidebar({ channels, activeKey, onSelect, onMarkAllRead, hasUnread }) {
   const [q, setQ] = useState('');
   const [collapsed, setCollapsed] = useState({});
   const query = q.trim().toLowerCase();
@@ -73,6 +73,13 @@ export default function ChannelSidebar({ channels, activeKey, onSelect }) {
           />
         </div>
       </div>
+      {hasUnread && (
+        <div className="px-2 pb-1 flex-shrink-0">
+          <button onClick={onMarkAllRead} className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-slate-400 hover:text-white hover:bg-slate-700/50 border border-slate-700">
+            <Check size={13} /> Mark all read
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-slim flex flex-col gap-2 p-2 pt-1">
         {SECTIONS.map(({ type, label, Icon }) => {
