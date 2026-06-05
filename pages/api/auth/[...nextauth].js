@@ -10,6 +10,12 @@ import nodemailer from "nodemailer";
 
 const ADMIN_EMAIL = 'dalton@rancherscustard.com';
 
+// Emails that match the rancherscustard.com domain but are explicitly denied.
+// Checked case-insensitively before any user record is created.
+const BLOCKED_EMAILS = [
+  'mishel.leos@rancherscustard.com',
+];
+
 // Check if user has any access granted
 function hasAnyAccess(user) {
   const dashboardAccess = user?.dashboardAccess?.type;
@@ -105,7 +111,22 @@ export const authOptions = {
         console.log(`Blocked Google login from: ${user.email}`);
         return '/auth/error?error=AccessDenied';
       }
-      
+
+      // Explicit blocklist for in-domain emails we've decided to deny. Also purge
+      // any pre-existing record so they don't linger in admin/users.
+      const normalizedEmail = user.email?.toLowerCase();
+      if (normalizedEmail && BLOCKED_EMAILS.some(e => e.toLowerCase() === normalizedEmail)) {
+        console.log(`Blocked login attempt from denylisted user: ${user.email}`);
+        try {
+          const client = await clientPromise;
+          const db = client.db('andysdashboard');
+          await db.collection('users').deleteOne({ email: user.email });
+        } catch (err) {
+          console.error('Failed to purge blocked user record:', err);
+        }
+        return '/auth/error?error=AccessDenied';
+      }
+
       // Auto-create/update user record in our users collection
       try {
         const client = await clientPromise;
