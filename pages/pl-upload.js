@@ -124,7 +124,7 @@ export default function PLUpload() {
 
   if (status === 'loading' || loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-white">Loading...</div>
       </div>
     );
@@ -132,7 +132,7 @@ export default function PLUpload() {
 
   if (status === 'unauthenticated') {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <button
           onClick={() => signIn('google')}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -173,7 +173,7 @@ export default function PLUpload() {
         <div className="max-w-[1400px] mx-auto">
           
           {/* Main Header - Same as Dashboard */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-3 shadow-2xl">
+          <div className="surface rounded-lg p-3 md:p-4 mb-3 shadow-2xl">
             <div className="hidden md:flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <img 
@@ -188,7 +188,7 @@ export default function PLUpload() {
                 <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
                 <DashboardSelect
                   value="pl"
-                  className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  className="px-4 py-2 text-sm bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 
                 <button
@@ -242,7 +242,7 @@ export default function PLUpload() {
             <div className="md:hidden flex items-center gap-2">
               <DashboardSelect
                 value="pl"
-                className="flex-1 px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white"
+                className="flex-1 px-4 py-2 text-sm bg-slate-800/80 hairline rounded-lg text-white"
               />
               
               <button
@@ -255,7 +255,7 @@ export default function PLUpload() {
           </div>
 
           {/* Sub Header */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3 shadow-lg">
+          <div className="surface rounded-lg p-3 mb-3 shadow-lg">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">P&L Upload</h2>
               <button
@@ -346,8 +346,8 @@ export default function PLUpload() {
           )}
 
           {/* Existing Data */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-700">
+          <div className="surface rounded-lg overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/5">
               <h2 className="font-semibold text-white">
                 Uploaded P&L Data ({totalLocations} locations, {uniquePeriods.length} periods)
               </h2>

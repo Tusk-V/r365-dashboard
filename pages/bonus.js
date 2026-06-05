@@ -579,13 +579,13 @@ export default function BonusDashboard() {
   // RENDER GATES
   // ============================================================
   if (status === 'loading') {
-    return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center"><div className="text-white text-lg">Loading...</div></div>;
+    return <div className="min-h-screen flex items-center justify-center"><div className="text-white text-lg">Loading...</div></div>;
   }
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 max-w-md w-full mx-4 text-center">
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="surface rounded-lg p-8 max-w-md w-full mx-4 text-center">
           <img src="https://i.imgur.com/kkJMVz0.png" alt="Andy's Frozen Custard" className="h-16 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-white mb-4">Quarterly Bonus</h1>
           <p className="text-slate-400 mb-6">Sign in to access the bonus dashboard.</p>
@@ -621,14 +621,14 @@ export default function BonusDashboard() {
             .print-only {
               display: block !important;
             }
-            .border-slate-600, .border-slate-700 {
+            .border-slate-600, .border-white/5 {
               border-color: #999 !important;
             }
           }
         `}</style>
       </Head>
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
+      <div className="min-h-screen p-2 md:p-4">
         <div className="max-w-[1400px] mx-auto">
 
           {/* Print Header */}
@@ -642,19 +642,19 @@ export default function BonusDashboard() {
           </div>
 
           {/* Main Header */}
-          <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-4 mb-2 md:mb-3 shadow-2xl">
+          <div className="no-print surface rounded-2xl border-t-4 border-andy-red p-2 md:p-4 mb-2 md:mb-3 shadow-card">
             {/* Desktop Header */}
             <div className="hidden md:flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <img src="https://i.imgur.com/kkJMVz0.png" alt="Andy's Frozen Custard" className="h-16" />
-                <h1 className="text-2xl font-bold text-white">R365 Dashboards</h1>
+                <h1 className="text-2xl font-bold text-white">The Scoop</h1>
               </div>
 
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
                 <DashboardSelect
                   value="bonus"
-                  className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  className="px-4 py-2 text-sm bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
 
                 <button onClick={handleRefresh} className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors" title="Refresh data">
@@ -700,7 +700,7 @@ export default function BonusDashboard() {
 
               <DashboardSelect
                 value="bonus"
-                className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-xs bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -730,19 +730,19 @@ export default function BonusDashboard() {
           {isSummaryView && (
             <>
               {/* Summary Filters */}
-              <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg">
+              <div className="no-print surface rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg">
                 <div className="flex flex-wrap gap-2 md:gap-3 items-end">
                   <div className="flex-1 min-w-[180px]">
                     <label className="block text-xs text-slate-400 mb-1">Quarter</label>
                     <select value={summaryPeriod} onChange={(e) => setSummaryPeriod(e.target.value)}
-                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+                      className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                       {availablePeriods.length === 0 && <option value="">Loading...</option>}
                       {availablePeriods.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
                   <div>
                     <button onClick={() => setShowAccountConfig(!showAccountConfig)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showAccountConfig ? 'bg-green-600 text-white' : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600'}`}>
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showAccountConfig ? 'bg-green-600 text-white' : 'bg-slate-800/80 hairline text-slate-300 hover:bg-slate-600'}`}>
                       <Settings size={14} />
                       Accounts ({enabledCount}/{totalCount})
                     </button>
@@ -781,28 +781,28 @@ export default function BonusDashboard() {
               {/* Grand Total Strip */}
               {summaryTotals.storeCount > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-2 md:mb-3">
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
+                  <div className="surface rounded-lg p-3 shadow-lg">
                     <div className="text-xs text-slate-400 mb-1">Total Bonus Payout</div>
                     <div className={`text-lg md:text-xl font-bold ${summaryTotals.totalBonus > 0 ? 'text-green-400' : 'text-slate-500'}`}>
                       {formatCurrency(summaryTotals.totalBonus)}
                     </div>
                     <div className="text-xs text-slate-500 mt-1">{summaryTotals.earningCount} of {summaryTotals.storeCount} earning</div>
                   </div>
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
+                  <div className="surface rounded-lg p-3 shadow-lg">
                     <div className="text-xs text-slate-400 mb-1">YOY CNI Change</div>
                     <div className={`text-lg md:text-xl font-bold ${summaryTotals.totalYoy > 0 ? 'text-green-400' : summaryTotals.totalYoy < 0 ? 'text-red-400' : 'text-slate-300'}`}>
                       {summaryTotals.totalYoy >= 0 ? '+' : ''}{formatCurrency(summaryTotals.totalYoy)}
                     </div>
                     <div className="text-xs text-slate-500 mt-1">{summaryTotals.totalPriorCNI !== 0 ? (summaryTotals.totalYoy >= 0 ? '+' : '') + formatPercent((summaryTotals.totalYoy / Math.abs(summaryTotals.totalPriorCNI)) * 100) : '-'}</div>
                   </div>
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
+                  <div className="surface rounded-lg p-3 shadow-lg">
                     <div className="text-xs text-slate-400 mb-1">Total Current CNI</div>
                     <div className={`text-lg md:text-xl font-bold ${summaryTotals.totalCurrentCNI >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {formatCurrency(summaryTotals.totalCurrentCNI)}
                     </div>
                     <div className="text-xs text-slate-500 mt-1">{summaryPeriod}</div>
                   </div>
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
+                  <div className="surface rounded-lg p-3 shadow-lg">
                     <div className="text-xs text-slate-400 mb-1">Total Prior Year CNI</div>
                     <div className={`text-lg md:text-xl font-bold ${summaryTotals.totalPriorCNI >= 0 ? 'text-slate-300' : 'text-red-400'}`}>
                       {formatCurrency(summaryTotals.totalPriorCNI)}
@@ -813,7 +813,7 @@ export default function BonusDashboard() {
               )}
 
               {/* Store Table */}
-              <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden shadow-lg">
+              <div className="surface rounded-lg overflow-hidden shadow-lg">
                 <div className="bg-slate-700 px-3 md:px-4 py-2 md:py-3">
                   <div className="grid grid-cols-12 gap-1 md:gap-2 text-xs font-semibold text-slate-300">
                     <SortHeader className="col-span-3 text-left" label="Store" active={sortKey === 'location'} dir={sortDir} onClick={() => toggleSort('location')} />
@@ -838,7 +838,7 @@ export default function BonusDashboard() {
                   return (
                     <div key={r.location}
                       onClick={() => hasData && goToDetail(r.location)}
-                      className={`px-3 md:px-4 py-2 md:py-2.5 border-t border-slate-700/50 transition-colors ${hasData ? 'hover:bg-slate-700/40 cursor-pointer' : 'opacity-50'}`}>
+                      className={`px-3 md:px-4 py-2 md:py-2.5 border-t border-white/5/50 transition-colors ${hasData ? 'hover:bg-slate-700/40 cursor-pointer' : 'opacity-50'}`}>
                       <div className="grid grid-cols-12 gap-1 md:gap-2 items-center">
                         <div className="col-span-3 text-sm font-medium text-white flex items-center gap-2">
                           {r.location}
@@ -876,7 +876,7 @@ export default function BonusDashboard() {
               </div>
 
               {!summaryLoading && accessType === 'none' && (
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center shadow-lg mt-3">
+                <div className="surface rounded-lg p-8 text-center shadow-lg mt-3">
                   <div className="text-slate-400 mb-2">You don&apos;t have access to the bonus dashboard.</div>
                   <div className="text-slate-500 text-sm">Contact your administrator to request access.</div>
                 </div>
@@ -890,7 +890,7 @@ export default function BonusDashboard() {
           {!isSummaryView && (
             <>
               {/* Back + Filters */}
-              <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg">
+              <div className="no-print surface rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg">
                 <div className="flex flex-wrap gap-2 md:gap-3 items-end">
                   <button onClick={goToSummary}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-sm text-white transition-colors">
@@ -900,7 +900,7 @@ export default function BonusDashboard() {
                   <div className="flex-1 min-w-[140px]">
                     <label className="block text-xs text-slate-400 mb-1">Location</label>
                     <select value={selectedLocation} onChange={(e) => goToDetail(e.target.value)}
-                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+                      className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">Select location...</option>
                       {availableLocations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
                     </select>
@@ -908,14 +908,14 @@ export default function BonusDashboard() {
                   <div className="flex-1 min-w-[140px]">
                     <label className="block text-xs text-slate-400 mb-1">Quarter</label>
                     <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}
-                      className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+                      className="w-full px-2 py-1.5 text-sm bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                       <option value="">Select quarter...</option>
                       {availablePeriods.map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
                   <div>
                     <button onClick={() => setShowAccountConfig(!showAccountConfig)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showAccountConfig ? 'bg-green-600 text-white' : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600'}`}>
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showAccountConfig ? 'bg-green-600 text-white' : 'bg-slate-800/80 hairline text-slate-300 hover:bg-slate-600'}`}>
                       <Settings size={14} />
                       Accounts ({enabledCount}/{totalCount})
                     </button>
@@ -946,21 +946,21 @@ export default function BonusDashboard() {
                 return (
                 <>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3 mb-2 md:mb-3">
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
+                  <div className="surface rounded-lg p-3 md:p-4 shadow-lg">
                     <div className="text-xs text-slate-400 mb-1">Current Quarter CNI</div>
                     <div className={`text-lg md:text-xl font-bold ${bonusCalc.current.controllableNI >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {formatCurrency(bonusCalc.current.controllableNI)}
                     </div>
                     <div className="text-xs text-slate-500 mt-1">{bonusCalc.current.sales !== 0 ? formatPercent((bonusCalc.current.controllableNI / bonusCalc.current.sales) * 100) : '0.0%'} of sales</div>
                   </div>
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
+                  <div className="surface rounded-lg p-3 md:p-4 shadow-lg">
                     <div className="text-xs text-slate-400 mb-1">Prior Year Quarter CNI</div>
                     <div className={`text-lg md:text-xl font-bold ${bonusCalc.prior.controllableNI >= 0 ? 'text-slate-300' : 'text-red-400'}`}>
                       {formatCurrency(bonusCalc.prior.controllableNI)}
                     </div>
                     <div className="text-xs text-slate-500 mt-1">{bonusCalc.prior.sales !== 0 ? formatPercent((bonusCalc.prior.controllableNI / bonusCalc.prior.sales) * 100) : '0.0%'} of sales</div>
                   </div>
-                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 shadow-lg">
+                  <div className="surface rounded-lg p-3 md:p-4 shadow-lg">
                     <div className="text-xs text-slate-400 mb-1">YOY CNI Change</div>
                     <div className={`text-lg md:text-xl font-bold ${yoyIncrease > 0 ? 'text-green-400' : yoyIncrease < 0 ? 'text-red-400' : 'text-slate-300'}`}>
                       {yoyIncrease >= 0 ? '+' : ''}{formatCurrency(yoyIncrease)}
@@ -972,7 +972,7 @@ export default function BonusDashboard() {
                 </div>
 
                 {/* Bonus Payout Card */}
-                <div className={`border rounded-lg p-4 md:p-5 mb-2 md:mb-3 shadow-lg ${bonusPayout > 0 ? 'bg-green-900/30 border-green-600/50' : 'bg-slate-800 border-slate-700'}`}>
+                <div className={`border rounded-lg p-4 md:p-5 mb-2 md:mb-3 shadow-lg ${bonusPayout > 0 ? 'bg-green-900/30 border-green-600/50' : 'bg-slate-800 border-white/5'}`}>
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-slate-300 mb-2">Manager Bonus Calculation</div>
@@ -1003,7 +1003,7 @@ export default function BonusDashboard() {
 
               {/* Detailed Breakdown Table */}
               {plData && (
-                <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden shadow-lg">
+                <div className="surface rounded-lg overflow-hidden shadow-lg">
                   <div className="bg-slate-700 px-3 md:px-4 py-2 md:py-3">
                     <div className="grid grid-cols-12 gap-1 md:gap-2 text-xs font-semibold text-slate-300">
                       <div className="col-span-4">Account</div>
@@ -1038,7 +1038,7 @@ export default function BonusDashboard() {
                           const priorVal = getLineValue(item.key, 'prior');
                           if (currentVal === 0 && priorVal === 0) return null;
                           return (
-                            <div key={item.key} className="px-3 md:px-4 py-1 md:py-1.5 border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+                            <div key={item.key} className="px-3 md:px-4 py-1 md:py-1.5 border-t border-white/5/50 hover:bg-slate-700/30 transition-colors">
                               <div className="grid grid-cols-12 gap-1 md:gap-2">
                                 <div className="col-span-4 text-xs md:text-sm text-slate-300 pl-3 md:pl-4">{item.label}</div>
                                 <div className="col-span-2 text-right text-xs md:text-sm text-white">{formatCurrency(currentVal)}</div>
@@ -1068,13 +1068,13 @@ export default function BonusDashboard() {
 
               {/* States */}
               {loading && !plData && (
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center text-slate-400 shadow-lg">Loading...</div>
+                <div className="surface rounded-lg p-8 text-center text-slate-400 shadow-lg">Loading...</div>
               )}
               {error && (
                 <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 text-red-200 shadow-lg">{error}</div>
               )}
               {!loading && !error && !plData && selectedLocation && selectedPeriod && (
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center text-slate-400 shadow-lg">No data found for this location and period.</div>
+                <div className="surface rounded-lg p-8 text-center text-slate-400 shadow-lg">No data found for this location and period.</div>
               )}
             </>
           )}
@@ -1099,7 +1099,7 @@ function SortHeader({ label, active, dir, onClick, className }) {
 
 function AccountConfigPanel({ isAdmin, accountToggles, expandedSections, configDirty, savingConfig, toggleAccount, toggleSection, toggleAllInSection, resetDefaults, saveBonusConfig }) {
   return (
-    <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-3 md:p-4 mb-2 md:mb-3 shadow-lg">
+    <div className="no-print surface rounded-lg p-3 md:p-4 mb-2 md:mb-3 shadow-lg">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-white font-semibold text-sm">Account Selection {!isAdmin && <span className="text-slate-500 font-normal">(view only)</span>}</h2>
         <div className="flex items-center gap-2">

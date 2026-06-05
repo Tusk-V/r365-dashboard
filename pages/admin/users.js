@@ -145,7 +145,7 @@ export default function AdminUsers() {
 
   if (status === 'loading' || loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-white">Loading...</div>
       </div>
     );
@@ -153,7 +153,7 @@ export default function AdminUsers() {
 
   if (status === 'unauthenticated') {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <button
           onClick={() => signIn('google')}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -179,7 +179,7 @@ export default function AdminUsers() {
         <div className="max-w-[1400px] mx-auto">
           
           {/* Main Header */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-4 mb-2 md:mb-3 shadow-2xl">
+          <div className="surface rounded-lg p-2 md:p-4 mb-2 md:mb-3 shadow-2xl">
             {/* Desktop Header */}
             <div className="hidden md:flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -266,7 +266,7 @@ export default function AdminUsers() {
           </div>
 
           {/* Users Table - Desktop */}
-          <div className="hidden md:block bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+          <div className="hidden md:block surface rounded-lg overflow-hidden">
             <table className="w-full">
               <thead className="bg-slate-700/50">
                 <tr>
@@ -339,8 +339,8 @@ export default function AdminUsers() {
           </div>
 
           {/* Users List - Mobile */}
-          <div className="md:hidden bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-700 bg-slate-700/50">
+          <div className="md:hidden surface rounded-lg overflow-hidden">
+            <div className="px-3 py-2 border-b border-white/5 bg-slate-700/50">
               <span className="font-semibold text-white text-sm">Users ({users.length})</span>
             </div>
             {users.length === 0 ? (
@@ -397,8 +397,8 @@ export default function AdminUsers() {
           {/* Edit Modal */}
           {editingUser && (
             <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-              <div className="bg-slate-800 border border-slate-700 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+              <div className="surface rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
                   <h3 className="font-semibold text-white">Edit Access: {editingUser}</h3>
                   <button
                     onClick={() => { setEditingUser(null); setExpandedSection(null); }}
@@ -410,7 +410,7 @@ export default function AdminUsers() {
                 
                 <div className="p-4 space-y-4">
                   {/* Dashboard Access */}
-                  <div className="border border-slate-700 rounded-lg overflow-hidden">
+                  <div className="border border-white/5 rounded-lg overflow-hidden">
                     <button
                       onClick={() => setExpandedSection(expandedSection === 'dashboard' ? null : 'dashboard')}
                       className="w-full flex items-center justify-between px-4 py-3 bg-slate-700/50 hover:bg-slate-700"
@@ -449,7 +449,7 @@ export default function AdminUsers() {
                                 className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer text-sm ${
                                   editForm.dashboardAccess.locations.includes(loc)
                                     ? 'bg-blue-600/20 border border-blue-500 text-white'
-                                    : 'bg-slate-700 border border-slate-600 text-slate-300 hover:border-slate-500'
+                                    : 'bg-slate-800/80 hairline text-slate-300 hover:border-slate-500'
                                 }`}
                               >
                                 <input
@@ -468,7 +468,7 @@ export default function AdminUsers() {
                   </div>
 
                   {/* P&L Access */}
-                  <div className="border border-slate-700 rounded-lg overflow-hidden">
+                  <div className="border border-white/5 rounded-lg overflow-hidden">
                     <button
                       onClick={() => setExpandedSection(expandedSection === 'pl' ? null : 'pl')}
                       className="w-full flex items-center justify-between px-4 py-3 bg-slate-700/50 hover:bg-slate-700"
@@ -507,7 +507,7 @@ export default function AdminUsers() {
                                 className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer text-sm ${
                                   editForm.plAccess.locations.includes(loc)
                                     ? 'bg-orange-600/20 border border-orange-500 text-white'
-                                    : 'bg-slate-700 border border-slate-600 text-slate-300 hover:border-slate-500'
+                                    : 'bg-slate-800/80 hairline text-slate-300 hover:border-slate-500'
                                 }`}
                               >
                                 <input
@@ -526,7 +526,7 @@ export default function AdminUsers() {
                   </div>
 
                   {/* Bonus Access */}
-                  <div className="border border-slate-700 rounded-lg overflow-hidden">
+                  <div className="border border-white/5 rounded-lg overflow-hidden">
                     <button
                       onClick={() => setExpandedSection(expandedSection === 'bonus' ? null : 'bonus')}
                       className="w-full flex items-center justify-between px-4 py-3 bg-slate-700/50 hover:bg-slate-700"
@@ -565,7 +565,7 @@ export default function AdminUsers() {
                                 className={`flex items-center gap-2 px-3 py-2 rounded cursor-pointer text-sm ${
                                   editForm.bonusAccess.locations.includes(loc)
                                     ? 'bg-emerald-600/20 border border-emerald-500 text-white'
-                                    : 'bg-slate-700 border border-slate-600 text-slate-300 hover:border-slate-500'
+                                    : 'bg-slate-800/80 hairline text-slate-300 hover:border-slate-500'
                                 }`}
                               >
                                 <input
@@ -584,7 +584,7 @@ export default function AdminUsers() {
                   </div>
                 </div>
 
-                <div className="px-4 py-3 border-t border-slate-700 flex justify-end gap-2">
+                <div className="px-4 py-3 border-t border-white/5 flex justify-end gap-2">
                   <button
                     onClick={() => { setEditingUser(null); setExpandedSection(null); }}
                     className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white text-sm"

@@ -386,7 +386,7 @@ export default function PLDashboard() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-white">Loading...</div>
       </div>
     );
@@ -394,7 +394,7 @@ export default function PLDashboard() {
 
   if (status === 'unauthenticated') {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <button
           onClick={() => signIn('google')}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -735,7 +735,7 @@ export default function PLDashboard() {
         return (
           <tr 
             key={idx} 
-            className={`${bgClass} border-b border-slate-700/30`}
+            className={`${bgClass} border-b border-white/5/30`}
             onClick={() => toggleSubCategory(subCatName)}
           >
             <td className={`py-1 ${paddingClass} ${textClass} ${fontClass}`} style={{ width: '32%' }}>
@@ -766,7 +766,7 @@ export default function PLDashboard() {
     }
 
     return (
-      <tr key={idx} className={`${bgClass} border-b border-slate-700/30`}>
+      <tr key={idx} className={`${bgClass} border-b border-white/5/30`}>
         <td className={`py-1 ${paddingClass} ${textClass} ${fontClass}`} style={{ width: '32%' }}>
           {row.label}
         </td>
@@ -988,14 +988,14 @@ export default function PLDashboard() {
               display: block !important;
             }
             /* Remove borders that look bad on print */
-            .border-slate-600, .border-slate-700 {
+            .border-slate-600, .border-white/5 {
               border-color: #999 !important;
             }
           }
         `}</style>
       </Head>
       
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-2 md:p-4">
+      <div className="min-h-screen p-2 md:p-4">
         <div className="max-w-[1400px] mx-auto">
           
           {/* Print Header - Only shows when printing */}
@@ -1011,7 +1011,7 @@ export default function PLDashboard() {
           </div>
 
           {/* Main Header - Hidden when printing */}
-          <div className="no-print bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-4 mb-2 md:mb-3 shadow-2xl">
+          <div className="no-print surface rounded-2xl border-t-4 border-andy-red p-2 md:p-4 mb-2 md:mb-3 shadow-card">
             {/* Desktop Header */}
             <div className="hidden md:flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -1020,14 +1020,14 @@ export default function PLDashboard() {
                   alt="Andy's Frozen Custard" 
                   className="h-16"
                 />
-                <h1 className="text-2xl font-bold text-white">R365 Dashboards</h1>
+                <h1 className="text-2xl font-bold text-white">The Scoop</h1>
               </div>
               
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-slate-400 whitespace-nowrap">Select Dashboard:</label>
                 <DashboardSelect
                   value="pl"
-                  className="px-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  className="px-4 py-2 text-sm bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
 
                 <button
@@ -1093,14 +1093,14 @@ export default function PLDashboard() {
               
               <DashboardSelect
                 value="pl"
-                className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full px-2 py-1.5 text-xs bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
           {/* Location & Period Selection */}
           {accessType !== 'none' && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg no-print">
+            <div className="surface rounded-lg p-2 md:p-3 mb-2 md:mb-3 shadow-lg no-print">
               {/* View Mode Toggle: Store vs Market */}
               <div className="flex gap-1 mb-2">
                 <button
@@ -1135,7 +1135,7 @@ export default function PLDashboard() {
                     <select
                       value={selectedLocation}
                       onChange={(e) => setSelectedLocation(e.target.value)}
-                      className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      className="px-3 py-1.5 text-sm bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       {availableLocations.map(loc => (
                         <option key={loc} value={loc}>{loc}</option>
@@ -1145,7 +1145,7 @@ export default function PLDashboard() {
                     <select
                       value={selectedMarket}
                       onChange={(e) => setSelectedMarket(e.target.value)}
-                      className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      className="px-3 py-1.5 text-sm bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       {Object.keys(MARKETS).map(m => (
                         <option key={m} value={m}>{m}</option>
@@ -1159,7 +1159,7 @@ export default function PLDashboard() {
                   <select
                     value={selectedPeriod}
                     onChange={(e) => setSelectedPeriod(e.target.value)}
-                    className="px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    className="px-3 py-1.5 text-sm bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {availablePeriods.map(period => (
                       <option key={period} value={period}>{formatPeriodDisplay(period)}</option>
@@ -1185,7 +1185,7 @@ export default function PLDashboard() {
                     <select
                       value={selectedLocation}
                       onChange={(e) => setSelectedLocation(e.target.value)}
-                      className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      className="flex-1 px-2 py-1 text-xs bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       {availableLocations.map(loc => (
                         <option key={loc} value={loc}>{loc}</option>
@@ -1195,7 +1195,7 @@ export default function PLDashboard() {
                     <select
                       value={selectedMarket}
                       onChange={(e) => setSelectedMarket(e.target.value)}
-                      className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      className="flex-1 px-2 py-1 text-xs bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       {Object.keys(MARKETS).map(m => (
                         <option key={m} value={m}>{m}</option>
@@ -1209,7 +1209,7 @@ export default function PLDashboard() {
                   <select
                     value={selectedPeriod}
                     onChange={(e) => setSelectedPeriod(e.target.value)}
-                    className="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    className="flex-1 px-2 py-1 text-xs bg-slate-800/80 hairline rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {availablePeriods.map(period => (
                       <option key={period} value={period}>{formatPeriodDisplay(period)}</option>
@@ -1348,7 +1348,7 @@ export default function PLDashboard() {
 
           {/* No Access State */}
           {accessType === 'none' && !loading && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+            <div className="surface rounded-lg p-8 text-center">
               <div className="text-white text-xl mb-2">No P&L Access</div>
               <div className="text-slate-400">Contact your administrator for access.</div>
             </div>
@@ -1356,7 +1356,7 @@ export default function PLDashboard() {
 
           {/* Loading State */}
           {loading && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+            <div className="surface rounded-lg p-8 text-center">
               <div className="text-slate-400">Loading P&L data...</div>
             </div>
           )}
@@ -1381,7 +1381,7 @@ export default function PLDashboard() {
 
           {/* No Data State */}
           {!plData && !loading && !error && accessType !== 'none' && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center text-slate-400">
+            <div className="surface rounded-lg p-8 text-center text-slate-400">
               No P&L data available. {isAdmin ? 'Click the upload button to add P&L data.' : 'Contact admin to upload data.'}
             </div>
           )}

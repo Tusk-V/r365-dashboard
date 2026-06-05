@@ -351,6 +351,7 @@ export default function MessagesPage() {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-slate-900 text-white flex flex-col">
+      <div className="h-1 bg-andy-red flex-shrink-0" />
       <div
         className="z-20 flex items-center justify-between gap-2 px-3 py-2 bg-slate-900/70 backdrop-blur-xl border-b border-white/5 flex-shrink-0"
         style={{ paddingTop: 'calc(0.5rem + env(safe-area-inset-top))' }}

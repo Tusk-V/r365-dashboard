@@ -43,7 +43,7 @@ export default function AdminHub() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-white">Loading...</div>
       </div>
     );
@@ -51,7 +51,7 @@ export default function AdminHub() {
 
   if (status === 'unauthenticated') {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <button
           onClick={() => signIn('google')}
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -77,7 +77,7 @@ export default function AdminHub() {
         <div className="max-w-[1400px] mx-auto">
 
           {/* Header */}
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 md:p-4 mb-3 md:mb-4 shadow-2xl">
+          <div className="surface rounded-lg p-2 md:p-4 mb-3 md:mb-4 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <img
@@ -114,7 +114,7 @@ export default function AdminHub() {
               <button
                 key={href}
                 onClick={() => router.push(href)}
-                className="group bg-slate-800 border border-slate-700 hover:border-blue-600 rounded-lg p-4 md:p-5 shadow-lg text-left transition-colors"
+                className="group surface hover:border-blue-600 rounded-lg p-4 md:p-5 shadow-lg text-left transition-colors"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-slate-900">
