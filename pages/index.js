@@ -1411,9 +1411,7 @@ return (
               className="h-14 w-auto drop-shadow"
             />
             <div className="leading-none">
-              <h1 className="font-display text-3xl font-extrabold tracking-tight">
-                <span className="bg-gradient-to-r from-andy-gold via-amber-300 to-andy-red bg-clip-text text-transparent">The Scoop</span>
-              </h1>
+              <h1 className="text-3xl font-bold tracking-tight text-white">The Scoop</h1>
               <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                 Andy&apos;s Operations
                 {activeTab === 'sales' && reportDate && reportDate !== 'Loading...' && !reportDate.includes('.') && (
@@ -1482,9 +1480,7 @@ return (
                 alt="Andy's Frozen Custard"
                 className="h-10 w-auto"
               />
-              <h1 className="font-display text-xl font-extrabold tracking-tight">
-                <span className="bg-gradient-to-r from-andy-gold via-amber-300 to-andy-red bg-clip-text text-transparent">The Scoop</span>
-              </h1>
+              <h1 className="text-xl font-bold tracking-tight text-white">The Scoop</h1>
             </div>
             <div className="flex items-center gap-1.5">
               <button

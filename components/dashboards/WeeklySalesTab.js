@@ -196,7 +196,7 @@ export default function WeeklySalesTab({
                 <span className="grid place-items-center h-6 w-6 md:h-7 md:w-7 rounded-lg bg-emerald-500/10 text-emerald-400"><DollarSign size={15} /></span>
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Actual Sales</p>
               </div>
-              <p className="font-display text-sm md:text-2xl font-bold text-white tnum">${totals.totalSales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+              <p className="text-sm md:text-2xl font-bold text-white tnum">${totals.totalSales.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
             </div>
 
             <div className="surface rounded-2xl p-3 shadow-card">
@@ -204,7 +204,7 @@ export default function WeeklySalesTab({
                 <span className="grid place-items-center h-6 w-6 md:h-7 md:w-7 rounded-lg bg-blue-500/10 text-blue-400"><Target size={15} /></span>
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Forecast</p>
               </div>
-              <p className="font-display text-sm md:text-2xl font-bold text-white tnum">${totals.totalForecast.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+              <p className="text-sm md:text-2xl font-bold text-white tnum">${totals.totalForecast.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
             </div>
 
             <button
@@ -220,7 +220,7 @@ export default function WeeklySalesTab({
                 <span className={`grid place-items-center h-6 w-6 md:h-7 md:w-7 rounded-lg ${totals.flaggedCount > 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'}`}><AlertTriangle size={15} /></span>
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Fcst ↓ Sch ↑</p>
               </div>
-              <p className={`font-display text-sm md:text-2xl font-bold tnum ${totals.flaggedCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{totals.flaggedCount} <span className="text-xs font-medium text-slate-400">{totals.flaggedCount === 1 ? 'location' : 'locations'}</span></p>
+              <p className={`text-sm md:text-2xl font-bold tnum ${totals.flaggedCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>{totals.flaggedCount} <span className="text-xs font-medium text-slate-400">{totals.flaggedCount === 1 ? 'location' : 'locations'}</span></p>
             </button>
 
             <div className="surface rounded-2xl p-3 shadow-card">
@@ -228,7 +228,7 @@ export default function WeeklySalesTab({
                 <span className="grid place-items-center h-6 w-6 md:h-7 md:w-7 rounded-lg bg-cyan-500/10 text-cyan-400"><TrendingUp size={15} /></span>
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Comp PY Var</p>
               </div>
-              <p className={`font-display text-sm md:text-2xl font-bold tnum ${totals.comparablePyVariancePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              <p className={`text-sm md:text-2xl font-bold tnum ${totals.comparablePyVariancePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {totals.comparablePyVariancePercent >= 0 ? '+' : ''}{totals.comparablePyVariancePercent.toFixed(1)}%
               </p>
             </div>
@@ -238,7 +238,7 @@ export default function WeeklySalesTab({
                 <span className="grid place-items-center h-6 w-6 md:h-7 md:w-7 rounded-lg bg-amber-500/10 text-amber-400"><Users size={15} /></span>
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Labor %</p>
               </div>
-              <p className="font-display text-sm md:text-2xl font-bold text-white tnum">{totals.avgLaborPercent.toFixed(1)}%</p>
+              <p className="text-sm md:text-2xl font-bold text-white tnum">{totals.avgLaborPercent.toFixed(1)}%</p>
             </div>
 
             <div className="surface rounded-2xl p-3 shadow-card">
@@ -246,7 +246,7 @@ export default function WeeklySalesTab({
                 <span className={`grid place-items-center h-6 w-6 md:h-7 md:w-7 rounded-lg ${totals.totalActVsSch > 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'}`}><Clock size={15} /></span>
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Act vs. Sch</p>
               </div>
-              <p className={`font-display text-sm md:text-2xl font-bold tnum ${totals.totalActVsSch > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+              <p className={`text-sm md:text-2xl font-bold tnum ${totals.totalActVsSch > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
                 {totals.totalActVsSch > 0 ? '+' : ''}{totals.totalActVsSch.toFixed(1)} <span className="text-xs font-medium text-slate-400">hrs</span>
               </p>
             </div>
