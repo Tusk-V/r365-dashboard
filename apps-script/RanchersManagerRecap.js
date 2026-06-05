@@ -312,9 +312,10 @@ function createManagerRecapDrafts() {
     if (groups.length === 0) { Logger.log('No recipients have data — nothing to draft.'); return; }
 
     var clockoutCounts = getClockoutCounts(ss, yesterday);
+    // The owner is the sender — never CC the owner, even if MANAGER_RECAP_CC lists them.
     var ccStr = parseRecapCcList(
       PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC') || RECAP_CONFIG.CC_DEFAULT
-    ).join(',');
+    ).filter(function(addr) { return addr.toLowerCase() !== RECAP_CONFIG.OWNER_EMAIL; }).join(',');
     var sigHtml = getOwnerSignatureHtml();
     // MANAGER_RECAP_AUTOSEND Script Property: 'true' = send automatically,
     // anything else (incl. unset) = create drafts for manual review/send.
@@ -393,9 +394,10 @@ function testManagerRecaps() {
 
     var groups = buildRecipientGroups(roster, locations);
     var clockoutCounts = getClockoutCounts(ss, yesterday);
+    // The owner is the sender — never CC the owner, even if MANAGER_RECAP_CC lists them.
     var ccStr = parseRecapCcList(
       PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC') || RECAP_CONFIG.CC_DEFAULT
-    ).join(',');
+    ).filter(function(addr) { return addr.toLowerCase() !== RECAP_CONFIG.OWNER_EMAIL; }).join(',');
     var sigHtml = getOwnerSignatureHtml();
 
     var previewed = 0;
