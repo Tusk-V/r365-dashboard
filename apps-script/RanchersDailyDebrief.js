@@ -499,7 +499,7 @@ function writeDailyNarrative(locations, dateStr) {
       method: 'post', contentType: 'application/json',
       headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       payload: JSON.stringify({
-        model:      'claude-opus-4-7',
+        model:      'claude-opus-4-8',
         max_tokens: 1200,
         messages:   [{ role: 'user', content: prompt }]
       }),

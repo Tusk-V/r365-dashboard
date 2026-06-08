@@ -108,14 +108,14 @@ function buildManagerPrompt(firstName, storeFactsList) {
   var greeting = (firstName ? firstName : 'Hi') + ',';
 
   var prompt =
-    'Write a short, professional email from the owner to a store manager about YESTERDAY. '
+    'Write a short, casual check-in email from the owner to a store manager about YESTERDAY. '
     + 'Each store listed came in under its sales forecast and ran over its scheduled labor hours. '
-    + 'The point is to check in and understand what happened with the labor when sales were tracking soft.\n\n'
+    + 'You just want a quick gut-check on what happened with the labor when sales were running soft.\n\n'
     + 'RULES:\n'
     + '- Start with exactly: "' + greeting + '"\n'
-    + '- Tone: professional and respectful — owner to manager. Clear and matter-of-fact, but not stiff or accusatory. No small talk, no effusive praise.\n'
-    + '- For each store: state the sales-vs-forecast and the hours over scheduled in one sentence, then ask what drove the labor running over when sales were coming in under.\n'
-    + '- Keep it tight: two or three sentences per store, maximum.\n'
+    + '- Tone: casual, friendly, and direct — like a quick note from the owner, not a corporate memo. Use plain language and contractions. Never stiff or accusatory, and no filler or praise.\n'
+    + '- For each store: one quick sentence with the sales-vs-forecast and the hours over scheduled, then a short, plain question asking what happened with the labor.\n'
+    + '- Keep it tight: one or two sentences per store, max.\n'
     + '- Use only the numbers in the data; never invent figures.\n'
     + '- Do not begin with a store-name label or the store name. If there is only one store, write about the day directly. If there are multiple stores, identify each store naturally within its sentence (e.g. "At Bixby, ..."), never as a leading label.\n'
     + '- No grades, no labor rates, no internal flag names. No subject line or title.\n'
@@ -238,8 +238,8 @@ function managerFallback(firstName, storeFactsList) {
     if (s.hrsVsScheduled) bits.push(s.hrsVsScheduled);
     var stats = bits.length ? ' (' + bits.join(', ') + ')' : '';
     var lead = storeFactsList.length > 1 ? 'At ' + s.store + ', sales' : 'Sales';
-    var line = lead + ' came in under forecast and hours ran over schedule' + stats
-      + '. What drove the labor running over as the day came in soft?';
+    var line = lead + ' came in under forecast but hours ran over' + stats
+      + '. What happened with the labor?';
     parts.push(line, '');
   });
   parts.push('Thanks,');
