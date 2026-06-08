@@ -1268,7 +1268,7 @@ function generateLogbookSummary(comment) {
   if (!apiKey) { Logger.log('No Anthropic API key found, using fallback summary'); return generateFallbackSummary(comment); }
   try {
     var prompt = "Summarize this restaurant shift logbook entry in 1-2 short sentences. Focus on key operational details (sales performance, staffing issues, drive times, problems). Be concise and factual. Do not include location name.\n\nEntry: " + comment;
-    var payload = { model: "claude-sonnet-4-20250514", max_tokens: 100, messages: [{ role: "user", content: prompt }] };
+    var payload = { model: "claude-sonnet-4-6", max_tokens: 100, messages: [{ role: "user", content: prompt }] };
     var options = { method: "post", contentType: "application/json", headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }, payload: JSON.stringify(payload), muteHttpExceptions: true };
     var response = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", options);
     var responseCode = response.getResponseCode();
