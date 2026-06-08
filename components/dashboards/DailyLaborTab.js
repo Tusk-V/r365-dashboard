@@ -148,7 +148,7 @@ export default function DailyLaborTab({
                         <th className="text-right p-2 text-slate-400 font-semibold w-24">Sch Hrs</th>
                         <th className="text-right p-2 text-slate-400 font-semibold w-24">Opt Hrs</th>
                         <th className="text-right p-2 text-slate-400 font-semibold w-24">Act %</th>
-                        <th className="text-right p-2 text-slate-400 font-semibold w-24">Opt %</th>
+                        <th className="text-right p-2 text-slate-400 font-semibold w-24">Sch %</th>
                         <th className="text-right p-2 text-slate-400 font-semibold w-24">% Var</th>
                       </tr>
                     </thead>
@@ -192,7 +192,7 @@ export default function DailyLaborTab({
                             <td className="text-right p-2 text-slate-300">{day.scheduledHours.toFixed(1)}</td>
                             <td className="text-right p-2 text-slate-300">{day.optimalHours.toFixed(1)}</td>
                             <td className="text-right p-2 text-white font-semibold">{day.actualLaborPercent.toFixed(1)}%</td>
-                            <td className="text-right p-2 text-slate-300">{day.optimalLaborPercent.toFixed(1)}%</td>
+                            <td className="text-right p-2 text-slate-300">{day.scheduledLaborPercent.toFixed(1)}%</td>
                             <td className={`text-right p-2 font-semibold ${day.laborPercentVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
                               {day.laborPercentVariance >= 0 ? '+' : ''}{day.laborPercentVariance.toFixed(1)}%
                             </td>
@@ -212,7 +212,7 @@ export default function DailyLaborTab({
                       <div className="text-slate-400 font-semibold text-right flex-1">Sch</div>
                       <div className="text-slate-400 font-semibold text-right flex-1">Opt</div>
                       <div className="text-slate-400 font-semibold text-right flex-1">Act%</div>
-                      <div className="text-slate-400 font-semibold text-right flex-1">Opt%</div>
+                      <div className="text-slate-400 font-semibold text-right flex-1">Sch%</div>
                     </div>
 
                     {/* Data rows */}
@@ -278,8 +278,8 @@ export default function DailyLaborTab({
                           {/* Act % */}
                           <div className="text-white text-right flex-1">{day.actualLaborPercent.toFixed(1)}%</div>
 
-                          {/* Opt % */}
-                          <div className="text-slate-400 text-right flex-1">{day.optimalLaborPercent.toFixed(1)}%</div>
+                          {/* Sch % */}
+                          <div className="text-slate-400 text-right flex-1">{day.scheduledLaborPercent.toFixed(1)}%</div>
                           </div>
                         </div>
                       );

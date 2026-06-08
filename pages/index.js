@@ -581,6 +581,8 @@ try {
       scheduledHours: parseFloat(row[5]) || 0,
       actualLaborPercent: parseFloat(row[6]) || 0,
       optimalLaborPercent: parseFloat(row[7]) || 0,
+      // Scheduled labor %: scheduled hrs × cost/hr ÷ sales (same basis as optimal labor %); col 9 = Labor Cost Per Hour
+      scheduledLaborPercent: (parseFloat(row[2]) || 0) > 0 ? ((parseFloat(row[5]) || 0) * (parseFloat(row[9]) || 0) / (parseFloat(row[2]) || 0)) * 100 : 0,
       laborPercentVariance: parseFloat(row[8]) || 0
     });
   });
