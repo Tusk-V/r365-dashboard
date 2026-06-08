@@ -326,19 +326,19 @@ export default function WeeklySalesTab({
                     <p className="text-slate-400 text-xs font-semibold mb-1 md:mb-2">LABOR</p>
                     <div className="space-y-0.5 md:space-y-1">
                       <div className="flex justify-between items-center">
-                        <span className="text-slate-500 text-xs">Labor %</span>
+                        <span className="text-slate-500 text-xs">Act %</span>
                         <span className="font-bold text-xs text-white">
                           {loc.laborPercent.toFixed(1)}%
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-slate-500 text-xs">Opt %</span>
-                        <span className="text-white font-semibold text-xs">{loc.optimalLaborPercent.toFixed(1)}%</span>
+                        <span className="text-slate-500 text-xs">Sch %</span>
+                        <span className="text-white font-semibold text-xs">{loc.scheduledLaborPercent.toFixed(1)}%</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500 text-xs">Variance</span>
-                        <span className={`font-bold text-xs ${loc.laborVariance > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                          {loc.laborVariance > 0 ? '+' : ''}{loc.laborVariance.toFixed(1)}%
+                        <span className={`font-bold text-xs ${loc.scheduledLaborVariance > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                          {loc.scheduledLaborVariance > 0 ? '+' : ''}{loc.scheduledLaborVariance.toFixed(1)}%
                         </span>
                       </div>
                     </div>
