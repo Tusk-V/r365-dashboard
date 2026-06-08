@@ -193,8 +193,8 @@ export default function DailyLaborTab({
                             <td className="text-right p-2 text-slate-300">{day.optimalHours.toFixed(1)}</td>
                             <td className="text-right p-2 text-white font-semibold">{day.actualLaborPercent.toFixed(1)}%</td>
                             <td className="text-right p-2 text-slate-300">{day.scheduledLaborPercent.toFixed(1)}%</td>
-                            <td className={`text-right p-2 font-semibold ${day.laborPercentVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                              {day.laborPercentVariance >= 0 ? '+' : ''}{day.laborPercentVariance.toFixed(1)}%
+                            <td className={`text-right p-2 font-semibold ${day.scheduledLaborPercentVariance >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                              {day.scheduledLaborPercentVariance >= 0 ? '+' : ''}{day.scheduledLaborPercentVariance.toFixed(1)}%
                             </td>
                           </tr>
                         );
