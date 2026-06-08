@@ -232,6 +232,10 @@ export const authOptions = {
   },
   session: {
     strategy: "database",
+    // Keep people signed in for a long time (esp. installed PWA users who
+    // expect it to behave like an app). Default was 30 days.
+    maxAge: 90 * 24 * 60 * 60, // 90 days
+    updateAge: 24 * 60 * 60,   // slide the expiry forward at most once a day
   },
 };
 
