@@ -152,7 +152,7 @@ export default function MessageItem({ message, userEmail, canModerate, showHeade
                   key={emoji}
                   onClick={(e) => { stop(e); onReact(message._id, emoji); }}
                   className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs ${users.includes(userEmail) ? 'bg-blue-600/30 border border-blue-500' : 'bg-slate-800/80 hairline hover:border-slate-500'}`}
-                  title={users.join(', ')}
+                  title={users.map(e => (message.reactionNames && message.reactionNames[e]) || e).join(', ')}
                 >
                   <span>{emoji}</span><span className="text-slate-300">{users.length}</span>
                 </button>

@@ -46,7 +46,19 @@ export default async function handler(req, res) {
       { _id: new ObjectId(messageId) },
       { $set: { reactions, updatedAt: new Date() } }
     );
-    return res.status(200).json({ reactions });
+
+    // Resolve reactor emails -> display names so tooltips show names, not emails.
+    const emails = new Set();
+    for (const k in reactions) (reactions[k] || []).forEach(e => emails.add(e));
+    const reactionNames = {};
+    if (emails.size) {
+      const reactors = await db.collection('users')
+        .find({ email: { $in: [...emails] } }, { projection: { email: 1, name: 1 } }).toArray();
+      const m = {};
+      reactors.forEach(u => { if (u.email) m[u.email] = u.name || u.email; });
+      for (const k in reactions) (reactions[k] || []).forEach(e => { reactionNames[e] = m[e] || e; });
+    }
+    return res.status(200).json({ reactions, reactionNames });
   } catch (error) {
     console.error('Error toggling reaction:', error);
     return res.status(500).json({ error: 'Failed to toggle reaction' });
