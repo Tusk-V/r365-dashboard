@@ -18,6 +18,29 @@ async function ensureIndexes(db) {
   indexesEnsured = true;
 }
 
+// Resolve the set of reactor emails across the given docs to display names
+// (from the users collection), so reaction tooltips show names, not emails.
+async function reactionNameMap(db, docs) {
+  const emails = new Set();
+  for (const m of docs) {
+    const r = m.reactions || {};
+    for (const k in r) (r[k] || []).forEach(e => emails.add(e));
+  }
+  if (!emails.size) return {};
+  const users = await db.collection('users')
+    .find({ email: { $in: [...emails] } }, { projection: { email: 1, name: 1 } })
+    .toArray();
+  const map = {};
+  users.forEach(u => { if (u.email) map[u.email] = u.name || u.email; });
+  return map;
+}
+function pickReactionNames(reactions, map) {
+  const out = {};
+  const r = reactions || {};
+  for (const k in r) (r[k] || []).forEach(e => { out[e] = map[e] || e; });
+  return out;
+}
+
 async function loadContext(req, res) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) { res.status(401).json({ error: 'Unauthorized' }); return null; }
@@ -80,25 +103,29 @@ export default async function handler(req, res) {
       // drops anything now flagged deleted.
       if (since) {
         const changed = await db.collection('chat_messages')
-          .find({ channelKey: channel, updatedAt: { $gt: new Date(since) } })
+          .find({ channelKey: channel, source: { $ne: 'hugh-scoop' }, updatedAt: { $gt: new Date(since) } })
           .sort({ updatedAt: 1 }).limit(200).toArray();
+        const nameMap = await reactionNameMap(db, changed);
         return res.status(200).json({
-          messages: changed.map(ser),
+          messages: changed.map(m => ({ ...ser(m), reactionNames: pickReactionNames(m.reactions, nameMap) })),
           pinned: pinned.map(ser),
           watermark: watermarkOf(changed) || since,
         });
       }
 
-      // Initial load (and legacy createdAt-cursor poll) — non-deleted only.
-      const baseQuery = { channelKey: channel, deleted: { $ne: true } };
+      // Initial load (and legacy createdAt-cursor poll) — non-deleted only, and
+      // never the Hugh's Scoop daily card (it lives only in the pinned strip).
+      const baseQuery = { channelKey: channel, deleted: { $ne: true }, source: { $ne: 'hugh-scoop' } };
 
       // Scroll-up pagination: the page of messages older than the given cursor.
       if (before) {
         const older = await db.collection('chat_messages')
           .find({ ...baseQuery, createdAt: { $lt: new Date(before) } })
           .sort({ createdAt: -1 }).limit(PAGE_SIZE).toArray();
+        const reversed = older.reverse();
+        const nameMap = await reactionNameMap(db, reversed);
         return res.status(200).json({
-          messages: older.reverse().map(ser),
+          messages: reversed.map(m => ({ ...ser(m), reactionNames: pickReactionNames(m.reactions, nameMap) })),
           pinned: pinned.map(ser),
           hasMore: older.length === PAGE_SIZE,
         });
@@ -115,8 +142,9 @@ export default async function handler(req, res) {
         messages = latest.reverse();
       }
 
+      const nameMap = await reactionNameMap(db, messages);
       return res.status(200).json({
-        messages: messages.map(ser),
+        messages: messages.map(m => ({ ...ser(m), reactionNames: pickReactionNames(m.reactions, nameMap) })),
         pinned: pinned.map(ser),
         watermark: watermarkOf(messages),
         // Only meaningful on the initial load: are there older messages to page back to?

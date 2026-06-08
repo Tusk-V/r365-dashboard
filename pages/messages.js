@@ -267,7 +267,7 @@ export default function MessagesPage() {
         body: JSON.stringify({ messageId, emoji }),
       });
       const data = await res.json();
-      if (res.ok) setMessages(prev => prev.map(m => m._id === messageId ? { ...m, reactions: data.reactions } : m));
+      if (res.ok) setMessages(prev => prev.map(m => m._id === messageId ? { ...m, reactions: data.reactions, reactionNames: data.reactionNames || m.reactionNames } : m));
     } catch (_) {}
   };
 

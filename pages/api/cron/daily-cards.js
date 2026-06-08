@@ -54,26 +54,35 @@ export default async function handler(req, res) {
 
     const ts = new Date();
     const keys = cards.map((c) => c.channelKey);
-    // Keep exactly one pinned Hugh's Scoop card per channel: unpin prior ones.
+    // ONE auto-updating pinned card per channel. Clear pins on any prior cards,
+    // then upsert the current card IN PLACE — so it only ever shows as the pinned
+    // announcement at the top, never as a new message in the stream each day.
     await db.collection('chat_messages').updateMany(
-      { source: 'hugh-scoop', pinned: true, channelKey: { $in: keys } },
+      { source: 'hugh-scoop', channelKey: { $in: keys } },
       { $set: { pinned: false } }
     );
-    const docs = cards.map((c) => ({
-      channelKey: c.channelKey,
-      body: c.body,
-      filtered: false,
-      authorEmail: 'hughsscoop@rancherscustard.com',
-      authorName: "Hugh's Scoop",
-      authorImage: '/apple-touch-icon.png',
-      authorRole: null,
-      createdAt: ts, updatedAt: ts, editedAt: null,
-      isAnnouncement: true, priority: 'normal', pinned: true,
-      reactions: {}, deleted: false,
-      source: 'hugh-scoop', metricsDate: targetDate,
-    }));
-    await db.collection('chat_messages').insertMany(docs);
-    return res.status(200).json({ posted: docs.length, metricsDate: targetDate });
+    for (const c of cards) {
+      await db.collection('chat_messages').updateOne(
+        { source: 'hugh-scoop', channelKey: c.channelKey },
+        {
+          $set: {
+            body: c.body,
+            filtered: false,
+            authorEmail: 'hughsscoop@rancherscustard.com',
+            authorName: "Hugh's Scoop",
+            authorImage: '/apple-touch-icon.png',
+            authorRole: null,
+            updatedAt: ts, editedAt: null,
+            isAnnouncement: true, priority: 'normal', pinned: true,
+            reactions: {}, deleted: false,
+            metricsDate: targetDate,
+          },
+          $setOnInsert: { createdAt: ts },
+        },
+        { upsert: true }
+      );
+    }
+    return res.status(200).json({ posted: cards.length, metricsDate: targetDate });
   } catch (e) {
     console.error('daily-cards error', e);
     return res.status(500).json({ error: 'Failed to post daily cards' });
