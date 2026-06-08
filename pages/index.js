@@ -573,6 +573,8 @@ try {
     // 8: Labor % Variance
     // 9: Labor Cost Per Hour
     
+    // Scheduled labor %: scheduled hrs × cost/hr ÷ sales (same basis as optimal labor %); col 9 = Labor Cost Per Hour
+    const schLaborPct = (parseFloat(row[2]) || 0) > 0 ? ((parseFloat(row[5]) || 0) * (parseFloat(row[9]) || 0) / (parseFloat(row[2]) || 0)) * 100 : 0;
     groupedByLocation[location].push({
       date: row[0] || '',
       sales: parseFloat(row[2]) || 0,
@@ -581,7 +583,9 @@ try {
       scheduledHours: parseFloat(row[5]) || 0,
       actualLaborPercent: parseFloat(row[6]) || 0,
       optimalLaborPercent: parseFloat(row[7]) || 0,
-      laborPercentVariance: parseFloat(row[8]) || 0
+      scheduledLaborPercent: schLaborPct,
+      laborPercentVariance: parseFloat(row[8]) || 0,  // Act% - Opt% (drives the optimal-based grade)
+      scheduledLaborPercentVariance: (parseFloat(row[6]) || 0) - schLaborPct  // Act% - Sch% (shown in the % Var column)
     });
   });
   
