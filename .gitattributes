@@ -1,0 +1,3 @@
+# clasp pull writes CRLF line endings; normalize so pulls don't show
+# phantom diffs on every backend sync
+apps-script/** text eol=lf
