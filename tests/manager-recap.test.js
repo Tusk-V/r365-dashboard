@@ -80,6 +80,31 @@ test('buildManagerPrompt: neutral greeting when no name', () => {
   assert.ok(!p.includes('Hi ,'));
 });
 
+test('managerFallback drops the canned labor question and varies it across stores', () => {
+  const facts = [
+    { store: 'Bixby', sales: '$1,000', vsForecast: '-4.8%', hrsVsScheduled: '+6.0 hrs vs scheduled' },
+    { store: 'Owasso', sales: '$900', vsForecast: '-5.2%', hrsVsScheduled: '+8.0 hrs vs scheduled' },
+  ];
+  const body = m.managerFallback('Jane', facts);
+  assert.ok(body.startsWith('Jane,'));
+  assert.ok(body.endsWith('Thanks,'));
+  assert.ok(!body.includes('What happened with the labor'));
+  const bixbyLine = body.split('\n').find((l) => l.includes('At Bixby, we'));
+  const owassoLine = body.split('\n').find((l) => l.includes('At Owasso, we'));
+  assert.ok(bixbyLine && owassoLine);
+  // the closing question differs between the two stores
+  assert.notEqual(bixbyLine.split('). ').pop(), owassoLine.split('). ').pop());
+});
+
+test('managerFallback single store speaks about the day directly, neutral greeting', () => {
+  const body = m.managerFallback('', [
+    { store: 'Yale', sales: '$800', vsForecast: '-6.0%', hrsVsScheduled: '+5.0 hrs vs scheduled' },
+  ]);
+  assert.ok(body.startsWith('Hi,'));
+  assert.ok(body.includes('We came in under forecast'));
+  assert.ok(!body.includes('At Yale'));
+});
+
 test('buildLocationRecipientMap inverts roster, dedupes, sorts, and flags unassigned data locations', () => {
   const managers = [
     { name: 'Jane Doe', email: 'jane@r.com', locations: ['Bixby', 'Owasso'] },

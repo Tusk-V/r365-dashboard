@@ -22,8 +22,8 @@
 // EDITING RECIPIENTS (no code change / no clasp push needed):
 //   - Who GETS a recap: manage in the app's admin/users screen (dashboard access).
 //   - Who is CC'd:       edit the MANAGER_RECAP_CC Script Property.
-//   - Draft vs auto-send: MANAGER_RECAP_AUTOSEND Script Property — 'true' sends
-//     automatically; unset/anything else creates drafts for manual review.
+//   - Auto-send vs drafts: MANAGER_RECAP_AUTOSEND Script Property — set 'false'
+//     to switch back to drafts for manual review; unset/anything else auto-sends.
 // ============================================================================
 
 var RECAP_CONFIG = {
@@ -31,7 +31,8 @@ var RECAP_CONFIG = {
   SEND_HOUR:       7,
   SEND_MINUTE:     15,
   LOG_SHEET:       'Manager Recap Log',
-  // Always CC'd on recap drafts. Override with the MANAGER_RECAP_CC Script Property.
+  SUBJECT:         'Quick question on yesterday',
+  // Always CC'd on every recap. Override with the MANAGER_RECAP_CC Script Property.
   CC_DEFAULT:      'josh@rancherscustard.com,eric@rancherscustard.com,kandacegiles@rancherscustard.com',
   // The owner/sender is never a recipient (guards against accidental self-adds).
   OWNER_EMAIL:     'dalton@rancherscustard.com',
@@ -108,18 +109,23 @@ function buildManagerPrompt(firstName, storeFactsList) {
   var greeting = (firstName ? firstName : 'Hi') + ',';
 
   var prompt =
-    'Write a short, casual check-in email from the owner to a store manager about YESTERDAY. '
-    + 'Each store listed came in under its sales forecast and ran over its scheduled labor hours. '
-    + 'You just want a quick gut-check on what happened with the labor when sales were running soft.\n\n'
+    'Write a short, casual morning note from the owner to one of his store managers about YESTERDAY. '
+    + 'Each store listed came in under its sales forecast and still used more labor hours than were scheduled. '
+    + 'The owner is curious, not annoyed: he wants the story behind the extra hours, and he wants the manager to actually reply.\n\n'
+    + 'VOICE EXAMPLES (match the feel; never copy the wording, it has to read different every day):\n'
+    + '- "Sales came in a little light yesterday but we still used about 6 more hours than we\'d scheduled. What did the night look like from your end?"\n'
+    + '- "At Owasso we missed forecast by around 5% and ran 8 hours over. Was there a point where we could\'ve started cutting people?"\n\n'
     + 'RULES:\n'
     + '- Start with exactly: "' + greeting + '"\n'
-    + '- Tone: casual, friendly, and direct — like a quick note from the owner, not a corporate memo. Use plain language and contractions. Never stiff or accusatory, and no filler or praise.\n'
-    + '- For each store: one quick sentence with the sales-vs-forecast and the hours over scheduled, then a short, plain question asking what happened with the labor.\n'
+    + '- Write like a person, not a report: short sentences, contractions, everyday words. Friendly and direct, never stiff or accusatory, no filler or praise.\n'
+    + '- For each store: work the numbers in naturally (roughly how far under forecast, how many hours over schedule), then ask ONE real question about the labor. Pick whichever angle fits the numbers best: what kept the hours on, whether the slow day was visible early enough to cut, whether cuts were possible with the crew they had, or what the shift actually looked like.\n'
+    + '- BANNED: "what happened with the labor", "why did you go over", any form of "trending", and saying the same fact twice in different words. With multiple stores, never reuse a sentence shape or question.\n'
     + '- Keep it tight: one or two sentences per store, max.\n'
-    + '- Use only the numbers in the data; never invent figures.\n'
+    + '- Use only the numbers in the data; never invent figures. Rounding them off is fine.\n'
+    + '- No dashes as punctuation.\n'
     + '- Do not begin with a store-name label or the store name. If there is only one store, write about the day directly. If there are multiple stores, identify each store naturally within its sentence (e.g. "At Bixby, ..."), never as a leading label.\n'
     + '- No grades, no labor rates, no internal flag names. No subject line or title.\n'
-    + '- End the entire email with a final line that says exactly: "Thanks," (nothing after it — no name, no signature).\n\n'
+    + '- End the entire email with a final line that says exactly: "Thanks," (nothing after it: no name, no signature).\n\n'
     + 'Data:\n' + JSON.stringify({ stores: storeFactsList }, null, 2);
 
   return prompt;
@@ -228,19 +234,25 @@ function writeManagerNarrative(firstName, storeFactsList) {
   return managerFallback(firstName, storeFactsList);
 }
 
+// Plain-prose fallback when the Claude API is down. Rotates the question so
+// multi-store emails (and back-to-back mornings) don't read like a form letter.
 function managerFallback(firstName, storeFactsList) {
   var greeting = (firstName ? firstName : 'Hi') + ',';
+  var questions = [
+    'What did the day look like from your end?',
+    'Was there a chance to start cutting people earlier?',
+    'What kept the hours on?'
+  ];
   var parts = [greeting, ''];
-  storeFactsList.forEach(function(s) {
+  storeFactsList.forEach(function(s, i) {
     var bits = [];
     if (s.sales)          bits.push(s.sales);
     if (s.vsForecast)     bits.push(s.vsForecast + ' vs forecast');
     if (s.hrsVsScheduled) bits.push(s.hrsVsScheduled);
     var stats = bits.length ? ' (' + bits.join(', ') + ')' : '';
-    var lead = storeFactsList.length > 1 ? 'At ' + s.store + ', sales' : 'Sales';
-    var line = lead + ' came in under forecast but hours ran over' + stats
-      + '. What happened with the labor?';
-    parts.push(line, '');
+    var lead = storeFactsList.length > 1 ? 'At ' + s.store + ', we' : 'We';
+    parts.push(lead + ' came in under forecast yesterday and still ran over on hours' + stats
+      + '. ' + questions[i % questions.length], '');
   });
   parts.push('Thanks,');
   return parts.join('\n').trim();
@@ -317,11 +329,11 @@ function createManagerRecapDrafts() {
       PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_CC') || RECAP_CONFIG.CC_DEFAULT
     ).filter(function(addr) { return addr.toLowerCase() !== RECAP_CONFIG.OWNER_EMAIL; }).join(',');
     var sigHtml = getOwnerSignatureHtml();
-    // MANAGER_RECAP_AUTOSEND Script Property: 'true' = send automatically,
-    // anything else (incl. unset) = create drafts for manual review/send.
+    // MANAGER_RECAP_AUTOSEND Script Property: 'false' = create drafts for manual
+    // review; anything else (incl. unset) = send automatically each morning.
     var autoSend = String(
       PropertiesService.getScriptProperties().getProperty('MANAGER_RECAP_AUTOSEND') || ''
-    ).trim().toLowerCase() === 'true';
+    ).trim().toLowerCase() !== 'false';
 
     var handled = 0;
     groups.forEach(function(g) {
@@ -340,9 +352,9 @@ function createManagerRecapDrafts() {
         var opts = { htmlBody: html };
         if (ccStr) opts.cc = ccStr;
         if (autoSend) {
-          GmailApp.sendEmail(g.email, 'Yesterday — labor over schedule', '', opts);
+          GmailApp.sendEmail(g.email, RECAP_CONFIG.SUBJECT, '', opts);
         } else {
-          GmailApp.createDraft(g.email, 'Yesterday — labor over schedule', '', opts);
+          GmailApp.createDraft(g.email, RECAP_CONFIG.SUBJECT, '', opts);
         }
       } catch (e) {
         status = 'Failed: ' + e.toString();
@@ -375,7 +387,7 @@ function setupManagerRecapTrigger() {
   ScriptApp.newTrigger('createManagerRecapDrafts')
     .timeBased().atHour(RECAP_CONFIG.SEND_HOUR).nearMinute(RECAP_CONFIG.SEND_MINUTE).everyDays(1)
     .inTimezone('America/Chicago').create();
-  Logger.log('Manager recap trigger set: ~' + RECAP_CONFIG.SEND_HOUR + ':' + ('0' + RECAP_CONFIG.SEND_MINUTE).slice(-2) + ' Central daily (drafts).');
+  Logger.log('Manager recap trigger set: ~' + RECAP_CONFIG.SEND_HOUR + ':' + ('0' + RECAP_CONFIG.SEND_MINUTE).slice(-2) + ' Central daily.');
 }
 
 // Preview the entire batch as Gmail drafts addressed to dalton — no real manager
@@ -414,7 +426,7 @@ function testManagerRecaps() {
       var html  = buildManagerRecapHtml(body, sigHtml);
       var topts = { htmlBody: html };
       if (ccStr) topts.cc = ccStr;
-      GmailApp.createDraft(g.email, '[TEST] Yesterday — labor over schedule', '', topts);
+      GmailApp.createDraft(g.email, '[TEST] ' + RECAP_CONFIG.SUBJECT, '', topts);
       previewed++;
       logManagerRecap(ss, {
         date:   yesterday,
